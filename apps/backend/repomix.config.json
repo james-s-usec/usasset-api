@@ -1,0 +1,31 @@
+{
+  "output": {
+    "filePath": "./repomix-backend-output.xml"
+  },
+  "include": [
+    "src/**/*",
+    "prisma/**/*",
+    "*.json",
+    "*.md",
+    "Dockerfile",
+    "*.config.*",
+    "*.ts",
+    "*.js"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "dist/**",
+      "node_modules/**",
+      "*.log",
+      "*.lock",
+      "test/**",
+      "*.spec.ts",
+      "*.e2e-spec.ts"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}

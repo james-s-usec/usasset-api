@@ -1,0 +1,32 @@
+{
+  "output": {
+    "filePath": "./repomix-frontend-output.xml"
+  },
+  "include": [
+    "src/**/*",
+    "public/**/*",
+    "*.json",
+    "*.md",
+    "*.html",
+    "Dockerfile",
+    "*.config.*",
+    "*.ts",
+    "*.tsx",
+    "*.js",
+    "*.jsx",
+    "*.css"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "dist/**",
+      "node_modules/**",
+      "*.log",
+      "*.lock"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}

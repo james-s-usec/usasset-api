@@ -1,0 +1,12 @@
+{
+  "name": "usasset-api",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "repomix": "./generate-repomix.sh",
+    "repomix:backend": "cd apps/backend && npx repomix",
+    "repomix:frontend": "cd apps/frontend && npx repomix"
+  }
+}
