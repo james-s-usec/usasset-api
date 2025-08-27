@@ -5,12 +5,33 @@
 
 set -e
 
+# Get script directory and use absolute paths
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
+# Logging setup
+LOG_DIR="/home/swansonj/projects/USAsset3/.logs"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FILE="$LOG_DIR/local-dev_$TIMESTAMP.log"
+mkdir -p "$LOG_DIR"
+
+# Function to log with timestamp
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+# Capture all output to log file while still showing on screen
+exec > >(tee -a "$LOG_FILE")
+exec 2>&1
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+log_message "Starting local development script - User: $(whoami) - Directory: $(pwd)"
 
 echo -e "${BLUE}🐳 USAsset Local Docker Development${NC}"
 echo "===================================="
@@ -27,7 +48,7 @@ read -p "Enter choice (1-7): " choice
 case $choice in
   1)
     echo -e "${BLUE}🚀 Starting full stack...${NC}"
-    docker-compose up -d
+    docker-compose up -d 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Full stack running!${NC}"
     echo "  Frontend: http://localhost"
     echo "  Backend:  http://localhost:3000"
@@ -36,7 +57,7 @@ case $choice in
     
   2)
     echo -e "${BLUE}🗄️  Starting PostgreSQL only...${NC}"
-    docker-compose -f docker-compose.dev.yml up -d
+    docker-compose -f docker-compose.dev.yml up -d 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Database running!${NC}"
     echo "  Connection: postgresql://dbadmin:localpassword123@localhost:5432/usasset"
     echo ""
@@ -47,8 +68,8 @@ case $choice in
     
   3)
     echo -e "${BLUE}🛑 Stopping all containers...${NC}"
-    docker-compose down
-    docker-compose -f docker-compose.dev.yml down
+    docker-compose down 2>&1 | tee -a "$LOG_FILE"
+    docker-compose -f docker-compose.dev.yml down 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ All containers stopped!${NC}"
     ;;
     
@@ -109,3 +130,6 @@ case $choice in
     exit 1
     ;;
 esac
+log_message "Script completed - Choice: $choice"
+echo -e "
+📄 Log saved to: $LOG_FILE"

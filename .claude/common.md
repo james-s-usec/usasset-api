@@ -4,6 +4,8 @@
 
 DO NOT USE CAT
 
+** its good practice to return something when using sed to confirm it worked. **
+
 ## BEFORE Creating Files/Folders
 **Ask yourself:**
 - Is there a template/generator? `nest g module auth` > manual creation
