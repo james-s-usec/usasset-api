@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 
 export const configFactory = () => {
   const logger = new Logger('ConfigFactory');
-  
+
   const config = {
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: parseInt(process.env.PORT || '3000', 10),

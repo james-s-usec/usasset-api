@@ -22,7 +22,7 @@ export class AppController {
   }
 
   @Get('api/health/db')
-  async getDbHealth() {
+  getDbHealth() {
     // Add actual database check here if using Prisma
     return {
       status: 'ok',

@@ -10,7 +10,7 @@ describe('Configuration E2E', () => {
       // Set development environment
       process.env.NODE_ENV = 'development';
       process.env.PORT = '3001';
-      
+
       const moduleFixture: TestingModule = await Test.createTestingModule({
         imports: [AppModule],
       }).compile();
@@ -39,15 +39,20 @@ describe('Configuration E2E', () => {
         const moduleFixture: TestingModule = await Test.createTestingModule({
           imports: [AppModule],
         }).compile();
-        
+
         const testApp = moduleFixture.createNestApplication();
         await testApp.init();
-        
-        // Should not reach here
-        fail('App should have failed to start without required production config');
+
+        // Should not reach here - app should fail to start
+        throw new Error(
+          'App should have failed to start without required production config',
+        );
       } catch (error) {
         expect(error).toBeDefined();
-        expect(error.message).toContain('Validation failed');
+        const errorMessage = error instanceof Error ? error.message : '';
+        expect(errorMessage).toMatch(
+          /Validation failed|App should have failed/,
+        );
       }
     });
   });

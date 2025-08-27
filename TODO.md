@@ -8,14 +8,32 @@
 - [ ] Implement command structure:
   - [ ] `usasset deploy` - Azure deployment options (backend/frontend/both)
   - [ ] `usasset dev` - Local development options (start/stop/logs)
-  - [ ] `usasset test` - Testing utilities (health/e2e/unit)
+  - [ ] `usasset test` - Run tests with output to logs:
+    - `usasset test unit` - Unit tests (Jest)
+    - `usasset test e2e` - E2E tests
+    - `usasset test health` - Health check tests
+    - `usasset test coverage` - Test coverage report
+    - `usasset test watch` - Watch mode for TDD
   - [ ] `usasset db` - Database operations (migrate/seed/connect)
-  - [ ] `usasset logs` - View various log files
+  - [ ] `usasset logs` - View/tail various log files:
+    - `usasset logs azure` - Latest Azure deployment log
+    - `usasset logs dev` - Latest local dev log
+    - `usasset logs test` - Latest test run log
+    - `usasset logs clean` - Clean old log files
+  - [ ] `usasset lint` - Run linting with log output (backend/frontend/both/fix)
+  - [ ] `usasset build` - Build projects with log output (backend/frontend/both/docker)
+  - [ ] `usasset typecheck` - Run TypeScript type checking with log output
+  - [ ] `usasset format` - Run code formatting (prettier)
+  - [ ] `usasset clean` - Clean build artifacts and node_modules
+  - [ ] `usasset install` - Install dependencies (npm/specific packages)
   - [ ] `usasset help` - Show all available commands
+- [ ] All commands output to timestamped log files in `.logs/`
+- [ ] Add `--verbose` flag for detailed output
+- [ ] Add `--no-log` flag to skip logging
 - [ ] Add interactive menu when no command provided
 - [ ] Color-coded output and progress indicators
 - [ ] Automatic path resolution (works from any directory)
-- [ ] Command aliases for common operations
+- [ ] Command aliases for common operations (e.g., `usasset l` for lint, `usasset t` for test)
 - [ ] Tab completion support (optional)
 - [ ] Update all documentation to use new CLI
 

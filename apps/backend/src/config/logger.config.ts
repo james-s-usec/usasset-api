@@ -6,7 +6,7 @@ const logDir = join(process.cwd(), 'logs');
 
 export const createLoggerConfig = () => {
   const isDevelopment = process.env.NODE_ENV !== 'production';
-  
+
   const transports: winston.transport[] = [
     // Console transport
     new winston.transports.Console({

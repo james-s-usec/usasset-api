@@ -1,5 +1,14 @@
 import { validationSchema } from './env.validation';
 
+interface ValidatedConfig {
+  NODE_ENV: string;
+  PORT: number;
+  CORS_ORIGIN: string;
+  DATABASE_URL?: string;
+  JWT_SECRET?: string;
+  API_KEY?: string;
+}
+
 describe('Environment Validation', () => {
   describe('Development Environment', () => {
     it('should validate development config', () => {
@@ -8,7 +17,7 @@ describe('Environment Validation', () => {
         PORT: 3000,
         CORS_ORIGIN: 'http://localhost:5173',
       };
-      
+
       const { error } = validationSchema.validate(config);
       expect(error).toBeUndefined();
     });
@@ -23,7 +32,7 @@ describe('Environment Validation', () => {
         CORS_ORIGIN: 'https://frontend.azurecontainerapps.io',
         JWT_SECRET: 'from-key-vault',
       };
-      
+
       const { error } = validationSchema.validate(config);
       expect(error).toBeUndefined();
     });
@@ -33,15 +42,16 @@ describe('Environment Validation', () => {
       const config = {
         NODE_ENV: 'production',
         PORT: '8080', // Azure provides PORT as string
-        DATABASE_URL: 'postgresql://dbadmin@usasset-db-yf2eqktewmxp2.postgres.database.azure.com/usasset?sslmode=require',
+        DATABASE_URL:
+          'postgresql://dbadmin@usasset-db-yf2eqktewmxp2.postgres.database.azure.com/usasset?sslmode=require',
         CORS_ORIGIN: 'https://frontend-yf2eqktewmxp2.azurecontainerapps.io',
         JWT_SECRET: 'secretref:jwt-secret', // Key Vault reference
         API_KEY: 'secretref:api-key', // Key Vault reference
       };
-      
-      const { error, value } = validationSchema.validate(config);
-      expect(error).toBeUndefined();
-      expect(value.PORT).toBe(8080); // Should convert string to number
+
+      const result = validationSchema.validate(config);
+      expect(result.error).toBeUndefined();
+      expect((result.value as ValidatedConfig).PORT).toBe(8080); // Should convert string to number
     });
 
     it('should fail without DATABASE_URL in production', () => {
@@ -49,7 +59,7 @@ describe('Environment Validation', () => {
         NODE_ENV: 'production',
         JWT_SECRET: 'secret',
       };
-      
+
       const { error } = validationSchema.validate(config);
       expect(error).toBeDefined();
       expect(error?.message).toContain('DATABASE_URL');
@@ -60,7 +70,7 @@ describe('Environment Validation', () => {
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://server/db',
       };
-      
+
       const { error } = validationSchema.validate(config);
       expect(error).toBeDefined();
       expect(error?.message).toContain('JWT_SECRET');
