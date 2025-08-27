@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: usasset-postgres
+    environment:
+      POSTGRES_USER: dbadmin
+      POSTGRES_PASSWORD: localpassword123
+      POSTGRES_DB: usasset
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbadmin -d usasset"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: usasset-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://dbadmin:localpassword123@postgres:5432/usasset
+      NODE_ENV: development
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/backend:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  # Frontend
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: usasset-frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:3000
+    ports:
+      - "80:80"
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

@@ -160,8 +160,115 @@ az postgres flexible-server firewall-rule create \
 
 ## Development Workflow
 
-### Local Development Setup
+### Local Development Setup Guide
+
+#### Prerequisites
+- Docker Desktop installed and running
+- Node.js 20+ installed
+- npm or yarn installed
+- Git configured
+
+#### Quick Start (First Time Setup)
 ```bash
+# Clone repository
+git clone <repository-url>
+cd USAsset3
+
+# Use the interactive local development script
+./local-dev.sh
+# Choose option 2 (Database only) for best development experience
+
+# Install backend dependencies
+cd apps/backend
+npm install
+cp .env.example .env  # Configure DATABASE_URL
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+cp .env.example .env  # Configure VITE_API_URL
+
+# Run database migrations
+cd ../backend
+npx prisma generate
+npx prisma migrate dev
+
+# Start development servers
+npm run start:dev  # Terminal 1 - Backend (http://localhost:3000)
+cd ../frontend
+npm run dev        # Terminal 2 - Frontend (http://localhost:5173)
+```
+
+#### Option 1: Docker Compose (Full Stack)
+**Best for:** Testing production-like environment
+```bash
+# Start everything
+docker-compose up -d
+
+# Access points:
+# - Frontend: http://localhost (nginx)
+# - Backend API: http://localhost:3000
+# - PostgreSQL: localhost:5432
+# - Database: usasset
+# - User: dbadmin
+# - Password: localpassword123
+
+# View logs
+docker-compose logs -f          # All logs
+docker-compose logs -f backend   # Backend only
+docker-compose logs -f frontend  # Frontend only
+docker-compose logs -f postgres  # Database only
+
+# Restart a service
+docker-compose restart backend
+
+# Stop everything
+docker-compose down
+
+# Reset everything (including database)
+docker-compose down -v
+```
+
+#### Option 2: Hybrid Development (RECOMMENDED)
+**Best for:** Active development with hot reload
+```bash
+# Start only PostgreSQL in Docker
+docker-compose -f docker-compose.dev.yml up -d
+
+# Or use the helper script
+./local-dev.sh  # Choose option 2
+
+# Backend with hot reload (Terminal 1)
+cd apps/backend
+npm install
+npm run start:dev  # http://localhost:3000
+
+# Frontend with hot reload (Terminal 2)
+cd apps/frontend
+npm install
+npm run dev        # http://localhost:5173
+
+# Database connection for .env
+DATABASE_URL=postgresql://dbadmin:localpassword123@localhost:5432/usasset
+```
+
+#### Option 3: Pure Local (No Docker)
+**Best for:** Minimal resource usage
+```bash
+# Option A: Connect to Azure PostgreSQL
+# Get connection string from KeyVault
+az keyvault secret show \
+  --vault-name usasset-kv-yf2eqktewmxp2 \
+  --name database-connection-string \
+  --query value -o tsv
+
+# Option B: Install PostgreSQL locally
+# Ubuntu/WSL
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo -u postgres createuser dbadmin
+sudo -u postgres createdb usasset
+
 # Backend
 cd apps/backend
 npm install
@@ -171,6 +278,111 @@ npm run start:dev  # http://localhost:3000
 cd apps/frontend
 npm install
 npm run dev        # http://localhost:5173
+```
+
+### Local Development Helper Scripts
+
+#### Using local-dev.sh
+```bash
+./local-dev.sh
+
+# Menu options:
+# 1) Start full stack - All services in Docker
+# 2) Start database only - Best for development
+# 3) Stop all containers
+# 4) View logs
+# 5) Reset database - Wipes all data
+# 6) Run Prisma migrations
+# 7) Connect to database (psql)
+```
+
+### Common Local Development Tasks
+
+#### Database Management
+```bash
+# Connect to local database
+docker exec -it usasset-postgres-dev psql -U dbadmin -d usasset
+
+# Run migrations
+cd apps/backend
+npx prisma migrate dev --name your_migration_name
+
+# Reset database
+npx prisma migrate reset
+
+# Seed database
+npx prisma db seed
+
+# View database in Prisma Studio
+npx prisma studio  # Opens at http://localhost:5555
+```
+
+#### Environment Variables
+
+**Backend (.env)**
+```env
+# Local development
+DATABASE_URL=postgresql://dbadmin:localpassword123@localhost:5432/usasset
+NODE_ENV=development
+PORT=3000
+
+# Optional
+JWT_SECRET=your-secret-key
+CORS_ORIGIN=http://localhost:5173
+```
+
+**Frontend (.env)**
+```env
+# Local development
+VITE_API_URL=http://localhost:3000
+
+# Production (for testing)
+# VITE_API_URL=https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io
+```
+
+### Troubleshooting Local Development
+
+#### Port Already in Use
+```bash
+# Find what's using port 3000
+lsof -i :3000  # Mac/Linux
+netstat -ano | findstr :3000  # Windows
+
+# Kill process
+kill -9 <PID>  # Mac/Linux
+taskkill /PID <PID> /F  # Windows
+```
+
+#### Docker Issues
+```bash
+# Clean up Docker
+docker system prune -a
+docker volume prune
+
+# Restart Docker Desktop
+# Then try again
+```
+
+#### Database Connection Failed
+```bash
+# Check if PostgreSQL is running
+docker ps | grep postgres
+
+# Check connection
+docker exec -it usasset-postgres-dev pg_isready
+
+# View PostgreSQL logs
+docker logs usasset-postgres-dev
+```
+
+#### npm install fails
+```bash
+# Clear npm cache
+npm cache clean --force
+
+# Delete node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
 ```
 
 ### Database Migrations

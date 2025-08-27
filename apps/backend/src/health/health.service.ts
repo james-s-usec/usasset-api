@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '../config/config.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class HealthService {
@@ -12,7 +12,7 @@ export class HealthService {
       status: this.getHealthStatus(),
       timestamp: new Date().toISOString(),
       uptime: this.getUptime(),
-      environment: this.configService.nodeEnv,
+      environment: this.configService.get<string>('NODE_ENV', 'development'),
       version: this.getVersion(),
     };
   }
@@ -49,12 +49,12 @@ export class HealthService {
   }
 
   private getVersion(): string {
-    return this.configService.get('npm_package_version') || '1.0.0';
+    return this.configService.get<string>('npm_package_version') || '1.0.0';
   }
 
   private checkDatabase(): Promise<string> {
     try {
-      const dbUrl = this.configService.databaseUrl;
+      const dbUrl = this.configService.get<string>('DATABASE_URL');
       return Promise.resolve(dbUrl ? 'connected' : 'not_configured');
     } catch {
       return Promise.resolve('disconnected');
