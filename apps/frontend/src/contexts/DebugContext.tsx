@@ -67,60 +67,28 @@ export const DebugProvider = ({ children }: DebugProviderProps) => {
       // If database save fails, don't add error to UI to avoid infinite loop
       console.warn('Failed to save debug message to database:', error);
     }
-  }, [refreshMessages]);
+  }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
-    addMessage('info', 'Debug console messages cleared (database logs unaffected)');
-  }, [addMessage]);
+    // Don't add a message here - it creates a database log!
+  }, []);
 
-  const clearDatabaseLogs = useCallback(async () => {
+  const clearDatabaseLogs = useCallback(async (): Promise<void> => {
     try {
-      addMessage('info', 'Starting database clear operation...', { step: 'start' });
-      
-      // Get total count before clearing
-      const currentLogs = await LogsApiService.getLogs(1, 1);
-      const totalCount = currentLogs.pagination.total;
-      
-      addMessage('info', `Found ${totalCount} total logs in database`, { totalCount, step: 'count' });
-      
-      if (totalCount === 0) {
-        addMessage('info', 'Database logs already empty', { totalCount: 0 });
-        return { message: 'No logs to clear', deletedCount: 0 };
-      }
-
-      addMessage('info', 'Calling DELETE /logs endpoint...', { step: 'delete', totalCount });
-      
+      // Just delete the logs - no logging during delete operation!
       const response = await LogsApiService.deleteLogs();
       
-      addMessage('info', `DELETE response: ${JSON.stringify(response)}`, { 
-        step: 'response',
-        response,
-        totalCount,
-        deletedCount: response.deletedCount
-      });
+      // Optional: Show result in console only (not database)
+      console.log(`Deleted ${response.deletedCount} logs`);
       
-      // Verify deletion worked
-      const afterLogs = await LogsApiService.getLogs(1, 1);
-      const remainingCount = afterLogs.pagination.total;
-      
-      addMessage('info', `Verification: ${remainingCount} logs remaining after delete`, { 
-        step: 'verify',
-        beforeCount: totalCount,
-        deletedCount: response.deletedCount,
-        remainingCount
-      });
-      
-      return response;
+      return;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      addMessage('error', 'Failed to clear database logs', { 
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
-      });
+      console.error('Failed to clear database logs:', errorMessage);
       throw error;
     }
-  }, [addMessage]);
+  }, []);
 
   const copyAllDebugInfo = useCallback(() => {
     try {

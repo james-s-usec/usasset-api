@@ -12,7 +12,9 @@ import {
   ParseUUIDPipe,
   ValidationPipe,
   NotFoundException,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { User } from '@prisma/client';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -22,10 +24,15 @@ import { BulkCreateUserDto } from './dto/bulk-create-user.dto';
 import { BulkUpdateUserDto } from './dto/bulk-update-user.dto';
 import { BulkDeleteUserDto } from './dto/bulk-delete-user.dto';
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE } from '../common/constants';
+import { DatabaseLoggerService } from '../common/services/database-logger.service';
+import { CORRELATION_ID_KEY } from '../common/middleware/correlation-id.middleware';
 
 @Controller('api/users')
 export class UserController {
-  public constructor(private readonly userService: UserService) {}
+  public constructor(
+    private readonly userService: UserService,
+    private readonly dbLogger: DatabaseLoggerService,
+  ) {}
 
   @Get()
   public async findAll(
@@ -67,8 +74,32 @@ export class UserController {
   @Delete('bulk')
   public async bulkDelete(
     @Body(ValidationPipe) bulkDeleteUserDto: BulkDeleteUserDto,
+    @Req() req: Request,
   ): Promise<{ deleted: number }> {
-    return this.userService.bulkDelete(bulkDeleteUserDto.ids);
+    const correlationId = (req[CORRELATION_ID_KEY] as string) || 'unknown';
+
+    await this.dbLogger.logDebug(
+      correlationId,
+      `Starting bulk delete operation for ${bulkDeleteUserDto.ids.length} users`,
+      { userIds: bulkDeleteUserDto.ids.join(', '), operation: 'bulkDelete' },
+    );
+
+    const result = await this.userService.bulkDelete(
+      bulkDeleteUserDto.ids,
+      correlationId,
+    );
+
+    await this.dbLogger.logInfo(
+      correlationId,
+      `Bulk delete completed: ${result.deleted} of ${bulkDeleteUserDto.ids.length} users deleted`,
+      {
+        requestedCount: bulkDeleteUserDto.ids.length,
+        deletedCount: result.deleted,
+        operation: 'bulkDelete',
+      },
+    );
+
+    return result;
   }
 
   @Get(':id')
@@ -98,7 +129,24 @@ export class UserController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  public async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.userService.delete(id);
+  public async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    const correlationId = (req[CORRELATION_ID_KEY] as string) || 'unknown';
+
+    await this.dbLogger.logDebug(
+      correlationId,
+      `Starting delete operation for user ${id}`,
+      { userId: id, operation: 'delete' },
+    );
+
+    await this.userService.delete(id, correlationId);
+
+    await this.dbLogger.logInfo(
+      correlationId,
+      `User ${id} deleted successfully`,
+      { userId: id, operation: 'delete' },
+    );
   }
 }

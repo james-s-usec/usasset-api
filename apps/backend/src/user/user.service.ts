@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { DatabaseLoggerService } from '../common/services/database-logger.service';
 import { User } from '@prisma/client';
 import { UserRepository } from './repositories/user.repository';
 import {
@@ -13,7 +14,10 @@ import {
 
 @Injectable()
 export class UserService {
-  public constructor(private readonly userRepository: UserRepository) {}
+  public constructor(
+    private readonly userRepository: UserRepository,
+    private readonly dbLogger: DatabaseLoggerService,
+  ) {}
 
   public async findById(id: string): Promise<User | null> {
     return this.userRepository.findById(id);
@@ -47,12 +51,37 @@ export class UserService {
     return this.userRepository.update(id, data);
   }
 
-  public async delete(id: string): Promise<void> {
+  public async delete(id: string, correlationId?: string): Promise<void> {
+    const cid = correlationId || 'unknown';
+
+    await this.dbLogger.logDebug(
+      cid,
+      `Checking if user ${id} exists before deletion`,
+      { userId: id, operation: 'delete.checkExists' },
+    );
+
     const exists = await this.userRepository.exists(id);
     if (!exists) {
+      await this.dbLogger.logWarn(cid, `Delete failed: User ${id} not found`, {
+        userId: id,
+        operation: 'delete.notFound',
+      });
       throw new NotFoundException('User not found');
     }
-    return this.userRepository.delete(id);
+
+    await this.dbLogger.logDebug(
+      cid,
+      `Executing database delete for user ${id}`,
+      { userId: id, operation: 'delete.execute' },
+    );
+
+    await this.userRepository.delete(id);
+
+    await this.dbLogger.logDebug(
+      cid,
+      `Database delete completed for user ${id}`,
+      { userId: id, operation: 'delete.completed' },
+    );
   }
 
   public async bulkCreate(users: CreateUserRequest[]): Promise<User[]> {
@@ -110,21 +139,16 @@ export class UserService {
     return results;
   }
 
-  public async bulkDelete(ids: string[]): Promise<{ deleted: number }> {
-    let deleted = 0;
+  public async bulkDelete(
+    ids: string[],
+    correlationId?: string,
+  ): Promise<{ deleted: number }> {
+    const cid = correlationId || 'unknown';
     const errors: Array<{ id: string; error: string }> = [];
 
-    for (const id of ids) {
-      try {
-        await this.delete(id);
-        deleted++;
-      } catch (error) {
-        errors.push({
-          id,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    }
+    await this.logBulkDeleteStart(cid, ids);
+    const deleted = await this.processBulkDeletes(ids, cid, errors);
+    await this.logBulkDeleteResult(cid, deleted, errors);
 
     if (errors.length > 0 && deleted === 0) {
       throw new NotFoundException({
@@ -134,5 +158,102 @@ export class UserService {
     }
 
     return { deleted };
+  }
+
+  private async processBulkDeletes(
+    ids: string[],
+    cid: string,
+    errors: Array<{ id: string; error: string }>,
+  ): Promise<number> {
+    let deleted = 0;
+
+    for (const id of ids) {
+      const result = await this.processSingleDelete(
+        id,
+        cid,
+        deleted + 1,
+        ids.length,
+      );
+      if (result.success) {
+        deleted++;
+      } else {
+        errors.push({ id, error: result.error });
+      }
+    }
+
+    return deleted;
+  }
+
+  private async processSingleDelete(
+    id: string,
+    cid: string,
+    index: number,
+    total: number,
+  ): Promise<{ success: boolean; error: string }> {
+    try {
+      await this.dbLogger.logDebug(
+        cid,
+        `Processing delete for user ${id} (${index}/${total})`,
+        {
+          userId: id,
+          progress: `${index}/${total}`,
+          operation: 'bulkDelete.processing',
+        },
+      );
+
+      await this.delete(id, cid);
+
+      await this.dbLogger.logDebug(cid, `Successfully deleted user ${id}`, {
+        userId: id,
+        deletedCount: index,
+        operation: 'bulkDelete.success',
+      });
+
+      return { success: true, error: '' };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
+      await this.dbLogger.logError(
+        cid,
+        `Failed to delete user ${id}: ${errorMessage}`,
+        { userId: id, error: errorMessage, operation: 'bulkDelete.error' },
+      );
+
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  private async logBulkDeleteStart(cid: string, ids: string[]): Promise<void> {
+    await this.dbLogger.logDebug(
+      cid,
+      `Starting bulk delete for ${ids.length} users`,
+      { userIds: ids.join(', '), operation: 'bulkDelete.start' },
+    );
+  }
+
+  private async logBulkDeleteResult(
+    cid: string,
+    deleted: number,
+    errors: Array<{ id: string; error: string }>,
+  ): Promise<void> {
+    if (errors.length > 0) {
+      await this.dbLogger.logWarn(
+        cid,
+        `Bulk delete completed with errors: ${deleted} succeeded, ${errors.length} failed`,
+        {
+          deletedCount: deleted,
+          errorCount: errors.length,
+          errors: JSON.stringify(errors),
+          operation: 'bulkDelete.partialSuccess',
+        },
+      );
+    } else {
+      await this.dbLogger.logDebug(
+        cid,
+        `Bulk delete completed successfully: all ${deleted} users deleted`,
+        { deletedCount: deleted, operation: 'bulkDelete.complete' },
+      );
+    }
   }
 }

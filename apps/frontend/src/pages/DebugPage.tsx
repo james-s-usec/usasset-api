@@ -28,40 +28,31 @@ export const DebugPage = () => {
   // Use global debug context for floating console + manage database logs separately
   const { addMessage: addDebugMessage, messages: debugMessages, refreshMessages } = useDebug();
 
-  const loadLogs = useCallback(async () => {
+  const loadLogs = useCallback(async (silent: boolean = false) => {
     try {
-      addDebugMessage('info', 'Starting logs fetch', { action: 'loadLogs' });
-      DebugLogger.logUIEvent('DebugPage: Starting logs fetch', { action: 'loadLogs' });
+      // Don't create logs when loading logs - that's recursive!
+      if (!silent) {
+        console.log('Loading logs from database...');
+      }
       setLoading(true);
       setError(null);
       
-      const response = await LogsApiService.getLogs(1, 20);
+      // Fetch ALL logs (or at least 1000)
+      const response = await LogsApiService.getLogs(1, 1000);
       
-      addDebugMessage('info', 'Logs loaded successfully', {
-        count: response.logs.length,
-        total: response.pagination.total
-      });
-      
-      DebugLogger.logUIEvent('DebugPage: Logs fetched successfully', { 
-        count: response.logs.length,
-        total: response.pagination.total 
-      });
+      if (!silent) {
+        console.log(`Loaded ${response.logs.length} of ${response.pagination.total} total logs`);
+      }
       
       setLogs(response.logs);
     } catch (error) {
       const errorMessage = `Failed to load logs: ${error instanceof Error ? error.message : String(error)}`;
-      
-      addDebugMessage('error', 'Failed to load logs', {
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      
+      console.error('Failed to load logs:', error);
       setError(errorMessage);
-      DebugLogger.logError('DebugPage: Failed to load logs', error, { action: 'loadLogs' });
     } finally {
       setLoading(false);
     }
-  }, [addDebugMessage]);
+  }, []);
 
   useEffect(() => {
     DebugLogger.logUIEvent('DebugPage mounted');
@@ -185,11 +176,8 @@ export const DebugPage = () => {
     addDebugMessage('debug', 'Refresh button clicked - refreshing both database logs and debug messages');
     DebugLogger.logUIEvent('DebugPage: Refresh button clicked');
     
-    // Refresh both data sources to keep them in sync
-    await Promise.all([
-      loadLogs(),           // Refresh database logs table
-      refreshMessages()     // Refresh debug messages (floating console)
-    ]);
+    // Refresh the logs table (no logging to avoid creating new logs)
+    await loadLogs(true);
   };
 
   const handleTestUIEvent = () => {
@@ -206,26 +194,16 @@ export const DebugPage = () => {
     }
     
     try {
-      addDebugMessage('info', 'Clearing all logs from database', { action: 'clearLogs' });
-      DebugLogger.logUIEvent('DebugPage: Clear logs initiated');
-      
+      // DON'T log anything before or during delete - it creates new logs!
       const result = await LogsApiService.deleteLogs();
       
-      addDebugMessage('info', `Successfully cleared logs: ${result.message}`, { 
-        deletedCount: result.deletedCount 
-      });
-      
-      // Refresh both data sources after clearing
-      await Promise.all([
-        loadLogs(),           // Refresh database logs table
-        refreshMessages()     // Refresh debug messages (floating console)  
-      ]);
+      // Refresh the table to show empty state (silently, no logging)
+      await loadLogs(true);
       
       alert(`${result.message}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      addDebugMessage('error', 'Failed to clear logs', { error: errorMessage });
-      DebugLogger.logError('Failed to clear logs', error);
+      console.error('Failed to clear logs:', error);
       alert(`Failed to clear logs: ${errorMessage}`);
     }
   };
