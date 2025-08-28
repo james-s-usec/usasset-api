@@ -21,3 +21,12 @@ export const MIN_NAME_LENGTH = 1;
 
 // Bulk operation limits
 export const MAX_BULK_OPERATION_SIZE = 100;
+
+// Logs constants
+export const DEFAULT_LOGS_PAGE_SIZE = 50;
+export const DEFAULT_LOGS_LEVEL_PAGE_SIZE = 20;
+export const HOURS_IN_DAY = 24;
+export const MINUTES_IN_HOUR = 60;
+export const SECONDS_IN_MINUTE = 60;
+export const MILLISECONDS_IN_SECOND = 1000;
+export const DEFAULT_RECENT_LOGS_LIMIT = 1000;

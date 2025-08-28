@@ -1,66 +1,70 @@
 /// <reference types="vitest/globals" />
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
+import { ThemeProvider, createTheme } from '@mui/material/styles'
 import App from './App'
+
+const theme = createTheme()
+
+const renderWithProviders = (component: React.ReactElement) => {
+  return render(
+    <ThemeProvider theme={theme}>
+      <BrowserRouter>
+        {component}
+      </BrowserRouter>
+    </ThemeProvider>
+  )
+}
 
 describe('App Component', () => {
   afterEach(() => {
     vi.clearAllMocks()
   })
-  it('renders Vite and React logos with correct links', async () => {
-    render(<App />)
+
+  it('renders main navigation and welcome message', async () => {
+    renderWithProviders(<App />)
     
     // Wait for async updates to complete
     await waitFor(() => {
       expect(screen.queryByText('DB: Ready')).toBeInTheDocument()
     })
     
-    // Verify the Vite logo and link
-    const viteLogo = screen.getByAltText('Vite logo')
-    expect(viteLogo).toBeInTheDocument()
-    expect(viteLogo.closest('a')).toHaveAttribute('href', 'https://vite.dev')
+    // Verify main heading
+    expect(screen.getByRole('heading', { name: 'Welcome to USAsset' })).toBeInTheDocument()
     
-    // Verify the React logo and link  
-    const reactLogo = screen.getByAltText('React logo')
-    expect(reactLogo).toBeInTheDocument()
-    expect(reactLogo.closest('a')).toHaveAttribute('href', 'https://react.dev')
+    // Verify navigation (Users is a link, not button)
+    expect(screen.getByRole('link', { name: 'Users' })).toBeInTheDocument()
+    
+    // Verify app title in nav bar
+    expect(screen.getByText('USAsset')).toBeInTheDocument()
   })
 
-  it('displays initial count and increments when button is clicked', async () => {
-    render(<App />)
+  it('displays View Users button and navigates correctly', async () => {
+    renderWithProviders(<App />)
     
     // Wait for async updates to complete
     await waitFor(() => {
       expect(screen.queryByText('DB: Ready')).toBeInTheDocument()
     })
     
-    // Find the button and verify initial state
-    const button = screen.getByRole('button', { name: /count is 0/i })
-    expect(button).toBeInTheDocument()
+    // Find and click the View Users button
+    const viewUsersButton = screen.getByRole('button', { name: 'View Users' })
+    expect(viewUsersButton).toBeInTheDocument()
     
-    // Click the button and verify count increments
-    fireEvent.click(button)
-    expect(screen.getByRole('button', { name: /count is 1/i })).toBeInTheDocument()
+    fireEvent.click(viewUsersButton)
     
-    // Click again to verify it continues incrementing
-    fireEvent.click(button)
-    expect(screen.getByRole('button', { name: /count is 2/i })).toBeInTheDocument()
+    // Should navigate to users page (URL change would happen in real browser)
+    await waitFor(() => {
+      expect(screen.getByText('User Management')).toBeInTheDocument()
+    })
   })
 
-  it('displays the expected heading and validates essential UI elements', async () => {
-    render(<App />)
+  it('displays database status indicator', async () => {
+    renderWithProviders(<App />)
     
-    // Wait for async updates to complete
+    // Wait for async updates to complete and verify DB status shows
     await waitFor(() => {
       expect(screen.queryByText('DB: Ready')).toBeInTheDocument()
     })
-    
-    // Verify main heading shows Vite + React integration
-    expect(screen.getByRole('heading', { name: 'Vite + React' })).toBeInTheDocument()
-    
-    // Verify the file reference in code element (validates Vite file handling)
-    expect(screen.getByText('src/App.tsx')).toBeInTheDocument()
-    
-    // Verify instructional text about logos
-    expect(screen.getByText('Click on the Vite and React logos to learn more')).toBeInTheDocument()
   })
 })

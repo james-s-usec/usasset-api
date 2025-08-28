@@ -1,9 +1,14 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query } from '@nestjs/common';
 import { DatabaseLoggerService } from '../common/services/database-logger.service';
+import { LogsService, LogsListResponse, LogEntryData } from './logs.service';
+import { DEFAULT_LOGS_PAGE_SIZE } from '../common/constants';
 
 @Controller('logs')
 export class LogsController {
-  public constructor(private readonly dbLogger: DatabaseLoggerService) {}
+  public constructor(
+    private readonly dbLogger: DatabaseLoggerService,
+    private readonly logsService: LogsService,
+  ) {}
 
   @Post()
   public async logFromFrontend(
@@ -18,6 +23,28 @@ export class LogsController {
   ): Promise<{ success: boolean }> {
     await this.processLog(logEntry);
     return { success: true };
+  }
+
+  @Get()
+  public async getLogs(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('level') level?: string,
+    @Query('correlationId') correlationId?: string,
+  ): Promise<LogsListResponse | { logs: LogEntryData[] }> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : DEFAULT_LOGS_PAGE_SIZE;
+
+    if (correlationId) {
+      const logs = await this.logsService.findByCorrelationId(correlationId);
+      return { logs };
+    }
+
+    if (level) {
+      return this.logsService.findByLevel(level, pageNum, limitNum);
+    }
+
+    return this.logsService.findAll(pageNum, limitNum);
   }
 
   private async processLog(logEntry: {

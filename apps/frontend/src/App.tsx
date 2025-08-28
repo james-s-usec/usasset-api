@@ -1,38 +1,82 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Routes, Route } from 'react-router-dom'
+import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { DbStatus } from './components/DbStatus'
+import { UsersPage } from './pages/UsersPage'
+import { DebugPage } from './pages/DebugPage'
+import { DebugProvider } from './contexts/DebugContext'
+import { useDebug } from './hooks/useDebugHook'
+import { FloatingDebugConsole } from './components/FloatingDebugConsole'
 
-function App() {
-  const [count, setCount] = useState(0)
+const AppContent = () => {
+  const navigate = useNavigate()
+  const { messages, clearMessages, copyAllDebugInfo } = useDebug()
 
   return (
-    <>
-      <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
-        <DbStatus />
-      </div>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <Box sx={{ flexGrow: 1 }}>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            USAsset
+          </Typography>
+          <Button 
+            color="inherit" 
+            component={RouterLink} 
+            to="/users"
+          >
+            Users
+          </Button>
+          <Button 
+            color="inherit" 
+            component={RouterLink} 
+            to="/debug"
+          >
+            Debug
+          </Button>
+          <Box sx={{ ml: 2 }}>
+            <DbStatus />
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      <Routes>
+        <Route path="/" element={
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <Typography variant="h3" gutterBottom>
+              Welcome to USAsset
+            </Typography>
+            <Typography variant="h6" color="text.secondary" paragraph>
+              Asset management system
+            </Typography>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={() => navigate('/users')}
+              sx={{ mt: 2 }}
+            >
+              View Users
+            </Button>
+          </Box>
+        } />
+        <Route path="/users" element={<UsersPage />} />
+        <Route path="/debug" element={<DebugPage />} />
+      </Routes>
+
+      {/* Global Floating Debug Console - available on all pages */}
+      <FloatingDebugConsole 
+        messages={messages}
+        onClear={clearMessages}
+        onCopyAll={copyAllDebugInfo}
+      />
+    </Box>
+  )
+}
+
+function App() {
+  return (
+    <DebugProvider>
+      <AppContent />
+    </DebugProvider>
   )
 }
 

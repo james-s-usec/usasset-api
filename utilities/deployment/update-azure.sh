@@ -14,7 +14,7 @@ ACR_NAME=usassetacryf2eqktewmxp2
 RG_NAME=useng-usasset-api-rg
 
 # Logging setup
-LOG_DIR="/home/james/projects/usasset-api/.logs"
+LOG_DIR="$(dirname $(dirname $SCRIPT_DIR))/.logs"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOG_FILE="$LOG_DIR/azure-update_$TIMESTAMP.log"
 mkdir -p "$LOG_DIR"
@@ -60,8 +60,8 @@ case $choice in
       --build-arg GIT_COMMIT=$GIT_COMMIT \
       --build-arg BUILD_TIME=$BUILD_TIME \
       --build-arg VERSION=$BUILD_TIME \
-      --file /home/james/projects/usasset-api/apps/backend/Dockerfile.production \
-      /home/james/projects/usasset-api/ 2>&1 | tee -a "$LOG_FILE"
+      --file $(dirname $(dirname $SCRIPT_DIR))/apps/backend/Dockerfile.production \
+      $(dirname $(dirname $SCRIPT_DIR))/ 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Backend image built!${NC}"
     
     echo -e "${BLUE}🚀 Deploying backend container...${NC}"
@@ -85,8 +85,8 @@ case $choice in
     log_message "Using backend URL: $BACKEND_URL"
     az acr build --registry $ACR_NAME --image frontend:latest --image frontend:$GIT_COMMIT \
       --build-arg VITE_API_URL=$BACKEND_URL \
-      --file /home/james/projects/usasset-api/apps/frontend/Dockerfile \
-      /home/james/projects/usasset-api/ 2>&1 | tee -a "$LOG_FILE"
+      --file $(dirname $(dirname $SCRIPT_DIR))/apps/frontend/Dockerfile \
+      $(dirname $(dirname $SCRIPT_DIR))/ 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Frontend image built!${NC}"
     
     echo -e "${BLUE}🚀 Deploying frontend container...${NC}"
@@ -111,8 +111,8 @@ case $choice in
       az acr build --registry $ACR_NAME --image backend:latest --image backend:$GIT_COMMIT \
         --build-arg GIT_COMMIT=$GIT_COMMIT \
         --build-arg BUILD_TIME=$BUILD_TIME \
-        --file /home/james/projects/usasset-api/apps/backend/Dockerfile.production \
-        /home/james/projects/usasset-api/ >> "$LOG_FILE" 2>&1
+        --file $(dirname $(dirname $SCRIPT_DIR))/apps/backend/Dockerfile.production \
+        $(dirname $(dirname $SCRIPT_DIR))/ >> "$LOG_FILE" 2>&1
       echo -e "${GREEN}✅ Backend image built${NC}"
     ) &
     
@@ -121,8 +121,8 @@ case $choice in
       BACKEND_URL="https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io"
       az acr build --registry $ACR_NAME --image frontend:latest --image frontend:$GIT_COMMIT \
       --build-arg VITE_API_URL=$BACKEND_URL \
-      --file /home/james/projects/usasset-api/apps/frontend/Dockerfile \
-      /home/james/projects/usasset-api/ >> "$LOG_FILE" 2>&1
+      --file $(dirname $(dirname $SCRIPT_DIR))/apps/frontend/Dockerfile \
+      $(dirname $(dirname $SCRIPT_DIR))/ >> "$LOG_FILE" 2>&1
       echo -e "${GREEN}✅ Frontend image built${NC}"
     ) &
     
