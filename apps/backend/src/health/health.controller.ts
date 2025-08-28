@@ -19,4 +19,9 @@ export class HealthController {
   public check(): Record<string, unknown> {
     return this.healthService.check();
   }
+
+  @Get('db')
+  public async checkDatabase(): Promise<Record<string, unknown>> {
+    return this.healthService.checkDatabase();
+  }
 }

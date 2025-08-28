@@ -11,6 +11,7 @@ import { DatabaseLoggerModule } from './common/database-logger.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
+import { LogsModule } from './logs/logs.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ResponseTransformInterceptor } from './common/interceptors/response-tra
     DatabaseLoggerModule,
     UserModule,
     HealthModule,
+    LogsModule,
   ],
   controllers: [AppController],
   providers: [AppService, GlobalExceptionFilter, ResponseTransformInterceptor],

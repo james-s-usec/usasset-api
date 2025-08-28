@@ -14,7 +14,7 @@ ACR_NAME=usassetacryf2eqktewmxp2
 RG_NAME=useng-usasset-api-rg
 
 # Logging setup
-LOG_DIR="/home/swansonj/projects/USAsset3/.logs"
+LOG_DIR="/home/james/projects/usasset-api/.logs"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOG_FILE="$LOG_DIR/azure-update_$TIMESTAMP.log"
 mkdir -p "$LOG_DIR"
@@ -50,12 +50,20 @@ case $choice in
   1)
     echo -e "${BLUE}📦 Building backend...${NC}"
     log_message "Building backend Docker image"
-    az acr build --registry $ACR_NAME --image backend:latest /home/swansonj/projects/USAsset3/apps/backend/ 2>&1 | tee -a "$LOG_FILE"
+    GIT_COMMIT=$(git rev-parse --short HEAD)
+    BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S)
+    az acr build --registry $ACR_NAME --image backend:latest \
+      --build-arg GIT_COMMIT=$GIT_COMMIT \
+      --build-arg BUILD_TIME=$BUILD_TIME \
+      --build-arg VERSION=$BUILD_TIME \
+      --file /home/james/projects/usasset-api/apps/backend/Dockerfile.production \
+      /home/james/projects/usasset-api/ 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Backend image built!${NC}"
     
     echo -e "${BLUE}♻️  Restarting backend container...${NC}"
     log_message "Restarting backend container"
-    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME 2>&1 | tee -a "$LOG_FILE"
+    REVISION=$(az containerapp revision list --name usasset-backend --resource-group $RG_NAME --query '[0].name' -o tsv)
+    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Backend deployed!${NC}"
     
     echo -e "${GREEN}🎉 Backend update complete!${NC}"
@@ -65,12 +73,15 @@ case $choice in
   2)
     echo -e "${BLUE}📦 Building frontend...${NC}"
     log_message "Building frontend Docker image"
-    az acr build --registry $ACR_NAME --image frontend:latest /home/swansonj/projects/USAsset3/apps/frontend/ 2>&1 | tee -a "$LOG_FILE"
+    az acr build --registry $ACR_NAME --image frontend:latest \
+      --file /home/james/projects/usasset-api/apps/frontend/Dockerfile \
+      /home/james/projects/usasset-api/ 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Frontend image built!${NC}"
     
     echo -e "${BLUE}♻️  Restarting frontend container...${NC}"
     log_message "Restarting frontend container"
-    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME 2>&1 | tee -a "$LOG_FILE"
+    REVISION=$(az containerapp revision list --name usasset-frontend --resource-group $RG_NAME --query '[0].name' -o tsv)
+    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Frontend deployed!${NC}"
     
     echo -e "${GREEN}🎉 Frontend update complete!${NC}"
@@ -83,13 +94,17 @@ case $choice in
     # Build in parallel for speed
     (
       echo "Building backend..."
-      az acr build --registry $ACR_NAME --image backend:latest /home/swansonj/projects/USAsset3/apps/backend/ >> "$LOG_FILE" 2>&1
+      az acr build --registry $ACR_NAME --image backend:latest \
+        --file /home/james/projects/usasset-api/apps/backend/Dockerfile.production \
+        /home/james/projects/usasset-api/ >> "$LOG_FILE" 2>&1
       echo -e "${GREEN}✅ Backend image built${NC}"
     ) &
     
     (
       echo "Building frontend..."
-      az acr build --registry $ACR_NAME --image frontend:latest /home/swansonj/projects/USAsset3/apps/frontend/ >> "$LOG_FILE" 2>&1
+      az acr build --registry $ACR_NAME --image frontend:latest \
+      --file /home/james/projects/usasset-api/apps/frontend/Dockerfile \
+      /home/james/projects/usasset-api/ >> "$LOG_FILE" 2>&1
       echo -e "${GREEN}✅ Frontend image built${NC}"
     ) &
     
@@ -98,8 +113,10 @@ case $choice in
     
     echo -e "${BLUE}♻️  Restarting containers...${NC}"
     log_message "Restarting both containers"
-    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME 2>&1 | tee -a "$LOG_FILE"
-    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME 2>&1 | tee -a "$LOG_FILE"
+    REVISION=$(az containerapp revision list --name usasset-backend --resource-group $RG_NAME --query '[0].name' -o tsv)
+    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
+    REVISION=$(az containerapp revision list --name usasset-frontend --resource-group $RG_NAME --query '[0].name' -o tsv)
+    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
     
     echo -e "${GREEN}🎉 Full deployment complete!${NC}"
     echo "Backend: https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io"
@@ -109,8 +126,10 @@ case $choice in
   4)
     echo -e "${BLUE}♻️  Restarting containers without rebuild...${NC}"
     log_message "Restarting containers without rebuild"
-    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME 2>&1 | tee -a "$LOG_FILE"
-    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME 2>&1 | tee -a "$LOG_FILE"
+    REVISION=$(az containerapp revision list --name usasset-backend --resource-group $RG_NAME --query '[0].name' -o tsv)
+    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
+    REVISION=$(az containerapp revision list --name usasset-frontend --resource-group $RG_NAME --query '[0].name' -o tsv)
+    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Containers restarted!${NC}"
     ;;
     

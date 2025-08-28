@@ -2,12 +2,16 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
+import { DbStatus } from './components/DbStatus'
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
     <>
+      <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+        <DbStatus />
+      </div>
       <div>
         <a href="https://vite.dev" target="_blank">
           <img src={viteLogo} className="logo" alt="Vite logo" />

@@ -57,12 +57,22 @@ export class HealthService {
     return this.configService.get<string>('npm_package_version') || '1.0.0';
   }
 
-  private async checkDatabase(): Promise<string> {
+  public async checkDatabase(): Promise<Record<string, unknown>> {
     try {
       const isConnected = await this.healthRepository.checkDatabase();
-      return isConnected ? 'connected' : 'disconnected';
-    } catch {
-      return 'error';
+      return {
+        status: isConnected ? 'connected' : 'disconnected',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to check database connection',
+      };
     }
   }
 }

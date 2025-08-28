@@ -1,0 +1,290 @@
+# ============================================================================
+# PRODUCTION DOCKER COMPOSE CONFIGURATION
+# ============================================================================
+#
+# This file defines the production deployment configuration for USAsset API
+#
+# Usage:
+#   docker-compose -f docker-compose.prod.yml up -d
+#
+# With environment file:
+#   docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# ============================================================================
+
+services:
+  # ============================================================================
+  # PostgreSQL Database Service
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: usasset-postgres-prod
+    restart: unless-stopped
+    
+    # Security: Use secrets instead of environment variables in production
+    environment:
+      POSTGRES_USER_FILE: /run/secrets/db_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: usasset
+      
+    # Secrets mounted from Docker secrets
+    secrets:
+      - db_user
+      - db_password
+    
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+          
+    # Health check for database readiness
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d usasset"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      
+    # Persist data with named volume
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      
+    # Internal network only, not exposed to host
+    networks:
+      - backend_network
+      
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================================
+  # Backend API Service
+  # ============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile.production
+      cache_from:
+        - node:20-alpine
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+        
+    image: usasset-backend:${VERSION:-latest}
+    container_name: usasset-backend-prod
+    restart: unless-stopped
+    
+    # Dependencies
+    depends_on:
+      postgres:
+        condition: service_healthy
+        
+    # Environment configuration
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/usasset?schema=public&connection_limit=20
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://app.usasset.com}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      API_KEY_FILE: /run/secrets/api_key
+      LOG_TO_FILE: "true"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      
+    # Secrets
+    secrets:
+      - jwt_secret
+      - api_key
+      
+    # Port mapping
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+      
+    # Networks
+    networks:
+      - frontend_network
+      - backend_network
+      
+    # Resource limits
+    deploy:
+      replicas: ${BACKEND_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {r.statusCode === 200 ? process.exit(0) : process.exit(1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=backend,env=production"
+        
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/logs
+
+  # ============================================================================
+  # Frontend Service (Optional - for full-stack deployment)
+  # ============================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://backend:3000}
+        
+    image: usasset-frontend:${VERSION:-latest}
+    container_name: usasset-frontend-prod
+    restart: unless-stopped
+    
+    depends_on:
+      - backend
+      
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+      
+    networks:
+      - frontend_network
+      
+    deploy:
+      replicas: ${FRONTEND_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+          
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================================
+  # Nginx Reverse Proxy (Optional - for production routing)
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: usasset-nginx-prod
+    restart: unless-stopped
+    
+    depends_on:
+      - backend
+      - frontend
+      
+    ports:
+      - "443:443"
+      - "80:80"
+      
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+      
+    networks:
+      - frontend_network
+      
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+          
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  frontend_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+        
+  backend_network:
+    driver: bridge
+    internal: true  # No external access
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  postgres_data_prod:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-./data/postgres}
+      
+  nginx_cache:
+    driver: local
+
+# ============================================================================
+# Secrets (for Docker Swarm mode)
+# ============================================================================
+secrets:
+  db_user:
+    external: true
+    external_name: usasset_db_user
+    
+  db_password:
+    external: true
+    external_name: usasset_db_password
+    
+  jwt_secret:
+    external: true
+    external_name: usasset_jwt_secret
+    
+  api_key:
+    external: true
+    external_name: usasset_api_key

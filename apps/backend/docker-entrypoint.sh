@@ -2,6 +2,8 @@
 set -e
 
 echo "🚀 Starting USAsset Backend..."
+echo "📁 Working directory: $(pwd)"
+echo "📂 Contents: $(ls -la)"
 
 # Wait for database to be ready
 echo "⏳ Waiting for database..."
@@ -10,7 +12,7 @@ while ! nc -z ${DB_HOST:-postgres} ${DB_PORT:-5432}; do
 done
 echo "✅ Database is ready!"
 
-# Run migrations in production
+# Run migrations
 if [ "$NODE_ENV" = "production" ]; then
   echo "🔄 Running production migrations..."
   npx prisma migrate deploy
@@ -21,8 +23,14 @@ else
   echo "✅ Migrations applied!"
 fi
 
-# Skip Prisma generation - already done in build stage
-echo "✅ Prisma Client already generated during build!"
+# Verify Prisma client is available
+echo "🔍 Checking Prisma client..."
+if [ -d "/app/node_modules/.prisma" ]; then
+  echo "✅ Prisma client found at /app/node_modules/.prisma"
+else
+  echo "⚠️ Prisma client not found, generating..."
+  npx prisma generate
+fi
 
 # Run seed if requested
 if [ "$RUN_SEED" = "true" ]; then

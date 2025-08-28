@@ -1,0 +1,73 @@
+# Node modules - will be installed fresh
+**/node_modules
+node_modules
+
+# Build outputs
+**/dist
+dist
+**/build
+build
+
+# Logs
+**/logs
+*.log
+npm-debug.log*
+
+# Environment files  
+**/.env
+**/.env.*
+!**/.env.example
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+**/coverage
+**/.nyc_output
+
+# Documentation
+*.md
+docs
+LICENSE
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Development files
+.eslintcache
+.prettierrc
+.editorconfig
+
+# Docker files themselves
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Prisma generated files (will be regenerated)
+**/generated
+
+# Azure/CI
+.azure
+.github
+*.pipeline.yml
+infra
+
+# Misc
+*.bak
+*.backup
+*.old
+DOCKER_DEBUG_LOG.md

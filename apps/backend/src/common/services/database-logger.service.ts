@@ -1,10 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import {
-  LogLevel,
-  LogEntry as PrismaLogEntry,
-  Prisma,
-} from '../../../generated/prisma';
+import { LogLevel, LogEntry as PrismaLogEntry, Prisma } from '@prisma/client';
 
 export interface LogMetadata {
   [key: string]: string | number | boolean | null | undefined;

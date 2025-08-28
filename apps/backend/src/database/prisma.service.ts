@@ -4,7 +4,7 @@ import {
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
-import { PrismaClient } from '../../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import {
   DATABASE_RETRY_MAX_ATTEMPTS,
   DATABASE_RETRY_BASE_DELAY,
