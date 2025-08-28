@@ -1,10 +1,18 @@
 /// <reference types="vitest/globals" />
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from './App'
 
 describe('App Component', () => {
-  it('renders Vite and React logos with correct links', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+  it('renders Vite and React logos with correct links', async () => {
     render(<App />)
+    
+    // Wait for async updates to complete
+    await waitFor(() => {
+      expect(screen.queryByText('DB: Ready')).toBeInTheDocument()
+    })
     
     // Verify the Vite logo and link
     const viteLogo = screen.getByAltText('Vite logo')
@@ -17,8 +25,13 @@ describe('App Component', () => {
     expect(reactLogo.closest('a')).toHaveAttribute('href', 'https://react.dev')
   })
 
-  it('displays initial count and increments when button is clicked', () => {
+  it('displays initial count and increments when button is clicked', async () => {
     render(<App />)
+    
+    // Wait for async updates to complete
+    await waitFor(() => {
+      expect(screen.queryByText('DB: Ready')).toBeInTheDocument()
+    })
     
     // Find the button and verify initial state
     const button = screen.getByRole('button', { name: /count is 0/i })
@@ -33,8 +46,13 @@ describe('App Component', () => {
     expect(screen.getByRole('button', { name: /count is 2/i })).toBeInTheDocument()
   })
 
-  it('displays the expected heading and validates essential UI elements', () => {
+  it('displays the expected heading and validates essential UI elements', async () => {
     render(<App />)
+    
+    // Wait for async updates to complete
+    await waitFor(() => {
+      expect(screen.queryByText('DB: Ready')).toBeInTheDocument()
+    })
     
     // Verify main heading shows Vite + React integration
     expect(screen.getByRole('heading', { name: 'Vite + React' })).toBeInTheDocument()
