@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 
-export const configFactory = () => {
+export const configFactory = (): Record<string, unknown> => {
   const logger = new Logger('ConfigFactory');
 
   const config = {

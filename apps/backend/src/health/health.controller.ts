@@ -3,20 +3,20 @@ import { HealthService } from './health.service';
 
 @Controller('health')
 export class HealthController {
-  constructor(private readonly healthService: HealthService) {}
+  public constructor(private readonly healthService: HealthService) {}
 
   @Get()
-  check() {
+  public check(): Record<string, unknown> {
     return this.healthService.check();
   }
 
   @Get('ready')
-  ready() {
+  public ready(): Promise<Record<string, unknown>> {
     return this.healthService.checkReadiness();
   }
 
   @Get('live')
-  live() {
+  public live(): Record<string, unknown> {
     return this.healthService.checkLiveness();
   }
 }

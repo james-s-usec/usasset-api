@@ -2,12 +2,37 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { AppModule } from '../src/app.module';
 
+// Test helpers - extracted outside describe for line count
+function setupProductionEnvWithoutSecrets(): void {
+  process.env.NODE_ENV = 'production';
+  delete process.env.DATABASE_URL;
+  delete process.env.JWT_SECRET;
+}
+
+async function attemptAppCreation(): Promise<void> {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+
+  const testApp = moduleFixture.createNestApplication();
+  await testApp.init();
+
+  throw new Error(
+    'App should have failed to start without required production config',
+  );
+}
+
+function validateExpectedError(error: unknown): void {
+  expect(error).toBeDefined();
+  const errorMessage = error instanceof Error ? error.message : '';
+  expect(errorMessage).toMatch(/Validation failed|App should have failed/);
+}
+
 describe('Configuration E2E', () => {
   let app: INestApplication;
 
   describe('Development Configuration', () => {
     beforeAll(async () => {
-      // Set development environment
       process.env.NODE_ENV = 'development';
       process.env.PORT = '3001';
 
@@ -30,29 +55,11 @@ describe('Configuration E2E', () => {
 
   describe('Production Configuration', () => {
     it('should fail to start without required production variables', async () => {
-      // Set production environment without required vars
-      process.env.NODE_ENV = 'production';
-      delete process.env.DATABASE_URL;
-      delete process.env.JWT_SECRET;
-
+      setupProductionEnvWithoutSecrets();
       try {
-        const moduleFixture: TestingModule = await Test.createTestingModule({
-          imports: [AppModule],
-        }).compile();
-
-        const testApp = moduleFixture.createNestApplication();
-        await testApp.init();
-
-        // Should not reach here - app should fail to start
-        throw new Error(
-          'App should have failed to start without required production config',
-        );
+        await attemptAppCreation();
       } catch (error) {
-        expect(error).toBeDefined();
-        const errorMessage = error instanceof Error ? error.message : '';
-        expect(errorMessage).toMatch(
-          /Validation failed|App should have failed/,
-        );
+        validateExpectedError(error);
       }
     });
   });

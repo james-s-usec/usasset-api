@@ -4,7 +4,13 @@
   "workspaces": ["apps/*"],
   "scripts": {
     "dev": "npm run start:dev --workspace=backend & npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "build": "rm -f .logs/*build.log && (npm run build --workspace=backend > .logs/backend-build.log 2>&1 & npm run build --workspace=frontend > .logs/frontend-build.log 2>&1; wait) && echo 'Build complete - see .logs/ for details' || echo 'Build failures found - see .logs/ for details'",
+    "lint": "rm -f .logs/*lint.log && (npm run lint --workspace=backend > .logs/backend-lint.log 2>&1 & npm run lint --workspace=frontend > .logs/frontend-lint.log 2>&1; wait) && echo 'Lint checks complete - see .logs/ for details' || echo 'Lint errors found - see .logs/ for details'",
+    "test": "rm -f .logs/*test.log && (npm run test --workspace=backend > .logs/backend-test.log 2>&1 & npm run test --workspace=frontend > .logs/frontend-test.log 2>&1; wait) && echo 'Tests complete - see .logs/ for details' || echo 'Test failures found - see .logs/ for details'",
+    "typecheck": "rm -f .logs/*typecheck.log && (npm run typecheck --workspace=backend > .logs/backend-typecheck.log 2>&1 & npm run typecheck --workspace=frontend > .logs/frontend-typecheck.log 2>&1; wait) && echo 'Typecheck complete - see .logs/ for details' || echo 'Type errors found - see .logs/ for details'",
+    "ci": "rm -rf .logs/*.log && echo '🔍 Running lint...' && npm run lint && echo '🔧 Running typecheck...' && npm run typecheck && echo '🧪 Running tests...' && npm run test && echo '🏗️  Running build...' && npm run build && npm run ci:summary",
+    "ci:summary": "node -e \"const fs=require('fs'); const logs=fs.readdirSync('.logs').filter(f=>f.endsWith('.log')); const failed=logs.filter(log=>{const content=fs.readFileSync('.logs/'+log,'utf8'); return content.includes('FAIL')||content.includes('ERROR')||content.includes('error')||/npm error/.test(content);}); if(failed.length){console.log('❌ CI FAILED - Errors in:',failed.join(', ')); process.exit(1);} else console.log('✅ All quality gates passed!');\"",
+    "sync": "npm run ci && git add . && node .claude/sync.js && git push",
     "repomix": "./generate-repomix.sh",
     "repomix:backend": "cd apps/backend && npx repomix",
     "repomix:frontend": "cd apps/frontend && npx repomix"

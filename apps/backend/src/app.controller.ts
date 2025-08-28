@@ -3,15 +3,15 @@ import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  public constructor(private readonly appService: AppService) {}
 
   @Get()
-  getHello(): string {
+  public getHello(): string {
     return this.appService.getHello();
   }
 
   @Get('health')
-  getHealth() {
+  public getHealth(): Record<string, unknown> {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -22,7 +22,7 @@ export class AppController {
   }
 
   @Get('api/health/db')
-  getDbHealth() {
+  public getDbHealth(): Record<string, unknown> {
     // Add actual database check here if using Prisma
     return {
       status: 'ok',

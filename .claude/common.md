@@ -2,38 +2,151 @@
 
 **ALWAYS USE FULL PATHS**
 
+**STRICT QUALITY GATES**
+- ALL must pass before ANY commit: lint + build + typecheck + tests
+- Zero tolerance: No warnings, no errors, no skipped tests
+- Use `npm run ci` to validate all gates pass
+- If any gate fails, fix immediately - no exceptions
+
+**STRONG TYPING RULES**
+- Never use `any` type - use proper TypeScript types
+- Use `unknown` instead of `any` when type is truly unknown
+- Prefer `interface` over `type` for object shapes
+- Use descriptive interface names: `UserData` not `IUser`
+- Enable `strict: true` and `noImplicitAny: true` always
+
+**INTERFACE NAMING**
+- Use descriptive names: `UserProfile`, `ApiResponse`
+- Avoid Hungarian notation: `UserData` not `IUserData`  
+- Be specific: `CreateUserRequest` not `UserInput`
+
 DO NOT USE CAT
 
 ** its good practice to return something when using sed to confirm it worked. **
 
-## BEFORE Creating Files/Folders
-**Ask yourself:**
-- Is there a template/generator? `nest g module auth` > manual creation
-- Can I scaffold? `npm create vite@latest` > manual setup
-- Can I copy existing patterns? `cp -r src/auth src/users && sed -i 's/auth/users/g'`
+## EFFICIENCY COMMANDS
 
-## BEFORE Using Edit Tools
-**Ask yourself:**
-- How can focus on strong type safety
-- Look for opportunities to use optional chaining and nullish coalescing operators
-- Can `sed` fix all instances? `find . -name "*.ts" -exec sed -i 's/old/new/g' {} +`
-- Can `awk` transform this data? `awk '{print $2}' file.txt`
-- Can I append instead? `echo "export default config;" >> config.ts`
-- Can `jq` modify JSON? `jq '.scripts.dev = "pnpm dev"' package.json > tmp && mv tmp package.json`
+### File Operations
+```bash
+# Create multiple directories at once
+mkdir -p {src,test,docs}/{components,utils,types}
 
-## BEFORE Reading Files
-**Ask yourself:**
-- Can `rg` find patterns? `rg -n "class.*Entity" --glob '*.entity.ts'`
-- Can `grep` extract lines? `grep "^export" src/index.ts`
-- Can `head`/`tail` preview? `head -20 README.md`
-- Can `bat` show with syntax? `bat -n --line-range=1:50 src/main.ts`
+# Copy and rename in one operation
+cp template.ts new-feature.ts && sed -i 's/Template/NewFeature/g' new-feature.ts
 
-## BEFORE Finding Files
+# Bulk file operations
+for f in *.js; do mv "$f" "${f%.js}.ts"; done
+
+# Find and replace across multiple files
+rg -l "oldPattern" | xargs sed -i 's/oldPattern/newPattern/g'
+
+# Quick file content preview
+head -n 20 file.txt && echo "..." && tail -n 10 file.txt
+```
+
+### Search & Analysis
+```bash
+# Search with context
+rg "pattern" -A 3 -B 3 --glob '*.ts'
+
+# Count occurrences
+rg "TODO|FIXME" --count-matches
+
+# Find files modified recently
+fd -t f --changed-within 1d
+
+# List files by size
+ls -lah | sort -k5 -hr | head -10
+
+# Directory sizes
+du -sh */ | sort -hr
+```
+
+### Process & System
+```bash
+# Kill process by port
+lsof -ti:3000 | xargs kill -9
+
+# Monitor file changes
+watchexec --exts ts,js -- npm test
+
+# Quick process check
+pgrep -fl "node|npm" || echo "No Node processes"
+
+# Memory usage
+ps aux --sort=-%mem | head -10
+```
+
+### Package Management
+```bash
+# Install and save in one command
+npm i -D @types/{node,jest} && npm i express
+
+# Check outdated packages
+npm outdated --depth=0
+
+# Clean install
+rm -rf node_modules package-lock.json && npm install
+
+# Quick dependency audit
+npm audit --audit-level moderate
+```
+
+### Git Shortcuts
+```bash
+# Stage and commit
+git add . && git commit -m "feat: implement feature"
+
+# Quick status and diff
+git status --short && echo "---" && git diff --stat
+
+# Branch operations
+git checkout -b feature/name && git push -u origin HEAD
+
+# Clean merged branches
+git branch --merged | grep -v main | xargs git branch -d
+```
+
+### Development Workflow
+```bash
+# Full reset and restart
+pkill -f "node\|npm" && rm -rf node_modules/.cache && npm start
+
+# Test specific pattern
+npm test -- --testNamePattern="UserService"
+
+# Build and serve
+npm run build && npx serve dist
+
+# Environment check
+env | grep -E "(NODE_|API_|DB_)" | sort
+```
+
+## BEFORE USING TOOLS
+
+### Creating Files/Folders
 **Ask yourself:**
-- Can `fd` locate faster? `fd -e ts -e tsx --exclude node_modules`
-- Can `find` with conditions? `find . -name "*.spec.ts" -mtime -1`
-- Need structure only? `tree -L 3 -I 'node_modules|dist' src/`
-- Check if exists? `test -f .env && echo "exists" || echo "create it"`
+- Use generators? `nest g module auth` > manual
+- Copy patterns? `cp -r src/users src/posts && sed -i 's/users/posts/g' src/posts/*`
+- Batch create? `touch src/{auth,users,posts}.{service,controller}.ts`
+
+### Editing Files
+**Ask yourself:**
+- Bulk replace? `rg -l "old" | xargs sed -i 's/old/new/g'`
+- JSON modify? `jq '.scripts.test = "vitest"' package.json > tmp && mv tmp package.json`
+- Append only? `echo "export * from './new'" >> index.ts`
+
+### Reading Files
+**Ask yourself:**
+- Pattern search? `rg "class.*Service" --glob '*.ts' -n`
+- Quick preview? `head -20 file.ts | bat -l typescript`
+- Structure only? `tree src -I node_modules -L 3`
+
+### Finding Files
+**Ask yourself:**
+- Fast find? `fd "service.ts$" --exclude node_modules`
+- By content? `rg -l "interface.*User" --glob '*.ts'`
+- Recent changes? `fd -t f --changed-within 1h`
 
 ## KEY PATTERNS
 

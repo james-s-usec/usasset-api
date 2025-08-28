@@ -5,9 +5,9 @@ import { ConfigService } from '@nestjs/config';
 export class HealthService {
   private startTime = Date.now();
 
-  constructor(private configService: ConfigService) {}
+  public constructor(private configService: ConfigService) {}
 
-  check() {
+  public check(): Record<string, unknown> {
     return {
       status: this.getHealthStatus(),
       timestamp: new Date().toISOString(),
@@ -17,7 +17,7 @@ export class HealthService {
     };
   }
 
-  async checkReadiness() {
+  public async checkReadiness(): Promise<Record<string, unknown>> {
     const basicHealth = this.check();
     const databaseStatus = await this.checkDatabase();
 
@@ -29,7 +29,7 @@ export class HealthService {
     };
   }
 
-  checkLiveness() {
+  public checkLiveness(): Record<string, unknown> {
     return {
       status: this.getAliveStatus(),
       timestamp: new Date().toISOString(),
