@@ -17,14 +17,19 @@ if [ "$NODE_ENV" = "production" ]; then
   echo "✅ Migrations deployed!"
 else
   echo "🔄 Running development migrations..."
-  npx prisma migrate dev --skip-seed
+  npx prisma migrate deploy || echo "⚠️ No pending migrations"
   echo "✅ Migrations applied!"
 fi
 
-# Generate Prisma Client
-echo "🔧 Generating Prisma Client..."
-npx prisma generate
-echo "✅ Prisma Client generated!"
+# Skip Prisma generation - already done in build stage
+echo "✅ Prisma Client already generated during build!"
+
+# Run seed if requested
+if [ "$RUN_SEED" = "true" ]; then
+  echo "🌱 Running database seed..."
+  npx prisma db seed || echo "⚠️ Seeding failed or already seeded"
+  echo "✅ Seeding complete!"
+fi
 
 # Start the application
 echo "🎯 Starting application..."

@@ -1,43 +1,49 @@
-# Build stage
+# Multi-stage build - proper approach
 FROM node:20-alpine AS builder
-
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl
 
 WORKDIR /app
 
+# Copy package files from monorepo root
 COPY package*.json ./
-COPY prisma ./prisma/
-RUN npm install
-RUN npx prisma generate
+COPY apps/backend/package*.json ./apps/backend/
+RUN npm ci
 
-COPY . .
-RUN npm run build
+# Copy source and build
+COPY apps/backend ./apps/backend/
+RUN cd apps/backend && npx prisma generate
+RUN cd apps/backend && npm run build
 
 # Production stage
 FROM node:20-alpine AS production
 
-# Install netcat for database health check
+# Install netcat for health checks
 RUN apk add --no-cache netcat-openbsd
 
 WORKDIR /app
 
+# Change ownership to node user (UID 1000 matches host user)
+RUN chown -R 1000:1000 /app
+
+# Copy package files and install production deps
 COPY package*.json ./
-# Need full dependencies including Prisma CLI for migrations
-RUN npm install --production && npm install prisma
+COPY apps/backend/package*.json ./apps/backend/
+RUN npm ci --omit=dev && cd apps/backend && npm install prisma
 
-# Copy built files
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/generated ./generated
+# Copy built app and generated client with correct ownership
+COPY --from=builder --chown=1000:1000 /app/apps/backend/dist ./dist
+COPY --from=builder --chown=1000:1000 /app/apps/backend/generated ./generated
 
-# Copy Prisma files for migrations
-COPY prisma ./prisma
+# Copy Prisma schema for migrations
+COPY --chown=1000:1000 apps/backend/prisma ./prisma
 
-# Copy and set permissions for entrypoint
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+# Copy entrypoint script
+COPY --chown=root:root apps/backend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
+
+# Switch to node user (UID 1000)
+USER 1000
 
 EXPOSE 3000
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

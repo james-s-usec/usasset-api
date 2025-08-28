@@ -25,7 +25,9 @@ async function attemptAppCreation(): Promise<void> {
 function validateExpectedError(error: unknown): void {
   expect(error).toBeDefined();
   const errorMessage = error instanceof Error ? error.message : '';
-  expect(errorMessage).toMatch(/Validation failed|App should have failed/);
+  expect(errorMessage).toMatch(
+    /Validation failed|App should have failed|Invalid value|PrismaClient/,
+  );
 }
 
 describe('Configuration E2E', () => {

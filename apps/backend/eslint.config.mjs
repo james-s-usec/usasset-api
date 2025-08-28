@@ -93,6 +93,18 @@ export default tseslint.config(
           format: ['camelCase']
         }
       ],
+      
+      // === MAGIC NUMBERS PREVENTION ===
+      // Force explicit constants instead of magic numbers
+      'no-magic-numbers': [
+        'error',
+        {
+          ignore: [0, 1, -1],
+          ignoreArrayIndexes: true,
+          enforceConst: true,
+          detectObjects: false
+        }
+      ],
     },
   },
 );

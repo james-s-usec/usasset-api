@@ -1,4 +1,5 @@
 import { validationSchema } from './env.validation';
+import { DEFAULT_TEST_PORT } from '../common/constants';
 
 interface ValidatedConfig {
   NODE_ENV: string;
@@ -21,7 +22,7 @@ function getDevConfig(): Record<string, unknown> {
 function getProdConfig(): Record<string, unknown> {
   return {
     NODE_ENV: 'production',
-    PORT: 8080,
+    PORT: DEFAULT_TEST_PORT,
     DATABASE_URL: 'postgresql://server.postgres.database.azure.com/usasset',
     CORS_ORIGIN: 'https://frontend.azurecontainerapps.io',
     JWT_SECRET: 'from-key-vault',
@@ -31,7 +32,7 @@ function getProdConfig(): Record<string, unknown> {
 function getAzureConfig(): Record<string, unknown> {
   return {
     NODE_ENV: 'production',
-    PORT: '8080', // Azure provides PORT as string
+    PORT: DEFAULT_TEST_PORT.toString(), // Azure provides PORT as string
     DATABASE_URL:
       'postgresql://dbadmin@usasset-db.postgres.database.azure.com/usasset?sslmode=require',
     CORS_ORIGIN: 'https://frontend.azurecontainerapps.io',
@@ -76,7 +77,7 @@ describe('Environment Validation', () => {
     it('should validate Azure Container Apps with Key Vault secrets', () => {
       const result = validateConfig(getAzureConfig());
       expect(result.error).toBeUndefined();
-      expect((result.value as ValidatedConfig).PORT).toBe(8080);
+      expect((result.value as ValidatedConfig).PORT).toBe(DEFAULT_TEST_PORT);
     });
 
     it('should fail without DATABASE_URL in production', () => {

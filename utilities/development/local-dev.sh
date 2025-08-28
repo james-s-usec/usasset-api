@@ -10,7 +10,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
 # Logging setup
-LOG_DIR="/home/swansonj/projects/USAsset3/.logs"
+LOG_DIR="../../.logs"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOG_FILE="$LOG_DIR/local-dev_$TIMESTAMP.log"
 mkdir -p "$LOG_DIR"
@@ -41,9 +41,10 @@ echo "3) Stop all containers"
 echo "4) View logs"
 echo "5) Reset database"
 echo "6) Run Prisma migrations"
-echo "7) Connect to database (psql)"
+echo "7) Seed database"
+echo "8) Connect to database (psql)"
 echo "------------------------------------"
-read -p "Enter choice (1-7): " choice
+read -p "Enter choice (1-8): " choice
 
 case $choice in
   1)
@@ -120,8 +121,26 @@ case $choice in
     ;;
     
   7)
+    echo -e "${BLUE}🌱 Seeding database...${NC}"
+    cd ../../apps/backend
+    
+    # Check if database is running
+    if ! docker ps | grep -q postgres; then
+      echo -e "${YELLOW}Starting database first...${NC}"
+      cd ../../
+      docker-compose up -d postgres
+      cd apps/backend
+      sleep 3
+    fi
+    
+    export DATABASE_URL="postgresql://dbadmin:localpassword123@localhost:5433/usasset"
+    npm run db:seed
+    echo -e "${GREEN}✅ Database seeded!${NC}"
+    ;;
+    
+  8)
     echo -e "${BLUE}🔌 Connecting to database...${NC}"
-    docker exec -it usasset-postgres-dev psql -U dbadmin -d usasset || \
+    docker exec -it usasset-postgres-dev psql -U dbadmin -d usasset 2>/dev/null || \
     docker exec -it usasset-postgres psql -U dbadmin -d usasset
     ;;
     

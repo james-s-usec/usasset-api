@@ -1,7 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { createLoggerConfig } from './config/logger.config';
+import { DEFAULT_PORT } from './common/constants';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 
 function configureCors(
   app: Awaited<ReturnType<typeof NestFactory.create>>,
@@ -49,7 +52,19 @@ async function bootstrap(): Promise<void> {
 
     configureCors(app);
 
-    const port = process.env.PORT ?? 3000;
+    const globalExceptionFilter = app.get(GlobalExceptionFilter);
+    const responseTransformInterceptor = app.get(ResponseTransformInterceptor);
+    app.useGlobalFilters(globalExceptionFilter);
+    app.useGlobalInterceptors(responseTransformInterceptor);
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+
+    const port = process.env.PORT ?? DEFAULT_PORT;
     await app.listen(port);
 
     logStartupInfo(logger, port);

@@ -1,0 +1,108 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import {
+  LogLevel,
+  LogEntry as PrismaLogEntry,
+  Prisma,
+} from '../../../generated/prisma';
+
+export interface LogMetadata {
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+@Injectable()
+export class DatabaseLoggerService {
+  private readonly logger = new Logger(DatabaseLoggerService.name);
+
+  public constructor(private readonly prisma: PrismaService) {}
+
+  public async logDebug(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.DEBUG, correlationId, message, metadata);
+  }
+
+  public async logInfo(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.INFO, correlationId, message, metadata);
+  }
+
+  public async logWarn(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.WARN, correlationId, message, metadata);
+  }
+
+  public async logError(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.ERROR, correlationId, message, metadata);
+  }
+
+  public async logFatal(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.FATAL, correlationId, message, metadata);
+  }
+
+  public async findLogsByCorrelationId(
+    correlationId: string,
+  ): Promise<PrismaLogEntry[]> {
+    try {
+      return await this.prisma.logEntry.findMany({
+        where: { correlation_id: correlationId },
+        orderBy: { timestamp: 'asc' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to find logs for correlation ID ${correlationId}:`,
+        error,
+      );
+      return [];
+    }
+  }
+
+  private async logEntry(
+    level: LogLevel,
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    try {
+      await this.prisma.logEntry.create({
+        data: {
+          level,
+          correlation_id: correlationId,
+          message,
+          metadata: metadata
+            ? (metadata as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to log ${level} entry:`, error);
+    }
+  }
+}
+
+// Re-export for use in other modules
+export interface LogEntry {
+  id: string;
+  timestamp: Date;
+  level: LogLevel;
+  correlation_id: string;
+  message: string;
+  metadata: LogMetadata | null;
+  created_at: Date;
+}

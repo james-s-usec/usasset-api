@@ -1,3 +1,4 @@
+/// <reference types="vitest/globals" />
 import { render, screen, fireEvent } from '@testing-library/react'
 import App from './App'
 

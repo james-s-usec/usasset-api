@@ -5,6 +5,8 @@
   "include": [
     "src/**/*",
     "prisma/**/*",
+    "generated/prisma/index.d.ts",
+    "generated/prisma/client.d.ts",
     "*.json",
     "*.md",
     "Dockerfile",
@@ -19,10 +21,9 @@
       "dist/**",
       "node_modules/**",
       "*.log",
-      "*.lock",
-      "test/**",
-      "*.spec.ts",
-      "*.e2e-spec.ts"
+      "generated/prisma/*.js",
+      "generated/prisma/runtime/**",
+      "generated/prisma/lib*"
     ]
   },
   "security": {

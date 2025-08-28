@@ -22,8 +22,8 @@ services:
   # Backend API
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     container_name: usasset-backend
     depends_on:
       postgres:
@@ -32,18 +32,17 @@ services:
       DATABASE_URL: postgresql://dbadmin:localpassword123@postgres:5432/usasset
       NODE_ENV: development
       PORT: 3000
+      RUN_SEED: ${RUN_SEED:-false}  # Set to true to run seed on startup
     ports:
       - "3000:3000"
-    volumes:
-      - ./apps/backend:/app
-      - /app/node_modules
-    command: npm run start:dev
+    # No volumes for production mode - everything is in the container
+    command: node dist/src/main.js
 
   # Frontend
   frontend:
     build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
     container_name: usasset-frontend
     depends_on:
       - backend

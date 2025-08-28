@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HealthRepository } from './health.repository';
+import { MILLISECONDS_PER_SECOND } from '../common/constants';
 
 @Injectable()
 export class HealthService {
@@ -49,7 +50,7 @@ export class HealthService {
   }
 
   private getUptime(): number {
-    return Math.floor((Date.now() - this.startTime) / 1000);
+    return Math.floor((Date.now() - this.startTime) / MILLISECONDS_PER_SECOND);
   }
 
   private getVersion(): string {

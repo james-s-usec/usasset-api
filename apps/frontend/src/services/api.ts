@@ -1,4 +1,5 @@
 import config from '../config'
+import { CorrelationIdService } from './correlation-id'
 
 class ApiService {
   private baseUrl: string
@@ -22,6 +23,7 @@ class ApiService {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
+          ...CorrelationIdService.getHeaders(),
           ...options.headers,
         },
       })

@@ -20,9 +20,18 @@ model User {
   email      String   @unique
   name       String?
   role       UserRole @default(USER)
+  is_deleted Boolean  @default(false)
   created_at DateTime @default(now())
+  created_by String?
   updated_at DateTime @updatedAt
+  updated_by String?
+  deleted_at DateTime?
+  deleted_by String?
   
+  @@index([email])
+  @@index([role])
+  @@index([created_at])
+  @@index([is_deleted])
   @@map("users")
 }
 
@@ -30,4 +39,27 @@ enum UserRole {
   USER
   ADMIN
   SUPER_ADMIN
+}
+
+model LogEntry {
+  id            String   @id @default(uuid())
+  timestamp     DateTime @default(now())
+  level         LogLevel
+  correlation_id String
+  message       String
+  metadata      Json?
+  created_at    DateTime @default(now())
+  
+  @@index([timestamp])
+  @@index([correlation_id])
+  @@index([level])
+  @@map("log_entries")
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
 }

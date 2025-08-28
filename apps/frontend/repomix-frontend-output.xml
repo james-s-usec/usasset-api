@@ -51,11 +51,15 @@ src/
     index.ts
   services/
     api.ts
+  test/
+    setup.ts
   App.css
+  App.test.tsx
   App.tsx
   index.css
   main.tsx
   vite-env.d.ts
+CLAUDE.md
 Dockerfile
 eslint.config.js
 index.html
@@ -66,6 +70,7 @@ tsconfig.app.json
 tsconfig.json
 tsconfig.node.json
 vite.config.ts
+vitest.config.ts
 </directory_structure>
 
 <files>
@@ -255,6 +260,10 @@ export const apiService = new ApiService()
 export default apiService
 </file>
 
+<file path="src/test/setup.ts">
+import '@testing-library/jest-dom'
+</file>
+
 <file path="src/App.css">
 #root {
   max-width: 1280px;
@@ -298,6 +307,56 @@ export default apiService
 .read-the-docs {
   color: #888;
 }
+</file>
+
+<file path="src/App.test.tsx">
+import { render, screen, fireEvent } from '@testing-library/react'
+import App from './App'
+
+describe('App Component', () => {
+  it('renders Vite and React logos with correct links', () => {
+    render(<App />)
+    
+    // Verify the Vite logo and link
+    const viteLogo = screen.getByAltText('Vite logo')
+    expect(viteLogo).toBeInTheDocument()
+    expect(viteLogo.closest('a')).toHaveAttribute('href', 'https://vite.dev')
+    
+    // Verify the React logo and link  
+    const reactLogo = screen.getByAltText('React logo')
+    expect(reactLogo).toBeInTheDocument()
+    expect(reactLogo.closest('a')).toHaveAttribute('href', 'https://react.dev')
+  })
+
+  it('displays initial count and increments when button is clicked', () => {
+    render(<App />)
+    
+    // Find the button and verify initial state
+    const button = screen.getByRole('button', { name: /count is 0/i })
+    expect(button).toBeInTheDocument()
+    
+    // Click the button and verify count increments
+    fireEvent.click(button)
+    expect(screen.getByRole('button', { name: /count is 1/i })).toBeInTheDocument()
+    
+    // Click again to verify it continues incrementing
+    fireEvent.click(button)
+    expect(screen.getByRole('button', { name: /count is 2/i })).toBeInTheDocument()
+  })
+
+  it('displays the expected heading and validates essential UI elements', () => {
+    render(<App />)
+    
+    // Verify main heading shows Vite + React integration
+    expect(screen.getByRole('heading', { name: 'Vite + React' })).toBeInTheDocument()
+    
+    // Verify the file reference in code element (validates Vite file handling)
+    expect(screen.getByText('src/App.tsx')).toBeInTheDocument()
+    
+    // Verify instructional text about logos
+    expect(screen.getByText('Click on the Vite and React logos to learn more')).toBeInTheDocument()
+  })
+})
 </file>
 
 <file path="src/App.tsx">
@@ -426,6 +485,163 @@ createRoot(document.getElementById('root')!).render(
 /// <reference types="vite/client" />
 </file>
 
+<file path="CLAUDE.md">
+# USAsset Frontend
+
+## Overview
+React + TypeScript frontend built with Vite, configured for Azure Static Web Apps or Container Apps deployment.
+
+## Project Structure
+```
+src/
+├── assets/             # Static assets (images, icons)
+├── config/             # Configuration
+│   └── index.ts        # API URLs and environment config
+├── services/           # API services
+│   └── api.ts          # Backend API client
+├── App.tsx             # Main application component
+├── App.css             # Application styles
+├── index.css           # Global styles
+├── main.tsx           # Application entry point
+└── vite-env.d.ts      # TypeScript environment definitions
+```
+
+## Configuration
+
+### Environment Variables
+**Development** (.env file):
+```bash
+VITE_API_URL=http://localhost:3000
+```
+
+**Production** (.env.production):
+```bash
+VITE_API_URL=https://backend-<unique-id>.azurecontainerapps.io
+```
+
+### API Configuration
+Located in `src/config/index.ts`:
+- Reads from `import.meta.env.VITE_API_URL`
+- Falls back to localhost:3000 for development
+- Supports environment-specific builds
+
+## Available Scripts
+```bash
+npm run dev       # Development server with hot reload (port 5173)
+npm run build     # Build for production
+npm run preview   # Preview production build locally
+npm run lint      # Run ESLint
+```
+
+## Key Features
+- ⚛️ React 18.x with TypeScript
+- ⚡ Vite for fast development and optimized builds
+- 🎨 CSS modules support
+- 🔧 ESLint configured
+- 📦 Production-ready build optimization
+- 🌐 Environment-based API configuration
+- 🔒 CORS-ready for backend communication
+
+## Dependencies
+- **Framework**: React 18.x
+- **Build Tool**: Vite 7.x
+- **Language**: TypeScript 5.x
+- **HTTP Client**: Native fetch (in api.ts)
+- **Styling**: CSS modules
+
+## Build & Deployment
+
+### Development
+```bash
+npm run dev
+# Runs on http://localhost:5173
+# Hot module replacement enabled
+# Proxies API calls to backend
+```
+
+### Production Build
+```bash
+npm run build
+# Output in dist/ directory
+# Optimized and minified
+# Ready for static hosting
+```
+
+### Docker Build
+```dockerfile
+# Multi-stage build
+# 1. Build stage with Node
+# 2. Serve with nginx
+```
+
+## Azure Deployment Notes
+- Can deploy as Static Web App or Container App
+- Environment variables set in Azure Portal
+- CORS must be configured on backend
+- Health endpoint not required for frontend
+
+## API Integration
+The `services/api.ts` file provides:
+- Centralized API configuration
+- Error handling
+- Type-safe request/response handling
+- Environment-based URL switching
+
+Example:
+```typescript
+import { apiClient } from './services/api';
+
+const data = await apiClient.get('/endpoint');
+```
+
+## Common Tasks
+
+### Add a new component
+```bash
+# Create new file in src/components/
+# Export from index.ts for cleaner imports
+```
+
+### Change API endpoint
+```bash
+# Update .env file:
+VITE_API_URL=https://new-backend-url.com
+```
+
+### Add environment variable
+```bash
+# 1. Add to .env: VITE_NEW_VAR=value
+# 2. Access: import.meta.env.VITE_NEW_VAR
+# 3. Add TypeScript type in vite-env.d.ts
+```
+
+### Debug API calls
+```bash
+# Open browser DevTools
+# Network tab shows all API requests
+# Console shows any errors
+```
+
+## TypeScript Configuration
+- Strict mode enabled
+- React JSX support
+- Path aliases configured
+- ES2022 target
+
+## Performance Optimization
+- Code splitting enabled
+- Tree shaking in production
+- CSS minification
+- Asset optimization
+
+## Testing
+Currently no tests configured. To add:
+```bash
+npm install --save-dev vitest @testing-library/react
+# Add test scripts to package.json
+```
+</file>
+
 <file path="Dockerfile">
 FROM node:20-alpine as build
 
@@ -493,7 +709,10 @@ export default tseslint.config([
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -501,6 +720,8 @@ export default tseslint.config([
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
@@ -508,9 +729,11 @@ export default tseslint.config([
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "jsdom": "^26.1.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "vitest": "^3.2.4"
   }
 }
 </file>
@@ -697,6 +920,20 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+})
+</file>
+
+<file path="vitest.config.ts">
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+  },
 })
 </file>
 

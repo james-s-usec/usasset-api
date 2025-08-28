@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { DEFAULT_PORT } from '../common/constants';
 
 export const validationSchema = Joi.object({
   // Required in all environments
@@ -9,7 +10,7 @@ export const validationSchema = Joi.object({
       'any.only': 'NODE_ENV must be one of: development, test, production',
     }),
 
-  PORT: Joi.number().default(3000).messages({
+  PORT: Joi.number().default(DEFAULT_PORT).messages({
     'number.base': 'PORT must be a number',
   }),
 
