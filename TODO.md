@@ -37,14 +37,36 @@
 - [ ] Tab completion support (optional)
 - [ ] Update all documentation to use new CLI
 
-## 🚨 Priority 1: Health Module & E2E Testing
+## 🚨 Priority 1: Database Setup with User Entity
+**Goal**: Get Prisma working with Azure PostgreSQL and create User entity
+
+### Database Setup Tasks
+- [ ] Initialize Prisma in backend: `npx prisma init`
+- [ ] Configure DATABASE_URL for Azure PostgreSQL
+- [ ] Create User entity schema in `schema.prisma`:
+  - [ ] id (UUID)
+  - [ ] email (unique)
+  - [ ] name
+  - [ ] createdAt
+  - [ ] updatedAt
+- [ ] Generate Prisma client: `npx prisma generate`
+- [ ] Create initial migration: `npx prisma migrate dev --name init`
+- [ ] Test migration locally with Docker PostgreSQL
+- [ ] Deploy migration to Azure database: `npx prisma migrate deploy`
+- [ ] Create user module: `nest g module users`
+- [ ] Create user service with CRUD operations
+- [ ] Create user controller with endpoints
+- [ ] Test user creation/retrieval from Azure
+- [ ] Update health check to use real Prisma database check
+
+## 🚨 Priority 2: Health Module & E2E Testing
 **Goal**: Get frontend-backend communication verified with proper health checks
 
-### Backend Tasks
+### Backend Tasks (AFTER database is working)
 - [ ] Generate proper NestJS health module: `nest g module health`
 - [ ] Add health controller with endpoints:
   - [ ] `/health` - Basic health check
-  - [ ] `/health/db` - Database connectivity check  
+  - [ ] `/health/db` - Database connectivity check (using Prisma)
   - [ ] `/health/ready` - Readiness probe for Azure
   - [ ] `/health/live` - Liveness probe for Azure
 - [ ] Implement actual Prisma database health check (not mock)
@@ -75,15 +97,15 @@
 
 ---
 
-## Priority 2: Authentication & Authorization
+## Priority 3: Authentication & Authorization
 - [ ] Add JWT authentication module
 - [ ] User registration/login endpoints
 - [ ] Protected route examples
 - [ ] Role-based access control (RBAC)
 - [ ] Session management
 
-## Priority 3: Data Models & API
-- [ ] Define Prisma schema for core entities
+## Priority 4: Extended Data Models & API
+- [ ] Define Prisma schema for additional entities (beyond User)
 - [ ] Generate CRUD endpoints for main resources
 - [ ] Add validation pipes
 - [ ] Implement pagination
