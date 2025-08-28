@@ -97,9 +97,9 @@ LABEL description="USAsset Backend API"
 RUN apk add --no-cache openssl netcat-openbsd dumb-init
 
 # Security: Create a non-root user
-# We use UID 1000 which typically matches the host user
-RUN addgroup -g 1000 -S nodejs && \
-    adduser -S nodejs -u 1000 -G nodejs
+# Check if group/user exists before creating
+RUN (getent group nodejs || addgroup -g 1001 -S nodejs) && \
+    (id -u nodejs 2>/dev/null || adduser -S nodejs -u 1001 -G nodejs)
 
 WORKDIR /app
 
