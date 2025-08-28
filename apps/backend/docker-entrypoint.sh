@@ -5,10 +5,15 @@ echo "🚀 Starting USAsset Backend..."
 echo "📁 Working directory: $(pwd)"
 echo "📂 Contents: $(ls -la)"
 
-# Wait for database to be ready
+# Parse DATABASE_URL for Azure PostgreSQL connection
+# Azure provides DATABASE_URL format: postgresql://user:pass@host:port/database?sslmode=require
 if [ -n "$DATABASE_URL" ]; then
-  # Parse DATABASE_URL to extract host and port
-  # Format: postgresql://user:pass@host:port/database?params
+  # Extract host and port using sed regex parsing
+  # Regex explanation: .*@([^:]*):([0-9]*)/.*
+  # - .*@ matches everything up to @ symbol
+  # - ([^:]*) captures host (everything until :)
+  # - ([0-9]*) captures port number
+  # - /.* matches database name and params
   DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):\([0-9]*\)/.*|\1|p')
   DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*@[^:]*:\([0-9]*\)/.*|\1|p')
   echo "📊 Parsed from DATABASE_URL - Host: $DB_HOST, Port: $DB_PORT"
@@ -25,13 +30,20 @@ else
   echo "⚠️ No database host configured, skipping connection check"
 fi
 
-# Run migrations
+# Run database migrations for production deployment
+# Note: Migrations must be committed to git for production sync
+# - prisma migrate deploy only applies committed migrations
+# - Ensures production database matches current codebase state
+# - Fails fast if migrations are missing or inconsistent
 if [ "$NODE_ENV" = "production" ]; then
   echo "🔄 Running production migrations..."
+  # Deploy only applies migrations that exist in prisma/migrations/
+  # This requires migrations to be tracked in git for container deployment
   npx prisma migrate deploy
   echo "✅ Migrations deployed!"
 else
   echo "🔄 Running development migrations..."
+  # In development, attempt deploy but don't fail if no migrations
   npx prisma migrate deploy || echo "⚠️ No pending migrations"
   echo "✅ Migrations applied!"
 fi

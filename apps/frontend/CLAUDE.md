@@ -1,3 +1,19 @@
+<!--
+  USAsset Frontend Application Documentation
+  
+  Purpose: React frontend configuration, components, and deployment guide
+  Audience: Frontend developers, UI/UX developers, DevOps engineers
+  Last Updated: 2025-08-28
+  Version: 2.1
+  
+  Key Sections:
+  - Project Structure: Component organization and services
+  - Environment Configuration: Vite build-time vs runtime variables
+  - API Integration: Backend communication and CORS handling
+  - Azure Deployment: Container Apps with static serving
+  - Development: Local setup and debugging
+-->
+
 # USAsset Frontend
 
 ## Overview
@@ -7,10 +23,15 @@ React + TypeScript frontend built with Vite, configured for Azure Static Web App
 ```
 src/
 ├── assets/             # Static assets (images, icons)
+├── components/         # React components
+│   └── DbStatus.tsx    # Database status indicator component
 ├── config/             # Configuration
 │   └── index.ts        # API URLs and environment config
 ├── services/           # API services
-│   └── api.ts          # Backend API client
+│   ├── api.ts          # Backend API client
+│   ├── correlation-id.ts  # Correlation ID handling
+│   └── logger.ts       # Frontend logging service
+├── test/               # Test setup and utilities
 ├── App.tsx             # Main application component
 ├── App.css             # Application styles
 ├── index.css           # Global styles

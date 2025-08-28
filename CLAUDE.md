@@ -1,3 +1,19 @@
+<!--
+  USAsset Project - Root Documentation
+  
+  Purpose: Primary documentation and navigation hub for USAsset monorepo
+  Audience: Developers, DevOps engineers, project maintainers
+  Last Updated: 2025-08-28
+  Version: 2.0
+  
+  Quick Navigation:
+  - Development Setup: See "Quick Start" section below
+  - Backend API: ./apps/backend/CLAUDE.md
+  - Frontend App: ./apps/frontend/CLAUDE.md  
+  - Infrastructure: ./infra/CLAUDE.md
+  - Deployment: ./docs/DEPLOYMENT_SCRIPT_GUIDE.md
+-->
+
 # USAsset Project
 
 ## Project Structure
@@ -8,14 +24,18 @@ USAsset3/
 ├── apps/
 │   ├── backend/         # NestJS API (see apps/backend/CLAUDE.md)
 │   └── frontend/        # React SPA (see apps/frontend/CLAUDE.md)
-├── infra/               # Azure Bicep templates
+├── infra/               # Azure Bicep templates (see infra/CLAUDE.md)
 ├── docs/                # Documentation
+│   ├── Azure/           # Azure-specific guides and debug logs
+│   ├── Docker/          # Docker-related documentation
+│   └── DEPLOYMENT_SCRIPT_GUIDE.md  # Deployment script usage
 └── CLAUDE.md           # This file
 ```
 
 ## Quick Links to Documentation
 - 📘 **[Backend Documentation](./apps/backend/CLAUDE.md)** - NestJS API, configuration, logging
 - 📗 **[Frontend Documentation](./apps/frontend/CLAUDE.md)** - React app, Vite config, API integration
+- 🏗️ **[Infrastructure Documentation](./infra/CLAUDE.md)** - Azure Bicep templates, deployment guide
 
 ## Quick Start
 
@@ -42,11 +62,12 @@ Backend is configured for seamless local development and Azure production deploy
 
 ### Key Configuration Points
 - **Backend**: NestJS with validated env vars, Winston logging, Azure Key Vault ready
-- **Frontend**: Vite with environment-based API URLs
+- **Frontend**: Vite with environment-based API URLs, build-time configuration
+- **Infrastructure**: Azure Bicep templates for Container Apps, ACR, PostgreSQL, Key Vault
 - **Monorepo**: npm workspaces for dependency management
-- **Azure**: Container Apps with Key Vault integration
+- **Azure**: Container Apps with Key Vault integration and CORS configuration
 
-See individual CLAUDE.md files in apps/backend and apps/frontend for detailed configuration.
+See individual CLAUDE.md files in each directory for detailed configuration.
 
 # Architecture Principles
 

@@ -50,8 +50,12 @@ case $choice in
   1)
     echo -e "${BLUE}📦 Building backend...${NC}"
     log_message "Building backend Docker image"
+    # Generate version metadata for deployment tracking
     GIT_COMMIT=$(git rev-parse --short HEAD)
     BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S)
+    # Build with Azure Container Registry - includes all Prisma migrations
+    # Note: Migrations in prisma/migrations/ directory are copied into container
+    # This ensures production database can be migrated during container startup
     az acr build --registry $ACR_NAME --image backend:latest --image backend:$GIT_COMMIT \
       --build-arg GIT_COMMIT=$GIT_COMMIT \
       --build-arg BUILD_TIME=$BUILD_TIME \

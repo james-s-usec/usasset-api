@@ -1,3 +1,19 @@
+<!--
+  USAsset Backend API Documentation
+  
+  Purpose: NestJS backend configuration, architecture, and deployment guide
+  Audience: Backend developers, DevOps engineers
+  Last Updated: 2025-08-28
+  Version: 2.1
+  
+  Key Sections:
+  - Project Structure: Current codebase organization
+  - Environment Setup: Local and production configuration
+  - Database: Prisma ORM and PostgreSQL setup
+  - Azure Deployment: Container Apps configuration
+  - Architecture: Clean code principles and patterns
+-->
+
 # USAsset Backend
 
 ## Overview
@@ -6,15 +22,35 @@ NestJS backend API configured for Azure Container Apps deployment with PostgreSQ
 ## Project Structure
 ```
 src/
+├── common/              # Shared services and utilities
+│   ├── constants.ts
+│   ├── database-logger.module.ts
+│   ├── dto/             # Data transfer objects
+│   ├── filters/         # Global exception filters
+│   ├── interceptors/    # Request/response interceptors
+│   ├── middleware/      # Custom middleware
+│   └── services/        # Shared services
 ├── config/              # Configuration and validation
 │   ├── config.factory.ts
 │   ├── env.validation.ts
 │   ├── env.validation.spec.ts
 │   └── logger.config.ts
+├── database/            # Database configuration
+│   ├── database.module.ts
+│   ├── interfaces/
+│   └── prisma.service.ts
 ├── health/              # Health check endpoints
 │   ├── health.controller.ts
 │   ├── health.module.ts
+│   ├── health.repository.ts
 │   └── health.service.ts
+├── logs/                # Logging endpoints
+├── user/                # User management feature
+│   ├── controllers/
+│   ├── dto/
+│   ├── interfaces/
+│   ├── repositories/
+│   └── services/
 ├── app.controller.ts    # Main app controller
 ├── app.module.ts        # Root module
 ├── app.service.ts       # Main app service
