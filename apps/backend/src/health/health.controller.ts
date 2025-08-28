@@ -5,11 +5,6 @@ import { HealthService } from './health.service';
 export class HealthController {
   public constructor(private readonly healthService: HealthService) {}
 
-  @Get()
-  public check(): Record<string, unknown> {
-    return this.healthService.check();
-  }
-
   @Get('ready')
   public ready(): Promise<Record<string, unknown>> {
     return this.healthService.checkReadiness();
@@ -18,5 +13,10 @@ export class HealthController {
   @Get('live')
   public live(): Record<string, unknown> {
     return this.healthService.checkLiveness();
+  }
+
+  @Get()
+  public check(): Record<string, unknown> {
+    return this.healthService.check();
   }
 }

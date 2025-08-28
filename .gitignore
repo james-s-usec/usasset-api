@@ -34,7 +34,7 @@ logs
 *.azure/
 
 # Prisma
-apps/backend/prisma/migrations/
+# apps/backend/prisma/migrations/ # Keep migrations in git for deployment
 
 # Docker
 *.tar.gz

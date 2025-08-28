@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { HealthRepository } from './health.repository';
 
 @Injectable()
 export class HealthService {
   private startTime = Date.now();
 
-  public constructor(private configService: ConfigService) {}
+  public constructor(
+    private configService: ConfigService,
+    private healthRepository: HealthRepository,
+  ) {}
 
   public check(): Record<string, unknown> {
     return {
@@ -52,12 +56,12 @@ export class HealthService {
     return this.configService.get<string>('npm_package_version') || '1.0.0';
   }
 
-  private checkDatabase(): Promise<string> {
+  private async checkDatabase(): Promise<string> {
     try {
-      const dbUrl = this.configService.get<string>('DATABASE_URL');
-      return Promise.resolve(dbUrl ? 'connected' : 'not_configured');
+      const isConnected = await this.healthRepository.checkDatabase();
+      return isConnected ? 'connected' : 'disconnected';
     } catch {
-      return Promise.resolve('disconnected');
+      return 'error';
     }
   }
 }

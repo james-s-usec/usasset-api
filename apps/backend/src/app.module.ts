@@ -4,6 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validationSchema } from './config/env.validation';
 import { configFactory } from './config/config.factory';
+import { UserModule } from './user/user.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { configFactory } from './config/config.factory';
         abortEarly: false,
       },
     }),
+    UserModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
