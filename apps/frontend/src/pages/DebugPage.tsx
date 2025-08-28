@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import type { ColDef, CellStyle } from 'ag-grid-community';
-import { Box, Typography, CircularProgress, Button, Alert } from '@mui/material';
+import type { ColDef, CellStyle, ICellRendererParams } from 'ag-grid-community';
+import { Box, Typography, CircularProgress, Button, Alert, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Visibility } from '@mui/icons-material';
 import { LogsApiService, type LogEntry } from '../services/logs-api';
 import { DebugLogger } from '../services/debug-logger';
 import { DebugConsole, type DebugMessage } from '../components/DebugConsole';
@@ -18,6 +19,11 @@ export const DebugPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
+  const [metadataDialog, setMetadataDialog] = useState<{ open: boolean; data: unknown; title: string }>({
+    open: false,
+    data: null,
+    title: ''
+  });
 
   const addDebugMessage = useCallback(async (level: DebugMessage['level'], message: string, data?: unknown) => {
     const newMessage: DebugMessage = {
@@ -121,6 +127,40 @@ export const DebugPage = () => {
     };
   }, [addDebugMessage, loadLogs]);
 
+  // Metadata cell renderer component
+  const MetadataCellRenderer = (params: ICellRendererParams) => {
+    if (!params.value) return '';
+    
+    const handleViewMetadata = () => {
+      setMetadataDialog({
+        open: true,
+        data: params.value,
+        title: `Metadata for ${params.data.correlation_id}`
+      });
+    };
+
+    const metadata = params.value as Record<string, unknown>;
+    const preview = metadata.source ? 
+      `${metadata.source} (+${Object.keys(metadata).length - 1} keys)` :
+      `${Object.keys(metadata).length} keys`;
+
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '11px' }}>
+          {preview}
+        </Typography>
+        <IconButton 
+          size="small" 
+          onClick={handleViewMetadata}
+          sx={{ p: 0.25 }}
+          title="View full metadata"
+        >
+          <Visibility fontSize="small" />
+        </IconButton>
+      </Box>
+    );
+  };
+
   const columnDefs: ColDef[] = [
     {
       field: 'level',
@@ -165,21 +205,9 @@ export const DebugPage = () => {
     {
       field: 'metadata',
       headerName: 'Metadata',
-      width: 200,
-      valueFormatter: (params) => {
-        if (!params.value) return '';
-        // Show only source and first key for compact display
-        const metadata = params.value as Record<string, unknown>;
-        if (metadata.source) {
-          const keys = Object.keys(metadata).filter(k => k !== 'source');
-          return `${metadata.source}${keys.length > 0 ? ` +${keys.length} more` : ''}`;
-        }
-        return `${Object.keys(metadata).length} keys`;
-      },
-      cellStyle: { fontFamily: 'monospace', fontSize: '11px' },
-      tooltipValueGetter: (params) => {
-        return params.value ? JSON.stringify(params.value, null, 2) : '';
-      },
+      width: 220,
+      cellRenderer: MetadataCellRenderer,
+      cellStyle: { padding: '4px' },
     },
   ];
 
@@ -203,13 +231,24 @@ export const DebugPage = () => {
     }
     
     try {
+      addDebugMessage('info', 'Clearing all logs from database', { action: 'clearLogs' });
       DebugLogger.logUIEvent('DebugPage: Clear logs initiated');
-      // Note: We'd need a backend endpoint for this - for now just refresh
-      console.log('Clear logs clicked - backend endpoint needed');
-      alert('Clear logs feature needs backend endpoint. For now, use database management tools.');
+      
+      const result = await LogsApiService.deleteLogs();
+      
+      addDebugMessage('info', `Successfully cleared logs: ${result.message}`, { 
+        deletedCount: result.deletedCount 
+      });
+      
+      // Refresh the logs display
+      await loadLogs();
+      
+      alert(`${result.message}`);
     } catch (error) {
-      console.error('Failed to clear logs:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addDebugMessage('error', 'Failed to clear logs', { error: errorMessage });
       DebugLogger.logError('Failed to clear logs', error);
+      alert(`Failed to clear logs: ${errorMessage}`);
     }
   };
 
@@ -329,6 +368,48 @@ export const DebugPage = () => {
           />
         </div>
       </Box>
+
+      {/* Metadata Dialog */}
+      <Dialog
+        open={metadataDialog.open}
+        onClose={() => setMetadataDialog({ open: false, data: null, title: '' })}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { maxHeight: '80vh' } }}
+      >
+        <DialogTitle>
+          {metadataDialog.title}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ 
+            backgroundColor: '#f5f5f5', 
+            p: 2, 
+            borderRadius: 1,
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            overflowX: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          }}>
+            {JSON.stringify(metadataDialog.data, null, 2)}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              navigator.clipboard.writeText(JSON.stringify(metadataDialog.data, null, 2));
+              alert('Metadata copied to clipboard!');
+            }}
+          >
+            Copy JSON
+          </Button>
+          <Button 
+            onClick={() => setMetadataDialog({ open: false, data: null, title: '' })}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

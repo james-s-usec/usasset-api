@@ -43,4 +43,11 @@ export class LogsApiService {
     );
     return response.data;
   }
+
+  static async deleteLogs(): Promise<{ message: string; deletedCount: number }> {
+    const response = await apiService.delete<{ success: boolean; data: { message: string; deletedCount: number } }>(
+      LogsApiService.BASE_PATH
+    );
+    return response.data;
+  }
 }

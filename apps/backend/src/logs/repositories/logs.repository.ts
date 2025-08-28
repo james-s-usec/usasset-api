@@ -82,4 +82,9 @@ export class LogsRepository {
       orderBy: { created_at: 'desc' },
     });
   }
+
+  public async deleteAll(): Promise<number> {
+    const result = await this.prisma.logEntry.deleteMany({});
+    return result.count;
+  }
 }

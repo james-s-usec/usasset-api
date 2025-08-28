@@ -79,6 +79,10 @@ export class LogsService {
     return this.buildLogsResponse(logs, page, limit, total);
   }
 
+  public async deleteAll(): Promise<number> {
+    return this.logsRepository.deleteAll();
+  }
+
   private validateLogLevel(level: string): LogLevel {
     const upperLevel = level.toUpperCase();
     if (!Object.values(LogLevel).includes(upperLevel as LogLevel)) {

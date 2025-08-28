@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Delete } from '@nestjs/common';
 import { DatabaseLoggerService } from '../common/services/database-logger.service';
 import { LogsService, LogsListResponse, LogEntryData } from './logs.service';
 import { DEFAULT_LOGS_PAGE_SIZE } from '../common/constants';
@@ -45,6 +45,18 @@ export class LogsController {
     }
 
     return this.logsService.findAll(pageNum, limitNum);
+  }
+
+  @Delete()
+  public async deleteLogs(): Promise<{
+    message: string;
+    deletedCount: number;
+  }> {
+    const deletedCount = await this.logsService.deleteAll();
+    return {
+      message: `Successfully deleted ${deletedCount} log entries`,
+      deletedCount,
+    };
   }
 
   private async processLog(logEntry: {
