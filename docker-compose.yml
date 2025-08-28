@@ -19,7 +19,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API
+  # Backend API (mirrors Azure Container App)
   backend:
     build:
       context: .
@@ -32,27 +32,39 @@ services:
       DATABASE_URL: postgresql://dbadmin:localpassword123@postgres:5432/usasset
       NODE_ENV: development
       PORT: 3000
+      CORS_ORIGIN: http://localhost:5173  # Must match frontend URL
+      JWT_SECRET: local-jwt-secret-for-dev
+      LOG_TO_FILE: "false"
       RUN_SEED: ${RUN_SEED:-false}  # Set to true to run seed on startup
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     # No volumes for production mode - everything is in the container
     command: node dist/src/main.js
 
-  # Frontend
+  # Frontend (mirrors Azure Container App)
   frontend:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3000  # Build-time variable for API URL
     container_name: usasset-frontend
     depends_on:
       - backend
-    environment:
-      VITE_API_URL: http://localhost:3000
     ports:
-      - "80:80"
-    volumes:
-      - ./apps/frontend:/app
-      - /app/node_modules
+      - "5173:80"  # Map to 5173 to match dev server port
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # No volumes for production mode - static files served by nginx
 
 volumes:
   postgres_data:

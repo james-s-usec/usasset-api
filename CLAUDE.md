@@ -16,6 +16,14 @@
 
 # USAsset Project
 
+## ⚠️ Critical Configuration Note: Database Connection
+**IMPORTANT**: The backend .env file MUST use Docker PostgreSQL credentials, not Prisma local dev server URLs!
+- ✅ **Correct format**: `postgresql://dbadmin:localpassword123@localhost:5433/usasset`
+- ❌ **Wrong format**: `prisma+postgres://localhost:51213/?api_key=...` (This is for Prisma's local dev server)
+- Always check `docker-compose.yml` for the correct credentials
+- Port 5433 on host maps to 5432 in container
+- See `apps/backend/.env.example` for complete documentation with troubleshooting guide
+
 ## Project Structure
 This is a monorepo with separate backend and frontend applications:
 
