@@ -1,11 +1,18 @@
 FROM node:20-alpine as build
 
+# Accept build argument for API URL
+ARG VITE_API_URL=http://localhost:3000
+ENV VITE_API_URL=$VITE_API_URL
+
 WORKDIR /app
 COPY package*.json ./
 COPY apps/frontend/package*.json ./apps/frontend/
 RUN npm ci
 COPY apps/frontend ./apps/frontend/
-RUN cd apps/frontend && npm run build
+
+# Build with env var available
+RUN echo "Building with VITE_API_URL=$VITE_API_URL" && \
+    cd apps/frontend && npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html

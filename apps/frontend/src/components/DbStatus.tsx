@@ -25,10 +25,12 @@ export function DbStatus() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const data = await response.json();
-      logger.info('Database status received', { status: data.status });
+      const result = await response.json();
+      logger.info('Database status received', { response: result });
       
-      setStatus(data);
+      // Handle the wrapped response format from backend
+      const statusData = result.data || result;
+      setStatus(statusData);
       setLastCheck(new Date());
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to check database status';

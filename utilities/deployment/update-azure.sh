@@ -52,7 +52,7 @@ case $choice in
     log_message "Building backend Docker image"
     GIT_COMMIT=$(git rev-parse --short HEAD)
     BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S)
-    az acr build --registry $ACR_NAME --image backend:latest \
+    az acr build --registry $ACR_NAME --image backend:latest --image backend:$GIT_COMMIT \
       --build-arg GIT_COMMIT=$GIT_COMMIT \
       --build-arg BUILD_TIME=$BUILD_TIME \
       --build-arg VERSION=$BUILD_TIME \
@@ -60,10 +60,13 @@ case $choice in
       /home/james/projects/usasset-api/ 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Backend image built!${NC}"
     
-    echo -e "${BLUE}♻️  Restarting backend container...${NC}"
-    log_message "Restarting backend container"
-    REVISION=$(az containerapp revision list --name usasset-backend --resource-group $RG_NAME --query '[0].name' -o tsv)
-    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
+    echo -e "${BLUE}🚀 Deploying backend container...${NC}"
+    log_message "Deploying backend container with new image"
+    FRONTEND_URL="https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io"
+    az containerapp update --name usasset-backend --resource-group $RG_NAME \
+      --image $ACR_NAME.azurecr.io/backend:$GIT_COMMIT \
+      --revision-suffix "deploy-$GIT_COMMIT" \
+      --set-env-vars APP_VERSION=$GIT_COMMIT BUILD_TIME="$BUILD_TIME" CORS_ORIGIN=$FRONTEND_URL 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Backend deployed!${NC}"
     
     echo -e "${GREEN}🎉 Backend update complete!${NC}"
@@ -73,15 +76,20 @@ case $choice in
   2)
     echo -e "${BLUE}📦 Building frontend...${NC}"
     log_message "Building frontend Docker image"
-    az acr build --registry $ACR_NAME --image frontend:latest \
+    GIT_COMMIT=$(git rev-parse --short HEAD)
+    BACKEND_URL="https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io"
+    log_message "Using backend URL: $BACKEND_URL"
+    az acr build --registry $ACR_NAME --image frontend:latest --image frontend:$GIT_COMMIT \
+      --build-arg VITE_API_URL=$BACKEND_URL \
       --file /home/james/projects/usasset-api/apps/frontend/Dockerfile \
       /home/james/projects/usasset-api/ 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Frontend image built!${NC}"
     
-    echo -e "${BLUE}♻️  Restarting frontend container...${NC}"
-    log_message "Restarting frontend container"
-    REVISION=$(az containerapp revision list --name usasset-frontend --resource-group $RG_NAME --query '[0].name' -o tsv)
-    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
+    echo -e "${BLUE}🚀 Deploying frontend container...${NC}"
+    log_message "Deploying frontend container with new image"
+    az containerapp update --name usasset-frontend --resource-group $RG_NAME \
+      --image $ACR_NAME.azurecr.io/frontend:$GIT_COMMIT \
+      --revision-suffix "deploy-$GIT_COMMIT" 2>&1 | tee -a "$LOG_FILE"
     echo -e "${GREEN}✅ Frontend deployed!${NC}"
     
     echo -e "${GREEN}🎉 Frontend update complete!${NC}"
@@ -90,11 +98,15 @@ case $choice in
     
   3)
     echo -e "${BLUE}📦 Building both applications...${NC}"
+    GIT_COMMIT=$(git rev-parse --short HEAD)
+    BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S)
     
     # Build in parallel for speed
     (
       echo "Building backend..."
-      az acr build --registry $ACR_NAME --image backend:latest \
+      az acr build --registry $ACR_NAME --image backend:latest --image backend:$GIT_COMMIT \
+        --build-arg GIT_COMMIT=$GIT_COMMIT \
+        --build-arg BUILD_TIME=$BUILD_TIME \
         --file /home/james/projects/usasset-api/apps/backend/Dockerfile.production \
         /home/james/projects/usasset-api/ >> "$LOG_FILE" 2>&1
       echo -e "${GREEN}✅ Backend image built${NC}"
@@ -102,7 +114,9 @@ case $choice in
     
     (
       echo "Building frontend..."
-      az acr build --registry $ACR_NAME --image frontend:latest \
+      BACKEND_URL="https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io"
+      az acr build --registry $ACR_NAME --image frontend:latest --image frontend:$GIT_COMMIT \
+      --build-arg VITE_API_URL=$BACKEND_URL \
       --file /home/james/projects/usasset-api/apps/frontend/Dockerfile \
       /home/james/projects/usasset-api/ >> "$LOG_FILE" 2>&1
       echo -e "${GREEN}✅ Frontend image built${NC}"
@@ -111,12 +125,16 @@ case $choice in
     # Wait for both builds
     wait
     
-    echo -e "${BLUE}♻️  Restarting containers...${NC}"
-    log_message "Restarting both containers"
-    REVISION=$(az containerapp revision list --name usasset-backend --resource-group $RG_NAME --query '[0].name' -o tsv)
-    az containerapp revision restart --name usasset-backend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
-    REVISION=$(az containerapp revision list --name usasset-frontend --resource-group $RG_NAME --query '[0].name' -o tsv)
-    az containerapp revision restart --name usasset-frontend --resource-group $RG_NAME --revision $REVISION 2>&1 | tee -a "$LOG_FILE"
+    echo -e "${BLUE}🚀 Deploying containers...${NC}"
+    log_message "Deploying both containers with new images"
+    FRONTEND_URL="https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io"
+    az containerapp update --name usasset-backend --resource-group $RG_NAME \
+      --image $ACR_NAME.azurecr.io/backend:$GIT_COMMIT \
+      --revision-suffix "deploy-$GIT_COMMIT" \
+      --set-env-vars APP_VERSION=$GIT_COMMIT BUILD_TIME="$BUILD_TIME" CORS_ORIGIN=$FRONTEND_URL 2>&1 | tee -a "$LOG_FILE"
+    az containerapp update --name usasset-frontend --resource-group $RG_NAME \
+      --image $ACR_NAME.azurecr.io/frontend:$GIT_COMMIT \
+      --revision-suffix "deploy-$GIT_COMMIT" 2>&1 | tee -a "$LOG_FILE"
     
     echo -e "${GREEN}🎉 Full deployment complete!${NC}"
     echo "Backend: https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io"

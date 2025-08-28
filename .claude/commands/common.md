@@ -2,6 +2,21 @@
 
 **ALWAYS USE FULL PATHS**
 
+Ultimate command:
+
+  npm run ci
+
+  This runs the complete quality gate pipeline:
+  🔍 lint → 🔧 typecheck → 🧪 test → 🏗️ build
+
+  Individual gates:
+  - npm run lint - ESLint check
+  - npm run typecheck - TypeScript validation
+  - npm run test - All tests
+  - npm run build - Production build
+
+  All results logged to .logs/ folder. Must pass all gates before any commit.
+
 **STRICT QUALITY GATES**
 - ALL must pass before ANY commit: lint + build + typecheck + tests
 - Zero tolerance: No warnings, no errors, no skipped tests
@@ -22,7 +37,7 @@
 
 DO NOT USE CAT
 
-** its good practice to return something when using sed to confirm it worked. **
+**its good practice to return something when using sed to confirm it worked and have it fail if update fails**
 
 ## EFFICIENCY COMMANDS
 
