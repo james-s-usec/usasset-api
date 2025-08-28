@@ -7,9 +7,10 @@ interface FloatingDebugConsoleProps {
   messages: DebugMessage[];
   onClear: () => void;
   onCopyAll?: () => void;
+  onClearDatabase?: () => Promise<void>;
 }
 
-export const FloatingDebugConsole = ({ messages, onClear, onCopyAll }: FloatingDebugConsoleProps) => {
+export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearDatabase }: FloatingDebugConsoleProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 20, y: 20 });
   const [isDragging, setIsDragging] = useState(false);
@@ -209,8 +210,26 @@ export const FloatingDebugConsole = ({ messages, onClear, onCopyAll }: FloatingD
               color="warning"
               onClick={onClear}
             >
-              Clear
+              Clear Console
             </Button>
+            {onClearDatabase && (
+              <Button 
+                size="small" 
+                variant="outlined" 
+                color="error"
+                onClick={async () => {
+                  if (window.confirm('⚠️ Clear ALL database logs?\n\nThis will delete EVERY log from the entire database (not just the 50 visible).\n\nThis action CANNOT be undone.')) {
+                    try {
+                      await onClearDatabase();
+                    } catch (error) {
+                      console.error('Failed to clear database logs:', error);
+                    }
+                  }
+                }}
+              >
+                Clear DB Logs
+              </Button>
+            )}
           </Box>
         </Box>
       )}

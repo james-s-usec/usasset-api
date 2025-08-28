@@ -6,7 +6,8 @@ import { Box, Typography, CircularProgress, Button, Alert, IconButton, Dialog, D
 import { Visibility } from '@mui/icons-material';
 import { LogsApiService, type LogEntry } from '../services/logs-api';
 import { DebugLogger } from '../services/debug-logger';
-import { DebugConsole, type DebugMessage } from '../components/DebugConsole';
+import { useDebug } from '../hooks/useDebugHook';
+import type { DebugMessage } from '../components/DebugConsole';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-material.css';
@@ -18,45 +19,14 @@ export const DebugPage = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
   const [metadataDialog, setMetadataDialog] = useState<{ open: boolean; data: unknown; title: string }>({
     open: false,
     data: null,
     title: ''
   });
-
-  const addDebugMessage = useCallback(async (level: DebugMessage['level'], message: string, data?: unknown) => {
-    const newMessage: DebugMessage = {
-      id: Date.now().toString(),
-      level,
-      message,
-      timestamp: new Date(),
-      data
-    };
-    
-    // Add to UI immediately
-    setDebugMessages(prev => [newMessage, ...prev].slice(0, 50));
-    
-    // Save to database for persistence
-    try {
-      await DebugLogger.logInfo(`Debug Console: ${message}`, {
-        level,
-        debugData: data,
-        source: 'debug-console',
-        uiTimestamp: newMessage.timestamp.toISOString()
-      });
-    } catch (error) {
-      // If database save fails, add error to UI only (avoid infinite loop)
-      const errorMessage: DebugMessage = {
-        id: (Date.now() + 1).toString(),
-        level: 'error',
-        message: 'Failed to save debug message to database',
-        timestamp: new Date(),
-        data: { originalMessage: message, error: error instanceof Error ? error.message : String(error) }
-      };
-      setDebugMessages(prev => [errorMessage, ...prev].slice(0, 50));
-    }
-  }, []);
+  
+  // Use global debug context for floating console + manage database logs separately
+  const { addMessage: addDebugMessage, messages: debugMessages, refreshMessages } = useDebug();
 
   const loadLogs = useCallback(async () => {
     try {
@@ -211,10 +181,15 @@ export const DebugPage = () => {
     },
   ];
 
-  const handleRefresh = () => {
-    addDebugMessage('debug', 'Refresh button clicked');
+  const handleRefresh = async () => {
+    addDebugMessage('debug', 'Refresh button clicked - refreshing both database logs and debug messages');
     DebugLogger.logUIEvent('DebugPage: Refresh button clicked');
-    loadLogs();
+    
+    // Refresh both data sources to keep them in sync
+    await Promise.all([
+      loadLogs(),           // Refresh database logs table
+      refreshMessages()     // Refresh debug messages (floating console)
+    ]);
   };
 
   const handleTestUIEvent = () => {
@@ -240,8 +215,11 @@ export const DebugPage = () => {
         deletedCount: result.deletedCount 
       });
       
-      // Refresh the logs display
-      await loadLogs();
+      // Refresh both data sources after clearing
+      await Promise.all([
+        loadLogs(),           // Refresh database logs table
+        refreshMessages()     // Refresh debug messages (floating console)  
+      ]);
       
       alert(`${result.message}`);
     } catch (error) {
@@ -274,8 +252,8 @@ export const DebugPage = () => {
         summary: {
           totalDebugMessages: debugMessages.length,
           totalDatabaseLogs: logs.length,
-          errorCount: debugMessages.filter(m => m.level === 'error').length,
-          lastError: debugMessages.find(m => m.level === 'error')
+          errorCount: debugMessages.filter((m: DebugMessage) => m.level === 'error').length,
+          lastError: debugMessages.find((m: DebugMessage) => m.level === 'error')
         }
       };
       
@@ -303,14 +281,12 @@ export const DebugPage = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Debug Logs ({logs.length} entries)
+        Database Logs ({logs.length} entries)
       </Typography>
-
-      <DebugConsole 
-        messages={debugMessages}
-        onClear={() => setDebugMessages([])}
-        maxHeight={150}
-      />
+      
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Use the floating debug console (bottom-right) for real-time debug messages. This table shows persistent database logs.
+      </Typography>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>

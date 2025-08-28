@@ -4,13 +4,17 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { DbStatus } from './components/DbStatus'
 import { UsersPage } from './pages/UsersPage'
 import { DebugPage } from './pages/DebugPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { DebugProvider } from './contexts/DebugContext'
+import { SettingsProvider } from './contexts/SettingsContext'
 import { useDebug } from './hooks/useDebugHook'
+import { useSettings } from './hooks/useSettings'
 import { FloatingDebugConsole } from './components/FloatingDebugConsole'
 
 const AppContent = () => {
   const navigate = useNavigate()
-  const { messages, clearMessages, copyAllDebugInfo } = useDebug()
+  const { messages, clearMessages, copyAllDebugInfo, clearDatabaseLogs } = useDebug()
+  const { settings } = useSettings()
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -32,6 +36,13 @@ const AppContent = () => {
             to="/debug"
           >
             Debug
+          </Button>
+          <Button 
+            color="inherit" 
+            component={RouterLink} 
+            to="/settings"
+          >
+            Settings
           </Button>
           <Box sx={{ ml: 2 }}>
             <DbStatus />
@@ -60,23 +71,29 @@ const AppContent = () => {
         } />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/debug" element={<DebugPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
 
-      {/* Global Floating Debug Console - available on all pages */}
-      <FloatingDebugConsole 
-        messages={messages}
-        onClear={clearMessages}
-        onCopyAll={copyAllDebugInfo}
-      />
+      {/* Global Floating Debug Console - available on all pages when enabled */}
+      {settings.debugConsole && (
+        <FloatingDebugConsole 
+          messages={messages}
+          onClear={clearMessages}
+          onCopyAll={copyAllDebugInfo}
+          onClearDatabase={clearDatabaseLogs}
+        />
+      )}
     </Box>
   )
 }
 
 function App() {
   return (
-    <DebugProvider>
-      <AppContent />
-    </DebugProvider>
+    <SettingsProvider>
+      <DebugProvider>
+        <AppContent />
+      </DebugProvider>
+    </SettingsProvider>
   )
 }
 
