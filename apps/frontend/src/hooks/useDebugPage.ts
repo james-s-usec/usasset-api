@@ -104,7 +104,7 @@ const useDebugPageInitialization = (): {
   };
 };
 
-const setupMountEffect = (
+const useMountEffect = (
   logsData: ReturnType<typeof useLogsData>
 ): void => {
   useDebugMountEffect((): (() => void) => {
@@ -121,6 +121,29 @@ const setupMountEffect = (
   });
 };
 
+const useHandlers = (
+  init: ReturnType<typeof useDebugPageInitialization>, 
+  logsData: ReturnType<typeof useLogsData>
+): {
+  handleRefresh: () => Promise<void>;
+  handleTestUIEvent: () => void;
+  handleMetadataDialog: (open: boolean, data?: unknown, title?: string) => void;
+} => {
+  const handleRefresh = useRefreshHandler(init.addDebugMessage, logsData.handleRefresh);
+  const handleTestUIEvent = useTestUIHandler(init.addDebugMessage);
+
+  const handleMetadataDialog = useCallback((
+    open: boolean, 
+    data?: unknown, 
+    title: string = ''
+  ): void => {
+    logHookCall('useDebugPage.handleMetadataDialog', 'entry', { open, title });
+    init.setMetadataDialog({ open, data: data || null, title });
+  }, [init]);
+
+  return { handleRefresh, handleTestUIEvent, handleMetadataDialog };
+};
+
 export const useDebugPage = (): UseDebugPageReturn => {
   logHookCall('useDebugPage', 'entry');
 
@@ -133,19 +156,8 @@ export const useDebugPage = (): UseDebugPageReturn => {
     addDebugMessage: init.addDebugMessage,
   });
   
-  setupMountEffect(logsData);
-
-  const handleRefresh = useRefreshHandler(init.addDebugMessage, logsData.handleRefresh);
-  const handleTestUIEvent = useTestUIHandler(init.addDebugMessage);
-
-  const handleMetadataDialog = useCallback((
-    open: boolean, 
-    data?: unknown, 
-    title: string = ''
-  ): void => {
-    logHookCall('useDebugPage.handleMetadataDialog', 'entry', { open, title });
-    init.setMetadataDialog({ open, data: data || null, title });
-  }, [init.setMetadataDialog]);
+  useMountEffect(logsData);
+  const handlers = useHandlers(init, logsData);
 
   return {
     logs: logsData.logs,
@@ -153,12 +165,12 @@ export const useDebugPage = (): UseDebugPageReturn => {
     error: logsData.error,
     debugMessages: init.debugMessages,
     metadataDialog: init.metadataDialog,
-    handleRefresh,
-    handleTestUIEvent,
+    handleRefresh: handlers.handleRefresh,
+    handleTestUIEvent: handlers.handleTestUIEvent,
     handleClearLogs: logsData.handleClearLogs,
     handleCopyLogsAsJSON: clipboardActions.handleCopyLogsAsJSON,
     handleCopyDebugInfo: clipboardActions.handleCopyDebugInfo,
-    handleMetadataDialog,
+    handleMetadataDialog: handlers.handleMetadataDialog,
     addDebugMessage: init.addDebugMessage,
   };
 };

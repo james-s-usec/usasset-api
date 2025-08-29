@@ -4,7 +4,7 @@
  */
 
 import { useCallback } from 'react';
-import { LogsApiService } from '../services/logs-api';
+import { LogsApiService, type LogEntry } from '../services/logs-api';
 import { convertLogEntryToDebugMessage } from '../utils/debug-message-utils';
 import { buildCompleteDebugInfo } from '../utils/debug-info-builder';
 import { copyToClipboard } from '../utils/clipboard-copy';
@@ -15,7 +15,7 @@ interface UseDebugDatabaseReturn {
   copyAllDebugInfo: () => void;
 }
 
-const processLogsResponse = (response: { logs: Array<{ id: string; level: string; message: string; created_at: string }> }): void => {
+const processLogsResponse = (response: { logs: LogEntry[] }): void => {
   response.logs.map(convertLogEntryToDebugMessage);
   // Note: This would need to update state but we don't have access here
   // In practice this should be connected to the state management

@@ -36,7 +36,7 @@ export const logMountEvent = (
   });
 };
 
-interface RenderLogData {
+export interface RenderLogData {
   name: string;
   renderCount: number;
   propsChanged: ChangeRecord;

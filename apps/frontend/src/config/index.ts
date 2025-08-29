@@ -89,7 +89,7 @@ class ConfigService {
   }
 
   private getEnvironmentOverrides(base: AppConfig, env: string): Partial<AppConfig> {
-    const overrides = {
+    const overrides: Record<string, Partial<AppConfig>> = {
       development: this.getDevelopmentOverrides(base),
       staging: this.getStagingOverrides(base),
       production: this.getProductionOverrides(base)

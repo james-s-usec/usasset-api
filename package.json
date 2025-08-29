@@ -10,7 +10,7 @@
     "typecheck": "rm -f .logs/*typecheck.log && (npm run typecheck --workspace=backend > .logs/backend-typecheck.log 2>&1 & npm run typecheck --workspace=frontend > .logs/frontend-typecheck.log 2>&1; wait) && echo 'Typecheck complete - see .logs/ for details' || echo 'Type errors found - see .logs/ for details'",
     "test:e2e": "npm run test:e2e --workspace=backend",
     "ci": "rm -rf .logs/*.log && echo '🔍 Running lint...' && npm run lint && echo '🔧 Running typecheck...' && npm run typecheck && echo '🧪 Running tests...' && npm run test && echo '🏗️  Running build...' && npm run build && npm run ci:summary",
-    "ci:summary": "node -e \"const fs=require('fs'); const logs=fs.readdirSync('.logs').filter(f=>f.endsWith('.log')); const failed=logs.filter(log=>{const content=fs.readFileSync('.logs/'+log,'utf8'); return content.includes('FAIL')||content.includes('ERROR')||content.includes('error')||/npm error/.test(content);}); if(failed.length){console.log('❌ CI FAILED - Errors in:',failed.join(', ')); process.exit(1);} else console.log('✅ All quality gates passed!');\"",
+    "ci:summary": "node check-ci.js",
     "sync": "npm run ci && git add . && node .claude/sync.js && git push",
     "db:migrate": "npm run db:migrate --workspace=backend",
     "db:seed": "npm run db:seed --workspace=backend",

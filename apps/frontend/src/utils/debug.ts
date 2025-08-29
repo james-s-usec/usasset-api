@@ -184,7 +184,15 @@ class DebugUtil {
     message: string,
     category?: DebugCategory,
     data?: unknown
-  ) {
+  ): {
+    level: DebugLevel;
+    message: string;
+    data?: unknown;
+    category?: DebugCategory;
+    timestamp: string;
+    url: string;
+    userAgent: string;
+  } {
     return {
       level,
       message: this.formatMessage(category, message),
@@ -204,6 +212,28 @@ class DebugUtil {
   /**
    * Generic logging method - split for complexity < 7
    */
+  private handleConsoleLog(skipConsole: boolean, level: DebugLevel, message: string, data?: unknown): void {
+    if (!skipConsole) {
+      this.logToConsole(level, message, data);
+    }
+  }
+
+  private handleBackendLog(skipBackend: boolean, logData: {
+    level: DebugLevel;
+    message: string;
+    data?: unknown;
+    category?: DebugCategory;
+    timestamp: string;
+    url: string;
+    userAgent: string;
+  }): void {
+    if (!skipBackend && this.isEnabled) {
+      this.sendToBackend(logData).catch(error => {
+        console.warn('Failed to send debug log to backend:', error);
+      });
+    }
+  }
+
   private log(
     level: DebugLevel,
     message: string,
@@ -215,19 +245,11 @@ class DebugUtil {
     if (!this.shouldLog(category)) return;
 
     const logData = this.buildLogData(level, message, category, data);
-
-    if (!skipConsole) {
-      this.logToConsole(level, logData.message, data);
-    }
-
-    if (!skipBackend && this.isEnabled) {
-      this.sendToBackend(logData).catch(error => {
-        console.warn('Failed to send debug log to backend:', error);
-      });
-    }
+    this.handleConsoleLog(skipConsole, level, logData.message, data);
+    this.handleBackendLog(skipBackend, logData);
   }
 
-  private buildMetadata(logData: any) {
+  private buildMetadata(logData: Record<string, unknown>): Record<string, unknown> {
     return {
       category: logData.category,
       url: logData.url,
@@ -236,7 +258,7 @@ class DebugUtil {
     };
   }
 
-  private buildInfoData(logData: any) {
+  private buildInfoData(logData: Record<string, unknown>): Record<string, unknown> {
     return {
       level: logData.level,
       debugData: logData.data,

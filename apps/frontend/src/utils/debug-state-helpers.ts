@@ -17,16 +17,17 @@ export const logStateInitialization = (
   });
 };
 
-export const logStateStats = (
-  componentName: string,
-  name: string,
-  hasChanged: boolean,
-  prev: unknown,
-  next: unknown,
-  isFunc: boolean,
-  updateCount: number,
-  logAllChanges: boolean
-): void => {
+export const logStateStats = (params: {
+  componentName: string;
+  name: string;
+  hasChanged: boolean;
+  prev: unknown;
+  next: unknown;
+  isFunc: boolean;
+  updateCount: number;
+  logAllChanges: boolean;
+}): void => {
+  const { componentName, name, hasChanged, prev, next, isFunc, updateCount, logAllChanges } = params;
   if (!debug.enabled) return;
   if (!logAllChanges && !hasChanged) return;
   
@@ -41,13 +42,13 @@ export const logStateStats = (
   });
 };
 
-export const shouldUpdateValue = <T>(
-  prev: T,
-  next: T,
-  hasChanged: boolean,
-  logOnlyChanged: boolean,
-  compareFunction?: (prev: T, next: T) => boolean
-): boolean => {
+export const shouldUpdateValue = <T>(params: {
+  prev: T;
+  next: T;
+  logOnlyChanged: boolean;
+  compareFunction?: (prev: T, next: T) => boolean;
+}): boolean => {
+  const { prev, next, logOnlyChanged, compareFunction } = params;
   const actuallyChanged = compareFunction ? 
     !compareFunction(prev, next) :
     prev !== next;

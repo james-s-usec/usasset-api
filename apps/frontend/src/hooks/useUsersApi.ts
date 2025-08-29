@@ -5,8 +5,13 @@
 
 import { useCallback } from 'react';
 import { userApiService } from '../services/user-api';
-import { logger } from '../services/logger';
-import { logHookCall, logApiCall } from '../utils/debug';
+import { logHookCall } from '../utils/debug';
+import { 
+  createFetchLogger, 
+  createUserLogger, 
+  updateUserLogger, 
+  deleteUserHelpers 
+} from '../utils/users-api-helpers';
 import type { UserData, CreateUserRequest, UpdateUserRequest } from '../types/user';
 
 interface UseUsersApiProps {
@@ -22,33 +27,11 @@ interface UseUsersApiReturn {
   deleteUser: (user: UserData) => Promise<void>;
 }
 
-export function useUsersApi({
-  setUsers,
-  setLoading,
-  setError
-}: UseUsersApiProps): UseUsersApiReturn {
-
-  const logFetchStart = () => {
-    logHookCall('useUsers.fetchUsers', 'entry');
-    logger.info('useUsers: Starting user fetch');
-    logApiCall('GET', '/users', { page: 1, limit: 50 });
-  };
-
-  const logFetchSuccess = (count: number, correlationId?: string) => {
-    logger.info('useUsers: Users loaded successfully', { count, correlationId });
-    logApiCall('GET', '/users', { page: 1, limit: 50, count, correlationId });
-    logHookCall('useUsers.fetchUsers', 'exit', { usersCount: count });
-  };
-
-  const logFetchError = (err: unknown) => {
-    const msg = err instanceof Error ? err.message : 'Failed to fetch users';
-    logger.error('useUsers: Failed to fetch users', { error: msg });
-    logApiCall('GET', '/users', { page: 1, limit: 50 }, err);
-    return msg;
-  };
-
-  const fetchUsers = useCallback(async () => {
-    logFetchStart();
+const useFetchUsers = (props: UseUsersApiProps, fetchLogger: ReturnType<typeof createFetchLogger>): (() => Promise<void>) => {
+  const { setUsers, setLoading, setError } = props;
+  
+  return useCallback(async (): Promise<void> => {
+    fetchLogger.logFetchStart();
     
     try {
       setLoading(true);
@@ -57,110 +40,71 @@ export function useUsersApi({
       const response = await userApiService.getUsers(1, 50);
       setUsers(response.data.users);
       
-      logFetchSuccess(response.data.users.length, response.correlationId);
+      fetchLogger.logFetchSuccess(response.data.users.length, response.correlationId);
     } catch (err) {
-      setError(logFetchError(err));
+      setError(fetchLogger.logFetchError(err));
     } finally {
       setLoading(false);
     }
-  }, [setUsers, setLoading, setError]);
+  }, [setUsers, setLoading, setError, fetchLogger]);
+};
 
-  const logCreateStart = (email: string) => {
-    logHookCall('useUsers.createUser', 'entry', { email: '***' });
-    logger.info('useUsers: Creating new user', { email });
-    logApiCall('POST', '/users', { email: '***' });
-  };
-
-  const logCreateSuccess = () => {
-    logger.info('useUsers: User created successfully');
-    logApiCall('POST', '/users', { email: '***', success: true });
-    logHookCall('useUsers.createUser', 'exit', { success: true });
-  };
-
-  const createUser = useCallback(async (createData: CreateUserRequest) => {
-    logCreateStart(createData.email);
+const useCreateUser = (fetchUsers: () => Promise<void>, setError: (error: string | null) => void): ((data: CreateUserRequest) => Promise<void>) => {
+  return useCallback(async (createData: CreateUserRequest): Promise<void> => {
+    createUserLogger.logCreateStart(createData.email);
     
     try {
       await userApiService.createUser(createData);
-      logCreateSuccess();
+      createUserLogger.logCreateSuccess();
       await fetchUsers();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create user';
-      setError(msg);
-      logger.error('useUsers: Failed to create user', { error: msg });
-      logApiCall('POST', '/users', { email: '***' }, err);
+      setError(createUserLogger.logCreateError(err));
       throw err;
     }
   }, [fetchUsers, setError]);
+};
 
-  const logUpdateStart = (userId: string, data: UpdateUserRequest) => {
-    logHookCall('useUsers.updateUser', 'entry', { userId });
-    logger.info('useUsers: Updating user', { userId });
-    logApiCall('PUT', `/users/${userId}`, data);
-  };
-
-  const logUpdateSuccess = (userId: string, data: UpdateUserRequest) => {
-    logger.info('useUsers: User updated successfully');
-    logApiCall('PUT', `/users/${userId}`, { ...data, success: true });
-    logHookCall('useUsers.updateUser', 'exit', { userId, success: true });
-  };
-
-  const updateUser = useCallback(async (userId: string, updateData: UpdateUserRequest) => {
-    logUpdateStart(userId, updateData);
+const useUpdateUser = (fetchUsers: () => Promise<void>, setError: (error: string | null) => void): ((id: string, data: UpdateUserRequest) => Promise<void>) => {
+  return useCallback(async (userId: string, updateData: UpdateUserRequest): Promise<void> => {
+    updateUserLogger.logUpdateStart(userId, updateData);
     
     try {
       await userApiService.updateUser(userId, updateData);
-      logUpdateSuccess(userId, updateData);
+      updateUserLogger.logUpdateSuccess(userId, updateData);
       await fetchUsers();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to update user';
-      setError(msg);
-      logger.error('useUsers: Failed to update user', { error: msg });
-      logApiCall('PUT', `/users/${userId}`, updateData, err);
+      setError(updateUserLogger.logUpdateError(userId, updateData, err));
       throw err;
     }
   }, [fetchUsers, setError]);
+};
 
-  const confirmDelete = (user: UserData): boolean => {
-    return window.confirm(`Delete user "${user.name || user.email}"?`);
-  };
-
-  const logDeleteStart = (userId: string) => {
-    logger.info('useUsers: Deleting user', { userId });
-    logApiCall('DELETE', `/users/${userId}`);
-  };
-
-  const logDeleteSuccess = (userId: string) => {
-    logger.info('useUsers: User deleted successfully');
-    logApiCall('DELETE', `/users/${userId}`, { success: true });
-    logHookCall('useUsers.deleteUser', 'exit', { userId, success: true });
-  };
-
-  const deleteUser = useCallback(async (user: UserData) => {
+const useDeleteUser = (fetchUsers: () => Promise<void>, setError: (error: string | null) => void): ((user: UserData) => Promise<void>) => {
+  return useCallback(async (user: UserData): Promise<void> => {
     logHookCall('useUsers.deleteUser', 'entry', { userId: user.id });
     
-    if (!confirmDelete(user)) {
+    if (!deleteUserHelpers.confirmDelete(user)) {
       logHookCall('useUsers.deleteUser', 'exit', { cancelled: true });
       return;
     }
 
     try {
-      logDeleteStart(user.id);
+      deleteUserHelpers.logDeleteStart(user.id);
       await userApiService.deleteUser(user.id);
-      logDeleteSuccess(user.id);
+      deleteUserHelpers.logDeleteSuccess(user.id);
       await fetchUsers();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete user';
-      setError(msg);
-      logger.error('useUsers: Failed to delete user', { error: msg });
-      logApiCall('DELETE', `/users/${user.id}`, undefined, err);
+      setError(deleteUserHelpers.logDeleteError(user.id, err));
     }
   }, [fetchUsers, setError]);
+};
 
-  return {
-    fetchUsers,
-    createUser,
-    updateUser,
-    deleteUser
-  };
+export function useUsersApi(props: UseUsersApiProps): UseUsersApiReturn {
+  const fetchLogger = createFetchLogger();
+  const fetchUsers = useFetchUsers(props, fetchLogger);
+  const createUser = useCreateUser(fetchUsers, props.setError);
+  const updateUser = useUpdateUser(fetchUsers, props.setError);
+  const deleteUser = useDeleteUser(fetchUsers, props.setError);
+
+  return { fetchUsers, createUser, updateUser, deleteUser };
 }

@@ -28,9 +28,12 @@ export default tseslint.config([
     settings: {
       react: {
         version: 'detect',
+        runtime: 'automatic',
       },
     },
     rules: {
+      // Disable React in scope rule for automatic JSX runtime
+      'react/react-in-jsx-scope': 'off',
       // === COMPLEXITY BUDGET RULES (CLAUDE.md principles) ===
       // "If you can't explain it in one sentence, it's too complex"
       'complexity': ['error', { max: 7 }],

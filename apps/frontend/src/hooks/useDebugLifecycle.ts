@@ -28,6 +28,7 @@ export function useDebugLifecycle(options: UseDebugLifecycleOptions): DebugLifec
     
     const mountTime = mountTimeRef.current;
     const mountMark = `${name}-mount`;
+    const currentRenderCount = renderCountRef.current;
     
     if (trackPerformance) {
       startPerformanceMark(mountMark);
@@ -38,7 +39,7 @@ export function useDebugLifecycle(options: UseDebugLifecycleOptions): DebugLifec
     
     return (): void => {
       debug.debugLog('lifecycle', `🔥 ${name} unmounting`, {
-        renderCount: renderCountRef.current,
+        renderCount: currentRenderCount,
         lifetimeMs: Date.now() - mountTime
       });
     };

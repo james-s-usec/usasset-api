@@ -1,63 +1,42 @@
 import { useEffect, useRef } from 'react';
 import { DebugLogger } from '../services/debug-logger';
+import { 
+  trackChanges, 
+  logMountEvent, 
+  logRenderChanges, 
+  logUnmountEvent
+} from '../utils/debug-tracker-helpers';
 
-// Hook to track state changes and re-renders
-type ChangeRecord = Record<string, { old: unknown; new: unknown }>;
+const createEventLogger = (
+  componentName: string, 
+  renderCount: React.MutableRefObject<number>
+): {
+  logEvent: (event: string, data?: Record<string, unknown>) => void;
+  logError: (error: string, errorData?: unknown) => void;
+} => ({
+  logEvent: (event: string, data?: Record<string, unknown>): void => {
+    DebugLogger.logInfo(`${componentName}: ${event}`, {
+      ...data,
+      renderCount: renderCount.current
+    });
+  },
+  logError: (error: string, errorData?: unknown): void => {
+    DebugLogger.logError(`${componentName}: ${error}`, errorData, {
+      renderCount: renderCount.current
+    });
+  }
+});
 
-const trackChanges = <T extends Record<string, unknown>>(
-  current: T | undefined,
-  previous: T | undefined
-): ChangeRecord => {
-  const changes: Record<string, { old: unknown; new: unknown }> = {};
-  if (!current || !previous) return changes;
-  
-  Object.keys(current).forEach(key => {
-    if (current[key] !== previous[key]) {
-      changes[key] = { old: previous[key], new: current[key] };
-    }
-  });
-  
-  return changes;
-};
-
-const logMountEvent = (name: string, props?: Record<string, unknown>, state?: Record<string, unknown>, time?: number): void => {
-  DebugLogger.logInfo(`${name}: Component mounted`, {
-    props,
-    state,
-    mountTime: time ? new Date(time).toISOString() : new Date().toISOString()
-  });
-};
-
-interface LogRenderChangesParams {
-  name: string;
-  renderCount: number;
-  propsChanged: ChangeRecord;
-  stateChanged: ChangeRecord;
-  mountTime: number;
-}
-
-const logRenderChanges = (params: LogRenderChangesParams): void => {
-  const { name, renderCount, propsChanged, stateChanged, mountTime } = params;
-  const hasChanges = Object.keys(propsChanged).length > 0 || Object.keys(stateChanged).length > 0;
-  if (!hasChanges) return;
-  
-  DebugLogger.logInfo(`${name}: Re-render triggered`, {
-    renderCount,
-    propsChanged: Object.keys(propsChanged).length > 0 ? propsChanged : undefined,
-    stateChanged: Object.keys(stateChanged).length > 0 ? stateChanged : undefined,
-    timeSinceMount: Date.now() - mountTime + 'ms'
-  });
-};
-
-const setupRenderTracking = (
-  componentName: string,
-  props: Record<string, unknown> | undefined,
-  state: Record<string, unknown> | undefined,
-  renderCount: React.MutableRefObject<number>,
-  prevProps: React.MutableRefObject<Record<string, unknown> | undefined>,
-  prevState: React.MutableRefObject<Record<string, unknown> | undefined>,
-  mountTime: React.MutableRefObject<number>
-): void => {
+const useRenderTracking = (params: {
+  componentName: string;
+  props: Record<string, unknown> | undefined;
+  state: Record<string, unknown> | undefined;
+  renderCount: React.MutableRefObject<number>;
+  prevProps: React.MutableRefObject<Record<string, unknown> | undefined>;
+  prevState: React.MutableRefObject<Record<string, unknown> | undefined>;
+  mountTime: React.MutableRefObject<number>;
+}): void => {
+  const { componentName, props, state, renderCount, prevProps, prevState, mountTime } = params;
   useEffect(() => {
     renderCount.current += 1;
 
@@ -82,20 +61,18 @@ const setupRenderTracking = (
   });
 };
 
-const setupUnmountTracking = (
+const useUnmountTracking = (
   componentName: string,
   renderCount: React.MutableRefObject<number>,
   mountTime: React.MutableRefObject<number>
 ): void => {
   useEffect(() => {
     const startTime = mountTime.current;
+    const currentRenderCount = renderCount.current;
     return (): void => {
-      DebugLogger.logInfo(`${componentName}: Component unmounted`, {
-        totalRenders: renderCount.current,
-        lifetimeMs: Date.now() - startTime
-      });
+      logUnmountEvent(componentName, currentRenderCount, startTime);
     };
-  }, [componentName]);
+  }, [componentName, renderCount, mountTime]);
 };
 
 export const useDebugTracker = (
@@ -112,41 +89,38 @@ export const useDebugTracker = (
   const prevState = useRef(state);
   const mountTime = useRef(Date.now());
 
-  setupRenderTracking(componentName, props, state, renderCount, prevProps, prevState, mountTime);
-  setupUnmountTracking(componentName, renderCount, mountTime);
+  useRenderTracking({
+    componentName, 
+    props, 
+    state, 
+    renderCount, 
+    prevProps, 
+    prevState, 
+    mountTime
+  });
+  useUnmountTracking(componentName, renderCount, mountTime);
 
+  const logger = createEventLogger(componentName, renderCount);
+  
   return {
     renderCount: renderCount.current,
-    logEvent: (event: string, data?: Record<string, unknown>): void => {
-      DebugLogger.logInfo(`${componentName}: ${event}`, {
-        ...data,
-        renderCount: renderCount.current
-      });
-    },
-    logError: (error: string, errorData?: unknown): void => {
-      DebugLogger.logError(`${componentName}: ${error}`, errorData, {
-        renderCount: renderCount.current
-      });
-    }
+    logEvent: logger.logEvent,
+    logError: logger.logError
   };
 };
 
-// Hook to track async operations
-export const useAsyncTracker = (componentName: string): {
-  trackAsync: <T>(operation: string, asyncFn: () => Promise<T>) => Promise<T>;
-  activePromiseCount: number;
-} => {
-  const activePromises = useRef(new Set<string>());
-
-  const logAsyncStart = (op: string, id: string, count: number): void => {
+const createAsyncLoggers = (componentName: string): {
+  logAsyncStart: (op: string, id: string, count: number) => void;
+  logAsyncEnd: (op: string, id: string, count: number, success: boolean) => void;
+} => ({
+  logAsyncStart: (op: string, id: string, count: number): void => {
     DebugLogger.logInfo(`${componentName}: Async operation started`, {
       operation: op,
       operationId: id,
       activeCount: count
     });
-  };
-
-  const logAsyncEnd = (op: string, id: string, count: number, success: boolean): void => {
+  },
+  logAsyncEnd: (op: string, id: string, count: number, success: boolean): void => {
     const msg = success ? 'completed' : 'failed';
     DebugLogger.logInfo(`${componentName}: Async operation ${msg}`, {
       operation: op,
@@ -154,23 +128,23 @@ export const useAsyncTracker = (componentName: string): {
       success,
       activeCount: count
     });
-  };
+  }
+});
 
-  const handleAsyncSuccess = <T>(
-    operation: string,
-    operationId: string,
-    result: T
-  ): T => {
+const createAsyncHandlers = (
+  componentName: string,
+  activePromises: React.MutableRefObject<Set<string>>,
+  logAsyncEnd: (op: string, id: string, count: number, success: boolean) => void
+): {
+  handleAsyncSuccess: <T>(operation: string, operationId: string, result: T) => T;
+  handleAsyncError: (operation: string, operationId: string, error: unknown) => never;
+} => ({
+  handleAsyncSuccess: <T>(operation: string, operationId: string, result: T): T => {
     activePromises.current.delete(operationId);
     logAsyncEnd(operation, operationId, activePromises.current.size, true);
     return result;
-  };
-
-  const handleAsyncError = (
-    operation: string,
-    operationId: string,
-    error: unknown
-  ): never => {
+  },
+  handleAsyncError: (operation: string, operationId: string, error: unknown): never => {
     activePromises.current.delete(operationId);
     
     DebugLogger.logError(`${componentName}: Async operation failed`, error, {
@@ -180,7 +154,17 @@ export const useAsyncTracker = (componentName: string): {
     });
     
     throw error;
-  };
+  }
+});
+
+// Hook to track async operations
+export const useAsyncTracker = (componentName: string): {
+  trackAsync: <T>(operation: string, asyncFn: () => Promise<T>) => Promise<T>;
+  activePromiseCount: number;
+} => {
+  const activePromises = useRef(new Set<string>());
+  const { logAsyncStart, logAsyncEnd } = createAsyncLoggers(componentName);
+  const { handleAsyncSuccess, handleAsyncError } = createAsyncHandlers(componentName, activePromises, logAsyncEnd);
 
   const trackAsync = async <T>(
     operation: string, 

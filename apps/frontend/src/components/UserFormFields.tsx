@@ -56,7 +56,12 @@ export const UserFormFields = ({
   const handlers = useFormHandlers({ onFormChange });
 
   return (
-    <Box display="flex" flexDirection="column" gap={2} sx={{ mt: 1 }}>
+    <Box 
+      display="flex" 
+      flexDirection="column" 
+      gap={2} 
+      sx={{ mt: 1 }}
+    >
       <NameField value={formData.name} onChange={handlers.handleNameChange} />
       <EmailField 
         value={formData.email} 

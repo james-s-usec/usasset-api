@@ -18,7 +18,7 @@ export function useDebugStateLogger({
   name,
   initialValue,
   logAllChanges
-}: UseDebugStateLoggerProps) {
+}: UseDebugStateLoggerProps): { logStats: (hasChanged: boolean, prev: unknown, next: unknown, isFunc: boolean) => void } {
   const setCountRef = useRef(0);
 
   useEffect(() => {
@@ -27,16 +27,16 @@ export function useDebugStateLogger({
 
   const logStats = useCallback((hasChanged: boolean, prev: unknown, next: unknown, isFunc: boolean): void => {
     setCountRef.current += 1;
-    logStateStats(
+    logStateStats({
       componentName,
       name,
       hasChanged,
       prev,
       next,
       isFunc,
-      setCountRef.current,
+      updateCount: setCountRef.current,
       logAllChanges
-    );
+    });
   }, [componentName, name, logAllChanges]);
 
   return { logStats };

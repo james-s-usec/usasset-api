@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useDebugStateLogger } from './useDebugStateLogger';
+import { debug } from '../utils/debug';
 
 interface UseDebugStateOptions<T> {
   name: string;
