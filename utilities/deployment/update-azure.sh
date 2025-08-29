@@ -1,7 +1,14 @@
 #!/bin/bash
 
+# DEPRECATED: Use update-azure-v2.sh for better error handling
+# This script is kept for backward compatibility only
+# 
 # USAsset Quick Azure Update Script
 # No complexity - just push your code changes to Azure
+
+echo -e "\033[1;33m⚠️  WARNING: This script is deprecated. Use update-azure-v2.sh for better reliability.\033[0m"
+echo "Continuing with legacy script in 3 seconds..."
+sleep 3
 
 set -e
 

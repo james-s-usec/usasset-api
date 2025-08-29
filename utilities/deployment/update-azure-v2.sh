@@ -200,6 +200,7 @@ main() {
             ;;
         5)
             log_info "User selected: Environment validation only"
+            get_git_info  # Still need git info for summary
             log_success "Environment validation completed"
             ;;
         0)

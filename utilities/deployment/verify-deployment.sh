@@ -1,8 +1,15 @@
 #!/bin/bash
 
+# DEPRECATED: Use verify-deployment-v2.sh for comprehensive checks
+# This script is kept for backward compatibility only
+#
 # Post-Deployment Verification Script for USAsset
 # Purpose: Verify Azure deployment health after running update-azure.sh
 # Usage: ./verify-deployment.sh
+
+echo -e "\033[1;33m⚠️  WARNING: This script is deprecated. Use verify-deployment-v2.sh for better checks.\033[0m"
+echo "Continuing with legacy script in 3 seconds..."
+sleep 3
 
 set -e
 

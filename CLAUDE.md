@@ -53,9 +53,12 @@ npm run ci                                     # Run lint, typecheck, test, buil
 npm run lint                                   # Check code style
 npm run typecheck                             # TypeScript validation
 
-# Deployment & Verification
-./utilities/deployment/update-azure.sh        # Deploy to Azure (interactive)
-./utilities/deployment/verify-deployment.sh   # Verify deployment health
+# Deployment & Verification (use v2 for production)
+./utilities/deployment/update-azure-v2.sh     # Deploy to Azure (hardened)
+./utilities/deployment/verify-deployment-v2.sh # Verify deployment (8 checks)
+# Legacy scripts (deprecated, use v2 above):
+# ./utilities/deployment/update-azure.sh      
+# ./utilities/deployment/verify-deployment.sh
 
 # Database
 docker-compose up -d                          # Start local PostgreSQL
@@ -93,18 +96,19 @@ cd apps/frontend && npm run dev
 ```bash
 # Deploy to Azure (from project root)
 cd utilities/deployment
-./update-azure.sh        # Interactive menu: choose 1-4
+./update-azure-v2.sh     # Hardened script with validation
                         # Option 1: Backend only
                         # Option 2: Frontend only  
                         # Option 3: Both (recommended for features)
                         # Option 4: Restart without rebuild
+                        # Option 5: Validate environment only
 
 # CRITICAL: Always verify after deployment
-./verify-deployment.sh   # Runs 7 health checks, logs to .logs/
+./verify-deployment-v2.sh # Runs 8 health checks with performance monitoring
 ```
 
 #### Verification Process
-The `verify-deployment.sh` script performs these checks:
+The `verify-deployment-v2.sh` script performs these checks:
 1. **Backend Health** - API responds at /health endpoint
 2. **Database Connection** - Verifies PostgreSQL connectivity
 3. **Version Match** - Confirms deployed commit matches git HEAD
