@@ -45,6 +45,28 @@ USAsset3/
 - 📗 **[Frontend Documentation](./apps/frontend/CLAUDE.md)** - React app, Vite config, API integration
 - 🏗️ **[Infrastructure Documentation](./infra/CLAUDE.md)** - Azure Bicep templates, deployment guide
 
+## Essential Commands
+```bash
+# Development
+npm run dev                                    # Start both frontend & backend
+npm run ci                                     # Run lint, typecheck, test, build
+npm run lint                                   # Check code style
+npm run typecheck                             # TypeScript validation
+
+# Deployment & Verification
+./utilities/deployment/update-azure.sh        # Deploy to Azure (interactive)
+./utilities/deployment/verify-deployment.sh   # Verify deployment health
+
+# Database
+docker-compose up -d                          # Start local PostgreSQL
+npx prisma migrate dev                        # Run migrations locally
+npx prisma studio                             # Open database GUI
+
+# Logs & Debugging
+ls -lt .logs/*.log | head -5                 # View recent logs
+tail -f .logs/verify-deployment_*.log        # Follow verification logs
+```
+
 ## Quick Start
 
 ### Development
@@ -64,6 +86,54 @@ cd apps/frontend && npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:3000
 - Health Check: http://localhost:3000/health
+
+### Deployment & Verification
+
+#### Quick Deploy Commands
+```bash
+# Deploy to Azure (from project root)
+cd utilities/deployment
+./update-azure.sh        # Interactive menu: choose 1-4
+                        # Option 1: Backend only
+                        # Option 2: Frontend only  
+                        # Option 3: Both (recommended for features)
+                        # Option 4: Restart without rebuild
+
+# CRITICAL: Always verify after deployment
+./verify-deployment.sh   # Runs 7 health checks, logs to .logs/
+```
+
+#### Verification Process
+The `verify-deployment.sh` script performs these checks:
+1. **Backend Health** - API responds at /health endpoint
+2. **Database Connection** - Verifies PostgreSQL connectivity
+3. **Version Match** - Confirms deployed commit matches git HEAD
+4. **CORS Configuration** - Tests frontend-backend communication
+5. **Frontend Accessibility** - Validates UI is accessible
+6. **Container Revisions** - Checks Azure Container App status
+7. **Log Correlation** - Links to deployment logs for debugging
+
+#### Logging Structure
+All operations log to `.logs/` directory with timestamps:
+- `azure-update_YYYYMMDD_HHMMSS.log` - Deployment logs
+- `verify-deployment_YYYYMMDD_HHMMSS.log` - Verification results
+- Test/build logs also saved here for CI/CD tracking
+
+#### Troubleshooting Deployment Issues
+```bash
+# If deployment times out (normal - continues in background)
+az containerapp revision list -n usasset-backend -g useng-usasset-api-rg --query "[0].name" -o tsv
+
+# Check container logs
+az containerapp logs show -n usasset-backend -g useng-usasset-api-rg --tail 50
+az containerapp logs show -n usasset-frontend -g useng-usasset-api-rg --tail 50
+
+# Verify images in registry
+az acr repository show-tags --name usassetacryf2eqktewmxp2 --repository backend --orderby time_desc --top 5
+
+# Force restart if needed
+./update-azure.sh  # Choose option 4
+```
 
 ## Environment Configuration Summary
 Backend is configured for seamless local development and Azure production deployment:
@@ -126,6 +196,22 @@ See individual CLAUDE.md files in each directory for detailed configuration.
 - Don't test framework code or simple getters
 
 **Guiding Principle**: Follow these rules religiously and complexity stays manageable.
+
+## Deployment Notes
+
+### ⚠️ Critical Deployment Rules
+1. **ALWAYS run `./verify-deployment.sh` after ANY deployment**
+2. **Script timeouts are NORMAL** - Azure continues in background (check with `az containerapp revision list`)
+3. **All logs saved to `.logs/`** - Check there first for issues
+
+### Common Issues & Fixes
+| Issue | Solution |
+|-------|----------|
+| Script timeout | Normal - deployment continues, run verification after 2-3 mins |
+| Version mismatch warning | Deploy after committing: `git commit -am "message" && git push` |
+| CORS errors | Backend auto-configured, if persists check CORS_ORIGIN env var |
+| Database connection failed | Check Key Vault: `az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string` |
+| Frontend not updating | Force restart: `./update-azure.sh` then option 4 |
 
 ## Miscellaneous Notes
 multiple MCP servers configured. - review the files here: "\\wsl.localhost\Ubuntu\home\swansonj\.config\claude\mcp" if having issues. 

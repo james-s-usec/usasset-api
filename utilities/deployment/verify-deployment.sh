@@ -6,6 +6,24 @@
 
 set -e
 
+# Get script directory and setup logging  
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Navigate to project root first
+cd "$(dirname $(dirname $SCRIPT_DIR))"
+LOG_DIR=".logs"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FILE="$LOG_DIR/verify-deployment_$TIMESTAMP.log"
+mkdir -p "$LOG_DIR"
+
+# Function to log with timestamp
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+# Capture all output to log file while still showing on screen
+exec > >(tee -a "$LOG_FILE")
+exec 2>&1
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -17,6 +35,7 @@ NC='\033[0m' # No Color
 BACKEND_URL="https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io"
 FRONTEND_URL="https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io"
 
+log_message "Starting deployment verification - User: $(whoami)"
 echo -e "${BLUE}🔍 USAsset Deployment Verification${NC}"
 echo "===================================="
 
@@ -110,18 +129,31 @@ if [ -n "$FRONTEND_REVISION" ]; then
     echo "$FRONTEND_REVISION" | jq '.'
 fi
 
-# 7. Summary
+# 7. Check for recent deployment logs
+echo -e "\n${BLUE}7. Recent Deployment Correlation${NC}"
+RECENT_DEPLOY_LOG=$(ls -t "$LOG_DIR"/azure-update_*.log 2>/dev/null | head -1)
+if [ -n "$RECENT_DEPLOY_LOG" ]; then
+    DEPLOY_TIME=$(basename "$RECENT_DEPLOY_LOG" | sed 's/azure-update_//' | sed 's/.log//')
+    echo "Found deployment log: $(basename $RECENT_DEPLOY_LOG)"
+    log_message "Correlating with deployment from $DEPLOY_TIME"
+fi
+
+# 8. Summary
 echo -e "\n${BLUE}===================================${NC}"
 if [ $FAILURES -eq 0 ]; then
+    log_message "✅ All verification checks passed!"
     echo -e "${GREEN}✅ All verification checks passed!${NC}"
     echo -e "\nBackend: $BACKEND_URL"
     echo -e "Frontend: $FRONTEND_URL"
+    echo -e "\n📄 Verification log saved to: $LOG_FILE"
     exit 0
 else
+    log_message "❌ $FAILURES verification checks failed"
     echo -e "${RED}❌ $FAILURES verification checks failed${NC}"
     echo -e "\n${YELLOW}Troubleshooting:${NC}"
     echo "1. Check container logs: az containerapp logs show -n usasset-backend -g useng-usasset-api-rg --tail 50"
     echo "2. Check Key Vault: az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string"
     echo "3. Restart containers: ./update-azure.sh (select option 4)"
+    echo -e "\n📄 Verification log saved to: $LOG_FILE"
     exit 1
 fi
