@@ -15,8 +15,10 @@ import {
   Req,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { User } from '@prisma/client';
-import { UserService } from './user.service';
+import { User, LogLevel } from '@prisma/client';
+import { UserQueryService } from './services/user-query.service';
+import { UserCommandService } from './services/user-command.service';
+import { UserBulkService } from './services/user-bulk.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationDto } from './dto/pagination.dto';
@@ -30,7 +32,9 @@ import { CORRELATION_ID_KEY } from '../common/middleware/correlation-id.middlewa
 @Controller('api/users')
 export class UserController {
   public constructor(
-    private readonly userService: UserService,
+    private readonly userQueryService: UserQueryService,
+    private readonly userCommandService: UserCommandService,
+    private readonly userBulkService: UserBulkService,
     private readonly dbLogger: DatabaseLoggerService,
   ) {}
 
@@ -41,7 +45,7 @@ export class UserController {
     const { page = DEFAULT_PAGE, limit = DEFAULT_PAGE_SIZE } = pagination;
     const skip = (page - 1) * limit;
 
-    const users = await this.userService.findMany();
+    const users = await this.userQueryService.findMany();
     const totalUsers = users.length;
     const paginatedUsers = users.slice(skip, skip + limit);
 
@@ -61,14 +65,14 @@ export class UserController {
   public async bulkCreate(
     @Body(ValidationPipe) bulkCreateUserDto: BulkCreateUserDto,
   ): Promise<User[]> {
-    return this.userService.bulkCreate(bulkCreateUserDto.users);
+    return this.userBulkService.bulkCreate(bulkCreateUserDto.users);
   }
 
   @Patch('bulk')
   public async bulkUpdate(
     @Body(ValidationPipe) bulkUpdateUserDto: BulkUpdateUserDto,
   ): Promise<User[]> {
-    return this.userService.bulkUpdate(bulkUpdateUserDto.updates);
+    return this.userBulkService.bulkUpdate(bulkUpdateUserDto.updates);
   }
 
   @Delete('bulk')
@@ -78,18 +82,20 @@ export class UserController {
   ): Promise<{ deleted: number }> {
     const correlationId = (req[CORRELATION_ID_KEY] as string) || 'unknown';
 
-    await this.dbLogger.logDebug(
+    await this.dbLogger.log(
+      LogLevel.DEBUG,
       correlationId,
       `Starting bulk delete operation for ${bulkDeleteUserDto.ids.length} users`,
       { userIds: bulkDeleteUserDto.ids.join(', '), operation: 'bulkDelete' },
     );
 
-    const result = await this.userService.bulkDelete(
+    const result = await this.userBulkService.bulkDelete(
       bulkDeleteUserDto.ids,
       correlationId,
     );
 
-    await this.dbLogger.logInfo(
+    await this.dbLogger.log(
+      LogLevel.INFO,
       correlationId,
       `Bulk delete completed: ${result.deleted} of ${bulkDeleteUserDto.ids.length} users deleted`,
       {
@@ -104,7 +110,7 @@ export class UserController {
 
   @Get(':id')
   public async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<User> {
-    const user = await this.userService.findById(id);
+    const user = await this.userQueryService.findById(id);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -116,7 +122,7 @@ export class UserController {
   public async create(
     @Body(ValidationPipe) createUserDto: CreateUserDto,
   ): Promise<User> {
-    return this.userService.create(createUserDto);
+    return this.userCommandService.create(createUserDto);
   }
 
   @Patch(':id')
@@ -124,7 +130,7 @@ export class UserController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body(ValidationPipe) updateUserDto: UpdateUserDto,
   ): Promise<User> {
-    return this.userService.update(id, updateUserDto);
+    return this.userCommandService.update(id, updateUserDto);
   }
 
   @Delete(':id')
@@ -135,15 +141,17 @@ export class UserController {
   ): Promise<void> {
     const correlationId = (req[CORRELATION_ID_KEY] as string) || 'unknown';
 
-    await this.dbLogger.logDebug(
+    await this.dbLogger.log(
+      LogLevel.DEBUG,
       correlationId,
       `Starting delete operation for user ${id}`,
       { userId: id, operation: 'delete' },
     );
 
-    await this.userService.delete(id, correlationId);
+    await this.userCommandService.delete(id, correlationId);
 
-    await this.dbLogger.logInfo(
+    await this.dbLogger.log(
+      LogLevel.INFO,
       correlationId,
       `User ${id} deleted successfully`,
       { userId: id, operation: 'delete' },

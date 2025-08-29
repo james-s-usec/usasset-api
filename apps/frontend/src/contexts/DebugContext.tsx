@@ -74,7 +74,7 @@ export const DebugProvider = ({ children }: DebugProviderProps) => {
     // Don't add a message here - it creates a database log!
   }, []);
 
-  const clearDatabaseLogs = useCallback(async (): Promise<void> => {
+  const clearDatabaseLogs = useCallback(async (): Promise<{ message: string; deletedCount: number }> => {
     try {
       // Just delete the logs - no logging during delete operation!
       const response = await LogsApiService.deleteLogs();
@@ -82,7 +82,7 @@ export const DebugProvider = ({ children }: DebugProviderProps) => {
       // Optional: Show result in console only (not database)
       console.log(`Deleted ${response.deletedCount} logs`);
       
-      return;
+      return response;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to clear database logs:', errorMessage);

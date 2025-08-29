@@ -1,16 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Paper, IconButton, Chip, Fab, Button } from '@mui/material';
 import { BugReport, Clear, ExpandMore, ExpandLess, DragIndicator, ContentCopy, Settings } from '@mui/icons-material';
+import { useDebugComponent } from '../hooks/useDebugComponent';
+import { debug } from '../utils/debug';
 import type { DebugMessage } from './DebugConsole';
 
 interface FloatingDebugConsoleProps {
   messages: DebugMessage[];
   onClear: () => void;
   onCopyAll?: () => void;
-  onClearDatabase?: () => Promise<void>;
+  onClearDatabase?: () => Promise<{ message: string; deletedCount: number }>;
 }
 
 export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearDatabase }: FloatingDebugConsoleProps) => {
+  // Debug logging for the FloatingDebugConsole component
+  const { logEvent, logCustom } = useDebugComponent({
+    name: 'FloatingDebugConsole',
+    props: { messagesCount: messages.length },
+    trackRenders: debug.enabled,
+    trackPerformance: false
+  });
+
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 20, y: 20 });
   const [isDragging, setIsDragging] = useState(false);
@@ -22,6 +32,8 @@ export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearData
   const errorCount = messages.filter(m => m.level === 'error').length;
 
   const handleCopyMessages = () => {
+    logEvent('click', 'copy-floating-console-messages')
+    
     try {
       const debugInfo = {
         timestamp: new Date().toISOString(),
@@ -29,17 +41,22 @@ export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearData
         totalMessages: messages.length,
         errorCount,
         url: window.location.href,
-        userAgent: navigator.userAgent
+        userAgent: navigator.userAgent,
+        debugEnabled: debug.enabled,
+        enabledCategories: debug.categories
       };
       
       navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2));
+      logCustom('Copied debug messages to clipboard', { messagesCount: messages.length, errorCount })
       alert('Debug messages copied to clipboard!');
     } catch (error) {
+      logCustom('Failed to copy debug messages', { error })
       console.error('Failed to copy:', error);
     }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    logEvent('mousedown', 'floating-console-drag-start')
     setIsDragging(true);
     const rect = consoleRef.current?.getBoundingClientRect();
     if (rect) {
@@ -61,6 +78,9 @@ export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearData
     };
 
     const handleMouseUp = () => {
+      if (isDragging) {
+        logEvent('mouseup', 'floating-console-drag-end', { position })
+      }
       setIsDragging(false);
     };
 
@@ -73,7 +93,7 @@ export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearData
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragOffset]);
+  }, [isDragging, dragOffset, logEvent, position]);
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -97,7 +117,11 @@ export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearData
           zIndex: 1000,
           '&:hover': { transform: 'scale(1.1)' }
         }}
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          logEvent('click', 'open-floating-console')
+          logCustom('Opening floating console', { messagesCount: messages.length, errorCount })
+          setIsOpen(true)
+        }}
       >
         <BugReport />
         {messages.length > 0 && (
@@ -171,13 +195,36 @@ export const FloatingDebugConsole = ({ messages, onClear, onCopyAll, onClearData
         <IconButton size="small" onClick={handleCopyMessages} title="Copy messages">
           <ContentCopy fontSize="small" />
         </IconButton>
-        <IconButton size="small" onClick={() => setShowActions(!showActions)} title="Toggle actions">
+        <IconButton 
+          size="small" 
+          onClick={() => {
+            logEvent('click', 'toggle-floating-console-actions')
+            setShowActions(!showActions)
+          }} 
+          title="Toggle actions"
+        >
           {showActions ? <ExpandMore fontSize="small" /> : <Settings fontSize="small" />}
         </IconButton>
-        <IconButton size="small" onClick={onClear} title="Clear console">
+        <IconButton 
+          size="small" 
+          onClick={() => {
+            logEvent('click', 'clear-floating-console')
+            logCustom('Clearing floating console', { messagesCount: messages.length })
+            onClear()
+          }} 
+          title="Clear console"
+        >
           <Clear fontSize="small" />
         </IconButton>
-        <IconButton size="small" onClick={() => setIsOpen(false)} title="Close console">
+        <IconButton 
+          size="small" 
+          onClick={() => {
+            logEvent('click', 'close-floating-console')
+            logCustom('Closing floating console')
+            setIsOpen(false)
+          }} 
+          title="Close console"
+        >
           <ExpandLess fontSize="small" />
         </IconButton>
       </Box>

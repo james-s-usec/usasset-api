@@ -36,7 +36,7 @@ export const SettingsPage = () => {
           control={
             <Switch 
               checked={settings.debugConsole}
-              onChange={(e) => handleDebugConsoleToggle(e.target.checked)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDebugConsoleToggle(e.target.checked)}
             />
           }
           label="Show floating debug console"
@@ -53,7 +53,7 @@ export const SettingsPage = () => {
           control={
             <Switch 
               checked={settings.autoRefresh}
-              onChange={(e) => handleAutoRefreshToggle(e.target.checked)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAutoRefreshToggle(e.target.checked)}
             />
           }
           label="Auto-refresh debug logs"

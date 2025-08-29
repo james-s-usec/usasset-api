@@ -68,7 +68,7 @@ export const DebugConsole = ({ messages, onClear, maxHeight = 200 }: DebugConsol
         </Typography>
         <IconButton 
           size="small" 
-          onClick={(e) => { e.stopPropagation(); onClear(); }}
+          onClick={(e: React.MouseEvent) => { e.stopPropagation(); onClear(); }}
           title="Clear console"
         >
           <Clear fontSize="small" />

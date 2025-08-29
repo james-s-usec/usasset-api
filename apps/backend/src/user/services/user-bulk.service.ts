@@ -1,88 +1,19 @@
 import {
   Injectable,
-  NotFoundException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
-import { DatabaseLoggerService } from '../common/services/database-logger.service';
 import { User } from '@prisma/client';
-import { UserRepository } from './repositories/user.repository';
-import {
-  CreateUserRequest,
-  UpdateUserRequest,
-  UserWhereInput,
-} from './dto/user.dto';
+import { UserCommandService } from './user-command.service';
+import { DatabaseLoggerService } from '../../common/services/database-logger.service';
+import { CreateUserRequest, UpdateUserRequest } from '../dto/user.dto';
 
 @Injectable()
-export class UserService {
+export class UserBulkService {
   public constructor(
-    private readonly userRepository: UserRepository,
+    private readonly commandService: UserCommandService,
     private readonly dbLogger: DatabaseLoggerService,
   ) {}
-
-  public async findById(id: string): Promise<User | null> {
-    return this.userRepository.findById(id);
-  }
-
-  public async findMany(where?: UserWhereInput): Promise<User[]> {
-    return this.userRepository.findMany({ where });
-  }
-
-  public async create(data: CreateUserRequest): Promise<User> {
-    const existingUser = await this.userRepository.findByEmail(data.email);
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
-    }
-    return this.userRepository.create(data);
-  }
-
-  public async update(id: string, data: UpdateUserRequest): Promise<User> {
-    const exists = await this.userRepository.exists(id);
-    if (!exists) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (data.email) {
-      const existingUser = await this.userRepository.findByEmail(data.email);
-      if (existingUser && existingUser.id !== id) {
-        throw new ConflictException('Email already in use by another user');
-      }
-    }
-
-    return this.userRepository.update(id, data);
-  }
-
-  public async delete(id: string, correlationId?: string): Promise<void> {
-    const cid = correlationId || 'unknown';
-
-    await this.dbLogger.logDebug(
-      cid,
-      `Checking if user ${id} exists before deletion`,
-      { userId: id, operation: 'delete.checkExists' },
-    );
-
-    const exists = await this.userRepository.exists(id);
-    if (!exists) {
-      await this.dbLogger.logWarn(cid, `Delete failed: User ${id} not found`, {
-        userId: id,
-        operation: 'delete.notFound',
-      });
-      throw new NotFoundException('User not found');
-    }
-
-    await this.dbLogger.logDebug(
-      cid,
-      `Executing database delete for user ${id}`,
-      { userId: id, operation: 'delete.execute' },
-    );
-
-    await this.userRepository.delete(id);
-
-    await this.dbLogger.logDebug(
-      cid,
-      `Database delete completed for user ${id}`,
-      { userId: id, operation: 'delete.completed' },
-    );
-  }
 
   public async bulkCreate(users: CreateUserRequest[]): Promise<User[]> {
     const results: User[] = [];
@@ -90,7 +21,7 @@ export class UserService {
 
     for (let i = 0; i < users.length; i++) {
       try {
-        const user = await this.create(users[i]);
+        const user = await this.commandService.create(users[i]);
         results.push(user);
       } catch (error) {
         errors.push({
@@ -119,7 +50,7 @@ export class UserService {
     for (const updateItem of updates) {
       const { id, ...data } = updateItem;
       try {
-        const user = await this.update(id, data);
+        const user = await this.commandService.update(id, data);
         results.push(user);
       } catch (error) {
         errors.push({
@@ -191,37 +122,57 @@ export class UserService {
     total: number,
   ): Promise<{ success: boolean; error: string }> {
     try {
-      await this.dbLogger.logDebug(
-        cid,
-        `Processing delete for user ${id} (${index}/${total})`,
-        {
-          userId: id,
-          progress: `${index}/${total}`,
-          operation: 'bulkDelete.processing',
-        },
-      );
-
-      await this.delete(id, cid);
-
-      await this.dbLogger.logDebug(cid, `Successfully deleted user ${id}`, {
-        userId: id,
-        deletedCount: index,
-        operation: 'bulkDelete.success',
-      });
-
+      await this.logDeleteProcessing(cid, id, index, total);
+      await this.commandService.delete(id, cid);
+      await this.logDeleteSuccess(cid, id, index);
       return { success: true, error: '' };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-
-      await this.dbLogger.logError(
-        cid,
-        `Failed to delete user ${id}: ${errorMessage}`,
-        { userId: id, error: errorMessage, operation: 'bulkDelete.error' },
-      );
-
+      await this.logDeleteError(cid, id, errorMessage);
       return { success: false, error: errorMessage };
     }
+  }
+
+  private async logDeleteProcessing(
+    cid: string,
+    id: string,
+    index: number,
+    total: number,
+  ): Promise<void> {
+    await this.dbLogger.logDebug(
+      cid,
+      `Processing delete for user ${id} (${index}/${total})`,
+      {
+        userId: id,
+        progress: `${index}/${total}`,
+        operation: 'bulkDelete.processing',
+      },
+    );
+  }
+
+  private async logDeleteSuccess(
+    cid: string,
+    id: string,
+    index: number,
+  ): Promise<void> {
+    await this.dbLogger.logDebug(cid, `Successfully deleted user ${id}`, {
+      userId: id,
+      deletedCount: index,
+      operation: 'bulkDelete.success',
+    });
+  }
+
+  private async logDeleteError(
+    cid: string,
+    id: string,
+    errorMessage: string,
+  ): Promise<void> {
+    await this.dbLogger.logError(
+      cid,
+      `Failed to delete user ${id}: ${errorMessage}`,
+      { userId: id, error: errorMessage, operation: 'bulkDelete.error' },
+    );
   }
 
   private async logBulkDeleteStart(cid: string, ids: string[]): Promise<void> {
