@@ -15,7 +15,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { User, LogLevel } from '@prisma/client';
+import { User } from '@prisma/client';
 import { UserQueryService } from './services/user-query.service';
 import { UserCommandService } from './services/user-command.service';
 import { UserBulkService } from './services/user-bulk.service';
@@ -82,8 +82,7 @@ export class UserController {
   ): Promise<{ deleted: number }> {
     const correlationId = (req[CORRELATION_ID_KEY] as string) || 'unknown';
 
-    await this.dbLogger.log(
-      LogLevel.DEBUG,
+    await this.dbLogger.logDebug(
       correlationId,
       `Starting bulk delete operation for ${bulkDeleteUserDto.ids.length} users`,
       { userIds: bulkDeleteUserDto.ids.join(', '), operation: 'bulkDelete' },
@@ -94,8 +93,7 @@ export class UserController {
       correlationId,
     );
 
-    await this.dbLogger.log(
-      LogLevel.INFO,
+    await this.dbLogger.logInfo(
       correlationId,
       `Bulk delete completed: ${result.deleted} of ${bulkDeleteUserDto.ids.length} users deleted`,
       {
@@ -141,8 +139,7 @@ export class UserController {
   ): Promise<void> {
     const correlationId = (req[CORRELATION_ID_KEY] as string) || 'unknown';
 
-    await this.dbLogger.log(
-      LogLevel.DEBUG,
+    await this.dbLogger.logDebug(
       correlationId,
       `Starting delete operation for user ${id}`,
       { userId: id, operation: 'delete' },
@@ -150,8 +147,7 @@ export class UserController {
 
     await this.userCommandService.delete(id, correlationId);
 
-    await this.dbLogger.log(
-      LogLevel.INFO,
+    await this.dbLogger.logInfo(
       correlationId,
       `User ${id} deleted successfully`,
       { userId: id, operation: 'delete' },

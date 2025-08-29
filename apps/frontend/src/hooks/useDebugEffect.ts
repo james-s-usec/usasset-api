@@ -5,7 +5,8 @@
  * Follows CLAUDE.md principles for effect debugging and cleanup tracking
  */
 
-import { useEffect, useRef, DependencyList, EffectCallback } from 'react';
+import { useEffect, useRef } from 'react';
+import type { DependencyList, EffectCallback } from 'react';
 import { logHookCall, debug } from '../utils/debug';
 
 interface UseDebugEffectOptions {

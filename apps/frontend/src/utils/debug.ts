@@ -43,7 +43,7 @@ class DebugUtil {
     // Parse enabled categories from environment
     const categoriesEnv = import.meta.env.VITE_DEBUG_CATEGORIES || '';
     this.enabledCategories = new Set(
-      categoriesEnv ? categoriesEnv.split(',').map(c => c.trim() as DebugCategory) : []
+      categoriesEnv ? categoriesEnv.split(',').map((c: string) => c.trim() as DebugCategory) : []
     );
 
     // If no specific categories set, enable all in development

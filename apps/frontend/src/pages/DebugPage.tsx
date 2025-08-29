@@ -27,23 +27,18 @@ export const DebugPage = () => {
   } = useDebugPage();
 
   // Enhanced event handlers with debug logging
-  const handleRefreshWithDebug = () => {
+  const handleRefreshWithDebug = async () => {
     logEvent('click', 'refresh-logs')
     const timingMark = startTiming('refresh-logs')
     
-    const originalRefresh = handleRefresh
-    const result = originalRefresh()
-    
-    if (result && typeof result.then === 'function') {
-      result.then(() => {
-        endTiming(timingMark, 'refresh-logs-success')
-        logCustom('Logs refreshed successfully', { logsCount: logs.length })
-      }).catch((error: unknown) => {
-        endTiming(timingMark, 'refresh-logs-error')
-        logCustom('Failed to refresh logs', { error })
-      })
-    } else {
-      endTiming(timingMark, 'refresh-logs-sync')
+    try {
+      await handleRefresh()
+      endTiming(timingMark, 'refresh-logs-success')
+      logCustom('Logs refreshed successfully', { logsCount: logs.length })
+    } catch (error) {
+      endTiming(timingMark, 'refresh-logs-error')
+      logCustom('Failed to refresh logs', { error })
+      throw error
     }
   }
 
@@ -53,10 +48,10 @@ export const DebugPage = () => {
     logCustom('Test UI event triggered')
   }
 
-  const handleClearLogsWithDebug = () => {
+  const handleClearLogsWithDebug = async () => {
     logEvent('click', 'clear-logs')
     logCustom('Clearing logs', { currentLogsCount: logs.length })
-    handleClearLogs()
+    await handleClearLogs()
   }
 
   const handleCopyLogsAsJSONWithDebug = () => {
@@ -72,7 +67,7 @@ export const DebugPage = () => {
   }
 
   const handleMetadataDialogWithDebug = (open: boolean, data?: unknown, title?: string) => {
-    logEvent('click', open ? 'open-metadata-dialog' : 'close-metadata-dialog', { title })
+    logEvent(open ? 'open-metadata-dialog' : 'close-metadata-dialog', { title })
     handleMetadataDialog(open, data, title)
   }
 

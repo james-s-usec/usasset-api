@@ -12,13 +12,36 @@ export class DatabaseLoggerService {
 
   public constructor(private readonly prisma: PrismaService) {}
 
-  public async log(
-    level: LogLevel,
+  public async logDebug(
     correlationId: string,
     message: string,
     metadata?: LogMetadata,
   ): Promise<void> {
-    await this.logEntry(level, correlationId, message, metadata);
+    await this.logEntry(LogLevel.DEBUG, correlationId, message, metadata);
+  }
+
+  public async logInfo(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.INFO, correlationId, message, metadata);
+  }
+
+  public async logWarn(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.WARN, correlationId, message, metadata);
+  }
+
+  public async logError(
+    correlationId: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): Promise<void> {
+    await this.logEntry(LogLevel.ERROR, correlationId, message, metadata);
   }
 
   public async findLogsByCorrelationId(

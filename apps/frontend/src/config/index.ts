@@ -30,7 +30,7 @@ class ConfigService {
     // Parse debug categories
     const debugCategoriesEnv = import.meta.env.VITE_DEBUG_CATEGORIES || ''
     const debugCategories = debugCategoriesEnv ? 
-      debugCategoriesEnv.split(',').map(c => c.trim()) : 
+      debugCategoriesEnv.split(',').map((c: string) => c.trim()) : 
       ['component', 'hook', 'api', 'state', 'event', 'performance', 'navigation', 'render', 'lifecycle']
     
     const baseConfig: AppConfig = {

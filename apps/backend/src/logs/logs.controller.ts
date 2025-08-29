@@ -33,7 +33,10 @@ export class LogsController {
     @Query('correlationId') correlationId?: string,
   ): Promise<LogsListResponse | { logs: LogEntryData[] }> {
     const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : DEFAULT_LOGS_PAGE_SIZE;
+    const limitNum =
+      limit && !isNaN(Number(limit))
+        ? parseInt(limit, 10)
+        : DEFAULT_LOGS_PAGE_SIZE;
 
     if (correlationId) {
       const logs = await this.logsService.findByCorrelationId(correlationId);
