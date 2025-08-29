@@ -36,11 +36,8 @@ export interface UseDebugPageReturn {
   addDebugMessage: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => void;
 }
 
-export const useDebugPage = (): UseDebugPageReturn => {
-  logHookCall('useDebugPage', 'entry')
-
-  // Enhanced state with debug logging
-  const [metadataDialog, setMetadataDialog] = useDebugState<{ open: boolean; data: unknown; title: string }>({
+const useMetadataDialogState = (): [{ open: boolean; data: unknown; title: string }, (value: { open: boolean; data: unknown; title: string }) => void] => {
+  return useDebugState<{ open: boolean; data: unknown; title: string }>({
     open: false,
     data: null,
     title: ''
@@ -52,41 +49,16 @@ export const useDebugPage = (): UseDebugPageReturn => {
       prev.data === next.data && 
       prev.title === next.title
   });
-  
-  // Use global debug context for floating console
-  const { addMessage: addDebugMessage, messages: debugMessages } = useDebug();
-  
-  // Logs data management
-  const { logs, loading, error, loadLogs, handleRefresh: handleLogsRefresh, handleClearLogs } = useLogsData();
-  
-  // Clipboard operations
-  const { handleCopyLogsAsJSON, handleCopyDebugInfo } = useClipboardActions({
-    logs,
-    debugMessages,
-    addDebugMessage,
-  });
-  
-  // Global error handlers
-  useGlobalErrorHandlers({ addDebugMessage });
+};
 
-  // Replace useEffect with debug version
-  useDebugMountEffect(() => {
-    logHookCall('useDebugPage.mountEffect', 'entry')
-    DebugLogger.logUIEvent('DebugPage mounted');
-    loadLogs();
-    
-    return () => {
-      logHookCall('useDebugPage.mountEffect', 'cleanup')
-    };
-  }, {
-    name: 'mountEffect',
-    componentName: 'useDebugPage'
-  });
-
-  const handleRefresh = useCallback(async () => {
+const useRefreshHandler = (
+  addDebugMessage: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => void,
+  handleLogsRefresh: () => Promise<void>
+): (() => Promise<void>) => {
+  return useCallback(async (): Promise<void> => {
     logHookCall('useDebugPage.handleRefresh', 'entry')
-    addDebugMessage('debug', 'Refresh button clicked - refreshing both database logs and debug messages');
-    DebugLogger.logUIEvent('DebugPage: Refresh button clicked');
+    addDebugMessage('debug', 'Refresh clicked');
+    DebugLogger.logUIEvent('DebugPage: Refresh');
     
     try {
       await handleLogsRefresh();
@@ -96,45 +68,97 @@ export const useDebugPage = (): UseDebugPageReturn => {
       throw error
     }
   }, [addDebugMessage, handleLogsRefresh]);
+};
 
-  const handleTestUIEvent = useCallback(() => {
+const useTestUIHandler = (
+  addDebugMessage: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => void
+): (() => void) => {
+  return useCallback((): void => {
     logHookCall('useDebugPage.handleTestUIEvent', 'entry')
-    addDebugMessage('debug', 'Test UI Event button clicked', { userAction: 'manual_test' });
-    DebugLogger.logUIEvent('DebugPage: Test button clicked', { 
+    const data = { 
       timestamp: new Date().toISOString(),
       userAction: 'manual_test' 
-    });
+    };
+    addDebugMessage('debug', 'Test UI Event', data);
+    DebugLogger.logUIEvent('DebugPage: Test', data);
     logHookCall('useDebugPage.handleTestUIEvent', 'exit')
   }, [addDebugMessage]);
+};
 
-  const handleMetadataDialog = useCallback((open: boolean, data?: unknown, title: string = '') => {
-    logHookCall('useDebugPage.handleMetadataDialog', 'entry', { open, title })
-    setMetadataDialog({
-      open,
-      data: data || null,
-      title
-    });
-  }, [setMetadataDialog]);
+const useDebugPageInitialization = (): {
+  metadataDialog: { open: boolean; data: unknown; title: string };
+  setMetadataDialog: (value: { open: boolean; data: unknown; title: string }) => void;
+  debugMessages: DebugMessage[];
+  addDebugMessage: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => void;
+} => {
+  const [metadataDialog, setMetadataDialog] = useMetadataDialogState();
+  const { addMessage: addDebugMessage, messages: debugMessages } = useDebug();
+  
+  useGlobalErrorHandlers({ addDebugMessage });
+  
+  return {
+    metadataDialog,
+    setMetadataDialog,
+    debugMessages,
+    addDebugMessage
+  };
+};
+
+const setupMountEffect = (
+  logsData: ReturnType<typeof useLogsData>
+): void => {
+  useDebugMountEffect((): (() => void) => {
+    logHookCall('useDebugPage.mountEffect', 'entry')
+    DebugLogger.logUIEvent('DebugPage mounted');
+    logsData.loadLogs();
+    
+    return (): void => {
+      logHookCall('useDebugPage.mountEffect', 'cleanup')
+    };
+  }, {
+    name: 'mountEffect',
+    componentName: 'useDebugPage'
+  });
+};
+
+export const useDebugPage = (): UseDebugPageReturn => {
+  logHookCall('useDebugPage', 'entry');
+
+  const init = useDebugPageInitialization();
+  const logsData = useLogsData();
+  
+  const clipboardActions = useClipboardActions({
+    logs: logsData.logs,
+    debugMessages: init.debugMessages,
+    addDebugMessage: init.addDebugMessage,
+  });
+  
+  setupMountEffect(logsData);
+
+  const handleRefresh = useRefreshHandler(init.addDebugMessage, logsData.handleRefresh);
+  const handleTestUIEvent = useTestUIHandler(init.addDebugMessage);
+
+  const handleMetadataDialog = useCallback((
+    open: boolean, 
+    data?: unknown, 
+    title: string = ''
+  ): void => {
+    logHookCall('useDebugPage.handleMetadataDialog', 'entry', { open, title });
+    init.setMetadataDialog({ open, data: data || null, title });
+  }, [init.setMetadataDialog]);
 
   return {
-    // Data state
-    logs,
-    loading,
-    error,
-    debugMessages,
-    
-    // Dialog state
-    metadataDialog,
-    
-    // Event handlers
+    logs: logsData.logs,
+    loading: logsData.loading,
+    error: logsData.error,
+    debugMessages: init.debugMessages,
+    metadataDialog: init.metadataDialog,
     handleRefresh,
     handleTestUIEvent,
-    handleClearLogs,
-    handleCopyLogsAsJSON,
-    handleCopyDebugInfo,
+    handleClearLogs: logsData.handleClearLogs,
+    handleCopyLogsAsJSON: clipboardActions.handleCopyLogsAsJSON,
+    handleCopyDebugInfo: clipboardActions.handleCopyDebugInfo,
     handleMetadataDialog,
-    
-    // Internal functions
-    addDebugMessage,
+    addDebugMessage: init.addDebugMessage,
   };
 };

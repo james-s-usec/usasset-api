@@ -14,7 +14,7 @@ interface UseFloatingPositionReturn {
   position: Position;
   isDragging: boolean;
   handleMouseDown: (e: React.MouseEvent) => void;
-  consoleRef: React.RefObject<HTMLDivElement>;
+  consoleRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function useFloatingPosition(initialPosition: Position = { x: 20, y: 20 }): UseFloatingPositionReturn {
@@ -34,24 +34,28 @@ export function useFloatingPosition(initialPosition: Position = { x: 20, y: 20 }
     }
   };
 
+  const calculatePosition = (clientX: number, clientY: number, offset: Position): Position => {
+    const maxX = window.innerWidth - 400;
+    const maxY = window.innerHeight - 200;
+    return {
+      x: Math.max(0, Math.min(maxX, clientX - offset.x)),
+      y: Math.max(0, Math.min(maxY, clientY - offset.y))
+    };
+  };
+
   useEffect(() => {
     if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent): void => {
-      setPosition({
-        x: Math.max(0, Math.min(window.innerWidth - 400, e.clientX - dragOffset.x)),
-        y: Math.max(0, Math.min(window.innerHeight - 200, e.clientY - dragOffset.y))
-      });
+      setPosition(calculatePosition(e.clientX, e.clientY, dragOffset));
     };
 
-    const handleMouseUp = (): void => {
-      setIsDragging(false);
-    };
+    const handleMouseUp = (): void => setIsDragging(false);
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
 
-    return () => {
+    return (): void => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };

@@ -1,3 +1,4 @@
+import React from 'react';
 import { Box, Typography, CircularProgress } from '@mui/material';
 import { useDebugPage } from '../hooks/useDebugPage';
 import { useDebugComponent } from '../hooks/useDebugComponent';
@@ -5,82 +6,79 @@ import { DebugPageHeader } from '../components/DebugPageHeader';
 import { LogsDataGrid } from '../components/LogsDataGrid';
 import { MetadataDialog } from '../components/MetadataDialog';
 
-export const DebugPage = () => {
-  // Debug logging for DebugPage itself
-  const { logEvent, logCustom, startTiming, endTiming } = useDebugComponent({
+interface DebugLoggers {
+  logEvent: (type: string, data?: unknown) => void;
+  logCustom: (msg: string, data?: unknown) => void;
+  startTiming: (name: string) => string | undefined;
+  endTiming: (mark?: string, name?: string) => void;
+}
+
+const createDebugHandler = <T extends unknown[], R>(
+  handler: (...args: T) => R,
+  eventName: string,
+  debug: Pick<DebugLoggers, 'logEvent' | 'logCustom'>,
+  successMsg?: string
+) => {
+  return (...args: T): R => {
+    debug.logEvent('click', eventName);
+    const result = handler(...args);
+    if (successMsg) debug.logCustom(successMsg);
+    return result;
+  };
+};
+
+const createAsyncDebugHandler = <T extends unknown[]>(
+  handler: (...args: T) => Promise<void>,
+  eventName: string,
+  debug: DebugLoggers
+) => {
+  return async (...args: T): Promise<void> => {
+    debug.logEvent('click', eventName);
+    const mark = debug.startTiming(eventName);
+    
+    try {
+      await handler(...args);
+      debug.endTiming(mark, `${eventName}-success`);
+      debug.logCustom(`${eventName} completed`);
+    } catch (error) {
+      debug.endTiming(mark, `${eventName}-error`);
+      debug.logCustom(`${eventName} failed`, { error });
+      throw error;
+    }
+  };
+};
+
+export const DebugPage = (): React.ReactElement => {
+  const debug = useDebugComponent({
     name: 'DebugPage',
     trackRenders: true,
     trackPerformance: true
   });
 
-  const {
-    logs,
-    loading,
-    error,
-    metadataDialog,
-    handleRefresh,
-    handleTestUIEvent,
-    handleClearLogs,
-    handleCopyLogsAsJSON,
-    handleCopyDebugInfo,
-    handleMetadataDialog,
-  } = useDebugPage();
+  const pageData = useDebugPage();
 
-  // Enhanced event handlers with debug logging
-  const handleRefreshWithDebug = async () => {
-    logEvent('click', 'refresh-logs')
-    const timingMark = startTiming('refresh-logs')
-    
-    try {
-      await handleRefresh()
-      endTiming(timingMark, 'refresh-logs-success')
-      logCustom('Logs refreshed successfully', { logsCount: logs.length })
-    } catch (error) {
-      endTiming(timingMark, 'refresh-logs-error')
-      logCustom('Failed to refresh logs', { error })
-      throw error
+  const handlers = {
+    refresh: createAsyncDebugHandler(pageData.handleRefresh, 'refresh-logs', debug),
+    testUI: createDebugHandler(pageData.handleTestUIEvent, 'test-ui-event', debug, 'Test UI event triggered'),
+    clearLogs: createAsyncDebugHandler(pageData.handleClearLogs, 'clear-logs', debug),
+    copyJSON: createDebugHandler(pageData.handleCopyLogsAsJSON, 'copy-logs-json', debug, 'Copied logs as JSON'),
+    copyDebug: createDebugHandler(pageData.handleCopyDebugInfo, 'copy-debug-info', debug, 'Copied debug info'),
+    metadata: (open: boolean, data?: unknown, title?: string): void => {
+      const event = open ? 'open-metadata-dialog' : 'close-metadata-dialog';
+      debug.logEvent(event, { title });
+      pageData.handleMetadataDialog(open, data, title);
     }
-  }
+  };
 
-  const handleTestUIEventWithDebug = () => {
-    logEvent('click', 'test-ui-event')
-    handleTestUIEvent()
-    logCustom('Test UI event triggered')
-  }
-
-  const handleClearLogsWithDebug = async () => {
-    logEvent('click', 'clear-logs')
-    logCustom('Clearing logs', { currentLogsCount: logs.length })
-    await handleClearLogs()
-  }
-
-  const handleCopyLogsAsJSONWithDebug = () => {
-    logEvent('click', 'copy-logs-json')
-    handleCopyLogsAsJSON()
-    logCustom('Copied logs as JSON', { logsCount: logs.length })
-  }
-
-  const handleCopyDebugInfoWithDebug = () => {
-    logEvent('click', 'copy-debug-info')
-    handleCopyDebugInfo()
-    logCustom('Copied debug info')
-  }
-
-  const handleMetadataDialogWithDebug = (open: boolean, data?: unknown, title?: string) => {
-    logEvent(open ? 'open-metadata-dialog' : 'close-metadata-dialog', { title })
-    handleMetadataDialog(open, data, title)
-  }
-
-  // Log current state
-  logCustom('DebugPage state', {
-    logsCount: logs.length,
-    loading,
-    hasError: !!error,
-    metadataDialogOpen: metadataDialog.open
+  debug.logCustom('DebugPage state', {
+    logsCount: pageData.logs.length,
+    loading: pageData.loading,
+    hasError: !!pageData.error,
+    metadataDialogOpen: pageData.metadataDialog.open
   })
 
-  if (loading) {
-    logCustom('Showing loading state')
+  if (pageData.loading) {
+    debug.logCustom('Showing loading state');
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
         <CircularProgress />
@@ -92,25 +90,25 @@ export const DebugPage = () => {
   return (
     <Box sx={{ p: 3 }}>
       <DebugPageHeader
-        logsCount={logs.length}
-        error={error}
-        onRefresh={handleRefreshWithDebug}
-        onTestUIEvent={handleTestUIEventWithDebug}
-        onCopyLogsAsJSON={handleCopyLogsAsJSONWithDebug}
-        onCopyDebugInfo={handleCopyDebugInfoWithDebug}
-        onClearLogs={handleClearLogsWithDebug}
+        logsCount={pageData.logs.length}
+        error={pageData.error}
+        onRefresh={handlers.refresh}
+        onTestUIEvent={handlers.testUI}
+        onCopyLogsAsJSON={handlers.copyJSON}
+        onCopyDebugInfo={handlers.copyDebug}
+        onClearLogs={handlers.clearLogs}
       />
       
       <LogsDataGrid
-        logs={logs}
-        onViewMetadata={(data, title) => handleMetadataDialogWithDebug(true, data, title)}
+        logs={pageData.logs}
+        onViewMetadata={(data, title) => handlers.metadata(true, data, title)}
       />
 
       <MetadataDialog
-        open={metadataDialog.open}
-        data={metadataDialog.data}
-        title={metadataDialog.title}
-        onClose={() => handleMetadataDialogWithDebug(false)}
+        open={pageData.metadataDialog.open}
+        data={pageData.metadataDialog.data}
+        title={pageData.metadataDialog.title}
+        onClose={() => handlers.metadata(false)}
       />
     </Box>
   );

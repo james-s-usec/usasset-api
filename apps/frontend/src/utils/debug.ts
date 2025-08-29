@@ -108,13 +108,13 @@ class DebugUtil {
   }
 
   /**
-   * API call logging
+   * API call logging - max 4 params per CLAUDE.md
    */
-  logApiCall(method: string, url: string, params?: unknown, response?: unknown, error?: unknown): void {
+  logApiCall(method: string, url: string, data?: unknown, error?: unknown): void {
     if (error) {
-      this.debugLog('api', `❌ ${method} ${url} failed`, { params, error });
+      this.debugLog('api', `❌ ${method} ${url} failed`, { data, error });
     } else {
-      this.debugLog('api', `✅ ${method} ${url}`, { params, response });
+      this.debugLog('api', `✅ ${method} ${url}`, data);
     }
   }
 
@@ -170,35 +170,56 @@ class DebugUtil {
     this.debugLog('render', `🎨 ${componentName} render${reason ? ` (${reason})` : ''}`, data);
   }
 
-  /**
-   * Generic logging method
-   */
-  private log(level: DebugLevel, message: string, options: DebugOptions = {}, data?: unknown): void {
-    const { category, skipConsole = false, skipBackend = false } = options;
-    
-    if (!this.shouldLog(category)) return;
+  private getConsoleMethod(level: DebugLevel): 'error' | 'warn' | 'info' | 'log' {
+    switch (level) {
+      case 'error': return 'error';
+      case 'warn': return 'warn';
+      case 'info': return 'info';
+      default: return 'log';
+    }
+  }
 
-    const formattedMessage = this.formatMessage(category, message);
-    const logData = {
+  private buildLogData(
+    level: DebugLevel,
+    message: string,
+    category?: DebugCategory,
+    data?: unknown
+  ) {
+    return {
       level,
-      message: formattedMessage,
+      message: this.formatMessage(category, message),
       data,
       category,
       timestamp: new Date().toISOString(),
       url: window.location.href,
       userAgent: navigator.userAgent
     };
+  }
 
-    // Console logging (unless skipped)
+  private logToConsole(level: DebugLevel, message: string, data?: unknown): void {
+    const method = this.getConsoleMethod(level);
+    console[method](message, data ? data : '');
+  }
+
+  /**
+   * Generic logging method - split for complexity < 7
+   */
+  private log(
+    level: DebugLevel,
+    message: string,
+    options: DebugOptions = {},
+    data?: unknown
+  ): void {
+    const { category, skipConsole = false, skipBackend = false } = options;
+    
+    if (!this.shouldLog(category)) return;
+
+    const logData = this.buildLogData(level, message, category, data);
+
     if (!skipConsole) {
-      const consoleMethod = level === 'error' ? 'error' : 
-                           level === 'warn' ? 'warn' : 
-                           level === 'info' ? 'info' : 'log';
-      
-      console[consoleMethod](formattedMessage, data ? data : '');
+      this.logToConsole(level, logData.message, data);
     }
 
-    // Backend logging (unless skipped) - async but don't await
     if (!skipBackend && this.isEnabled) {
       this.sendToBackend(logData).catch(error => {
         console.warn('Failed to send debug log to backend:', error);
@@ -206,8 +227,25 @@ class DebugUtil {
     }
   }
 
+  private buildMetadata(logData: any) {
+    return {
+      category: logData.category,
+      url: logData.url,
+      userAgent: logData.userAgent,
+      source: 'debug-util'
+    };
+  }
+
+  private buildInfoData(logData: any) {
+    return {
+      level: logData.level,
+      debugData: logData.data,
+      ...this.buildMetadata(logData)
+    };
+  }
+
   /**
-   * Send debug logs to backend (fire and forget)
+   * Send debug logs to backend - split for complexity
    */
   private async sendToBackend(logData: {
     level: DebugLevel;
@@ -219,25 +257,14 @@ class DebugUtil {
     userAgent: string;
   }): Promise<void> {
     try {
-      // Import DebugLogger dynamically to avoid circular dependencies
       const { DebugLogger } = await import('../services/debug-logger');
       
       if (logData.level === 'error') {
-        await DebugLogger.logError(logData.message, logData.data, {
-          category: logData.category,
-          url: logData.url,
-          userAgent: logData.userAgent,
-          source: 'debug-util'
-        });
+        const metadata = this.buildMetadata(logData);
+        await DebugLogger.logError(logData.message, logData.data, metadata);
       } else {
-        await DebugLogger.logInfo(logData.message, {
-          level: logData.level,
-          debugData: logData.data,
-          category: logData.category,
-          url: logData.url,
-          userAgent: logData.userAgent,
-          source: 'debug-util'
-        });
+        const infoData = this.buildInfoData(logData);
+        await DebugLogger.logInfo(logData.message, infoData);
       }
     } catch {
       // Silent fail to avoid infinite loops

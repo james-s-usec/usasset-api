@@ -8,6 +8,7 @@ export interface LogEntry {
   metadata?: unknown;
   timestamp: string;
   created_at: string;
+  category?: string;
 }
 
 export interface LogsResponse {

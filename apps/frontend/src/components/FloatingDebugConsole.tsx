@@ -19,11 +19,7 @@ interface FloatingDebugConsoleProps {
   onClearDatabase?: () => Promise<{ message: string; deletedCount: number }>;
 }
 
-export function FloatingDebugConsole({ 
-  messages, 
-  onClear, 
-  onCopyAll 
-}: FloatingDebugConsoleProps): React.ReactElement {
+export function FloatingDebugConsole({ messages, onClear, onCopyAll }: FloatingDebugConsoleProps): React.ReactElement {
   const [isOpen, setIsOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const { position, isDragging, handleMouseDown, consoleRef } = useFloatingPosition();
@@ -46,7 +42,7 @@ export function FloatingDebugConsole({
         onMouseDown={handleMouseDown}
         onToggleActions={() => setShowActions(!showActions)}
         onClear={onClear}
-        onCopy={() => onCopyAll ? onCopyAll() : copyDebugInfo(messages, errorCount)}
+        onCopy={() => onCopyAll?.() || copyDebugInfo(messages, errorCount)}
         onClose={() => setIsOpen(false)}
       />
       <FloatingDebugMessages messages={messages} />

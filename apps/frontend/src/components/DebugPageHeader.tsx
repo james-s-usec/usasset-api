@@ -1,3 +1,4 @@
+import React from 'react';
 import { Box, Typography, Button, Alert } from '@mui/material';
 
 export interface DebugPageHeaderProps {
@@ -10,48 +11,53 @@ export interface DebugPageHeaderProps {
   onClearLogs: () => Promise<void>;
 }
 
-export const DebugPageHeader = ({
-  logsCount,
-  error,
-  onRefresh,
-  onTestUIEvent,
-  onCopyLogsAsJSON,
-  onCopyDebugInfo,
-  onClearLogs,
-}: DebugPageHeaderProps) => {
+interface ButtonConfig {
+  label: string;
+  onClick: () => void | Promise<void>;
+  variant?: 'contained' | 'outlined';
+  color?: 'primary' | 'secondary' | 'warning';
+}
+
+const DebugButtons = ({ buttons }: { buttons: ButtonConfig[] }): React.ReactElement => (
+  <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+    {buttons.map((btn) => (
+      <Button 
+        key={btn.label}
+        variant={btn.variant || 'outlined'} 
+        color={btn.color || 'primary'}
+        onClick={btn.onClick}
+      >
+        {btn.label}
+      </Button>
+    ))}
+  </Box>
+);
+
+const HeaderText = ({ logsCount }: { logsCount: number }): React.ReactElement => (
+  <>
+    <Typography variant="h4" gutterBottom>
+      Database Logs ({logsCount} entries)
+    </Typography>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      Use the floating debug console (bottom-right) for real-time debug messages. This table shows persistent database logs.
+    </Typography>
+  </>
+);
+
+export const DebugPageHeader = (props: DebugPageHeaderProps): React.ReactElement => {
+  const buttons: ButtonConfig[] = [
+    { label: 'Refresh Logs', onClick: props.onRefresh, variant: 'contained' },
+    { label: 'Test UI Event', onClick: props.onTestUIEvent },
+    { label: 'Copy DB Logs', onClick: props.onCopyLogsAsJSON },
+    { label: 'Copy All Debug Info', onClick: props.onCopyDebugInfo, color: 'secondary' },
+    { label: 'Clear Logs', onClick: props.onClearLogs, color: 'warning' },
+  ];
+
   return (
     <>
-      <Typography variant="h4" gutterBottom>
-        Database Logs ({logsCount} entries)
-      </Typography>
-      
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Use the floating debug console (bottom-right) for real-time debug messages. This table shows persistent database logs.
-      </Typography>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Button variant="contained" onClick={onRefresh}>
-          Refresh Logs
-        </Button>
-        <Button variant="outlined" onClick={onTestUIEvent}>
-          Test UI Event
-        </Button>
-        <Button variant="outlined" onClick={onCopyLogsAsJSON}>
-          Copy DB Logs
-        </Button>
-        <Button variant="outlined" color="secondary" onClick={onCopyDebugInfo}>
-          Copy All Debug Info
-        </Button>
-        <Button variant="outlined" color="warning" onClick={onClearLogs}>
-          Clear Logs
-        </Button>
-      </Box>
+      <HeaderText logsCount={props.logsCount} />
+      {props.error && <Alert severity="error" sx={{ mb: 2 }}>{props.error}</Alert>}
+      <DebugButtons buttons={buttons} />
     </>
   );
 };

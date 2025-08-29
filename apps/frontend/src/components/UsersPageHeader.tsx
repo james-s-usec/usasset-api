@@ -1,24 +1,15 @@
-import React from 'react'
-import {
-  Typography,
-  Box,
-  Button,
-  Stack
-} from '@mui/material'
-import {
-  Add as AddIcon,
-  Refresh as RefreshIcon
-} from '@mui/icons-material'
+import React from 'react';
+import { Box } from '@mui/material';
+import { UsersHeaderTitle } from './UsersHeaderTitle';
+import { UsersHeaderActions } from './UsersHeaderActions';
 
 interface UsersPageHeaderProps {
-  onRefresh: () => void
-  onCreate: () => void
+  onAdd: () => void;
 }
 
-export const UsersPageHeader: React.FC<UsersPageHeaderProps> = ({
-  onRefresh,
-  onCreate
-}) => {
+export const UsersPageHeader = ({
+  onAdd
+}: UsersPageHeaderProps): React.ReactElement => {
   return (
     <Box 
       display="flex" 
@@ -28,29 +19,11 @@ export const UsersPageHeader: React.FC<UsersPageHeaderProps> = ({
       gap={2}
       mb={3}
     >
-      <Typography variant="h4" component="h1">
-        User Management
-      </Typography>
-      <Stack 
-        direction={{ xs: 'column', sm: 'row' }} 
-        spacing={2}
-        sx={{ width: { xs: '100%', sm: 'auto' } }}
-      >
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={onRefresh}
-        >
-          Refresh
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={onCreate}
-        >
-          Add User
-        </Button>
-      </Stack>
+      <UsersHeaderTitle />
+      <UsersHeaderActions 
+        onRefresh={() => {}}
+        onCreate={onAdd}
+      />
     </Box>
-  )
-}
+  );
+};

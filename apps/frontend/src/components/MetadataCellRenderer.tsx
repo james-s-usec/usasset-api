@@ -1,3 +1,4 @@
+import React from 'react';
 import type { ICellRendererParams } from 'ag-grid-community';
 import { Box, Typography, IconButton } from '@mui/material';
 import { Visibility } from '@mui/icons-material';
@@ -6,10 +7,10 @@ export interface MetadataCellRendererProps extends ICellRendererParams {
   onViewMetadata: (data: unknown, title: string) => void;
 }
 
-export const MetadataCellRenderer = (params: MetadataCellRendererProps) => {
+export const MetadataCellRenderer = (params: MetadataCellRendererProps): React.ReactElement | string => {
   if (!params.value) return '';
   
-  const handleViewMetadata = () => {
+  const handleViewMetadata = (): void => {
     params.onViewMetadata(params.value, `Metadata for ${params.data.correlation_id}`);
   };
 

@@ -46,23 +46,30 @@ export const useLogsData = (): UseLogsDataReturn => {
     await loadLogs(true);
   }, [loadLogs]);
 
-  const handleClearLogs = useCallback(async () => {
-    if (!window.confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
-      return;
+  const confirmClearLogs = (): boolean => {
+    const msg = 'Are you sure you want to clear all logs? This cannot be undone.';
+    return window.confirm(msg);
+  };
+
+  const showClearResult = (success: boolean, message: string): void => {
+    if (success) {
+      alert(message);
+    } else {
+      alert(`Failed to clear logs: ${message}`);
     }
+  };
+
+  const handleClearLogs = useCallback(async () => {
+    if (!confirmClearLogs()) return;
     
     try {
-      // DON'T log anything before or during delete - it creates new logs!
       const result = await LogsApiService.deleteLogs();
-      
-      // Refresh the table to show empty state (silently, no logging)
       await loadLogs(true);
-      
-      alert(`${result.message}`);
+      showClearResult(true, result.message);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to clear logs:', error);
-      alert(`Failed to clear logs: ${errorMessage}`);
+      showClearResult(false, errorMessage);
     }
   }, [loadLogs]);
 

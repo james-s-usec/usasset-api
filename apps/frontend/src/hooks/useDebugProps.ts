@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { debug, logComponentEntry } from '../utils/debug';
+import { debug } from '../utils/debug';
 
 interface UseDebugPropsOptions {
   name: string;

@@ -1,3 +1,4 @@
+import React from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { GridReadyEvent } from 'ag-grid-community';
@@ -18,10 +19,10 @@ export interface LogsDataGridProps {
   onViewMetadata: (data: unknown, title: string) => void;
 }
 
-export const LogsDataGrid = ({ logs, onViewMetadata }: LogsDataGridProps) => {
+export const LogsDataGrid = ({ logs, onViewMetadata }: LogsDataGridProps): React.ReactElement => {
   const columnDefs = createLogsColumnDefs(onViewMetadata);
 
-  const handleGridReady = (params: GridReadyEvent) => {
+  const handleGridReady = (params: GridReadyEvent): void => {
     DebugLogger.logUIEvent('DebugPage: AG Grid ready', { 
       rowCount: logs.length 
     });

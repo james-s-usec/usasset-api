@@ -26,39 +26,42 @@ const initialFormData: UserFormData = {
   role: USER_ROLES.USER
 }
 
+const buildFormData = (user: UserData): UserFormData => ({
+  name: user.name || '',
+  email: user.email,
+  role: user.role || USER_ROLES.USER
+});
+
 export const useUserDialog = (): UseUserDialogReturn => {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserData | null>(null)
   const [formData, setFormData] = useState<UserFormData>(initialFormData)
 
-  const openCreateDialog = () => {
+  const resetForm = (): void => setFormData(initialFormData);
+
+  const openCreateDialog = (): void => {
     setEditingUser(null)
     resetForm()
     setDialogOpen(true)
   }
 
-  const openEditDialog = (user: UserData) => {
+  const openEditDialog = (user: UserData): void => {
     setEditingUser(user)
-    setFormData({
-      name: user.name || '',
-      email: user.email,
-      role: user.role || USER_ROLES.USER
-    })
+    setFormData(buildFormData(user))
     setDialogOpen(true)
   }
 
-  const closeDialog = () => {
+  const closeDialog = (): void => {
     setDialogOpen(false)
     setEditingUser(null)
     resetForm()
   }
 
-  const updateFormData = (field: keyof UserFormData, value: string | UserRole) => {
+  const updateFormData = (
+    field: keyof UserFormData, 
+    value: string | UserRole
+  ): void => {
     setFormData(prev => ({ ...prev, [field]: value }))
-  }
-
-  const resetForm = () => {
-    setFormData(initialFormData)
   }
 
   const isFormValid = Boolean(formData.email.trim())

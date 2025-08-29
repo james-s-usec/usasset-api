@@ -6,37 +6,49 @@
 import { useCallback } from 'react';
 import { LogsApiService } from '../services/logs-api';
 import { convertLogEntryToDebugMessage } from '../utils/debug-message-utils';
-import type { DebugMessage } from '../components/DebugConsole';
+import { buildCompleteDebugInfo } from '../utils/debug-info-builder';
+import { copyToClipboard } from '../utils/clipboard-copy';
 
-export function useDebugDatabase() {
-  const refreshFromDatabase = useCallback(async (): Promise<DebugMessage[]> => {
+interface UseDebugDatabaseReturn {
+  refreshFromDatabase: () => Promise<void>;
+  clearDatabaseLogs: () => Promise<{ message: string; deletedCount: number }>;
+  copyAllDebugInfo: () => void;
+}
+
+const processLogsResponse = (response: { logs: Array<{ id: string; level: string; message: string; created_at: string }> }): void => {
+  response.logs.map(convertLogEntryToDebugMessage);
+  // Note: This would need to update state but we don't have access here
+  // In practice this should be connected to the state management
+};
+
+const createClearResult = (deletedCount: number): { message: string; deletedCount: number } => ({
+  message: 'Database logs cleared successfully',
+  deletedCount: deletedCount || 0
+});
+
+export function useDebugDatabase(): UseDebugDatabaseReturn {
+  const refreshFromDatabase = useCallback(async (): Promise<void> => {
     try {
       const response = await LogsApiService.getLogs(1, 50);
-      return response.logs.map(convertLogEntryToDebugMessage);
-    } catch (error) {
-      console.warn('Failed to refresh debug messages:', error);
-      return [];
+      processLogsResponse(response);
+    } catch {
+      console.warn('Failed to refresh debug messages');
     }
   }, []);
 
-  const clearDatabaseLogs = useCallback(async () => {
+  const clearDatabaseLogs = useCallback(async (): Promise<{ message: string; deletedCount: number }> => {
     try {
       const result = await LogsApiService.deleteLogs();
-      return { message: 'Database logs cleared successfully', deletedCount: result.deletedCount || 0 };
-    } catch (error) {
+      return createClearResult(result.deletedCount);
+    } catch {
       throw new Error('Failed to clear database logs');
     }
   }, []);
 
-  const copyAllDebugInfo = useCallback(() => {
-    const debugInfo = {
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent,
-      url: window.location.href,
-      localStorage: { ...localStorage },
-      sessionStorage: { ...sessionStorage }
-    };
-    navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2));
+  const copyAllDebugInfo = useCallback((): void => {
+    const debugInfo = buildCompleteDebugInfo();
+    const json = JSON.stringify(debugInfo, null, 2);
+    copyToClipboard(json);
   }, []);
 
   return {

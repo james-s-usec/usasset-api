@@ -7,7 +7,12 @@
 
 import { useEffect, useRef } from 'react';
 import type { DependencyList, EffectCallback } from 'react';
-import { logHookCall, debug } from '../utils/debug';
+import { debug } from '../utils/debug';
+import { 
+  analyzeDependencyChanges, 
+  logEffectEntry, 
+  createCleanupHandler 
+} from '../utils/debug-effect-helpers';
 
 interface UseDebugEffectOptions {
   name: string;
@@ -23,7 +28,6 @@ export function useDebugEffect(
   options: UseDebugEffectOptions
 ): void {
   const { name, componentName = 'Unknown', logDependencies = true, logCleanup = true } = options;
-  
   const prevDepsRef = useRef<DependencyList | undefined>(deps);
   const runCountRef = useRef(0);
   const cleanupCountRef = useRef(0);
@@ -31,49 +35,22 @@ export function useDebugEffect(
   useEffect(() => {
     if (!debug.enabled) return effect();
 
-    // Log effect entry
     runCountRef.current += 1;
     const runCount = runCountRef.current;
+    const fullName = `${componentName}.${name}`;
     
-    // Analyze dependency changes
-    let depChanges: Record<string, { from: unknown; to: unknown }> | undefined;
-    if (logDependencies && deps && prevDepsRef.current && deps.length === prevDepsRef.current.length) {
-      depChanges = {};
-      deps.forEach((dep, index) => {
-        const prevDep = prevDepsRef.current![index];
-        if (dep !== prevDep) {
-          depChanges![`dep[${index}]`] = { from: prevDep, to: dep };
-        }
-      });
-    }
+    const depChanges = logDependencies 
+      ? analyzeDependencyChanges(deps, prevDepsRef.current)
+      : undefined;
 
-    logHookCall(`${componentName}.${name}`, 'entry', {
-      runCount,
-      depsLength: deps?.length,
-      depChanges: Object.keys(depChanges || {}).length > 0 ? depChanges : undefined,
-      hasDeps: deps !== undefined,
-      isFirstRun: runCount === 1
-    });
+    logEffectEntry(fullName, runCount, deps, depChanges);
 
-    // Call the original effect
     const cleanup = effect();
-
-    // Store current deps for next comparison
     prevDepsRef.current = deps;
 
-    // Return wrapped cleanup function
-    if (cleanup && logCleanup) {
-      return () => {
-        cleanupCountRef.current += 1;
-        logHookCall(`${componentName}.${name}`, 'cleanup', {
-          runCount,
-          cleanupCount: cleanupCountRef.current
-        });
-        cleanup();
-      };
-    }
-
-    return cleanup;
+    return logCleanup
+      ? createCleanupHandler(cleanup, fullName, runCount, cleanupCountRef)
+      : cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 }
@@ -81,6 +58,38 @@ export function useDebugEffect(
 /**
  * Debug version of useEffect for API calls
  */
+async function executeApiCall(
+  apiCall: () => Promise<void> | void,
+  name: string,
+  logDetails: boolean
+): Promise<void> {
+  if (debug.enabled && logDetails) {
+    debug.debugLog('api', `🚀 ${name} starting API call`);
+  }
+  
+  const result = await apiCall();
+  
+  if (debug.enabled && logDetails) {
+    debug.debugLog('api', `✅ ${name} API call completed`, { result });
+  }
+}
+
+function handleApiError(
+  error: unknown,
+  name: string,
+  onError?: (error: unknown) => void
+): void {
+  if (debug.enabled) {
+    debug.debugLog('api', `❌ ${name} API call failed`, { error });
+  }
+  
+  if (onError) {
+    onError(error);
+  } else {
+    console.error(`API effect error in ${name}:`, error);
+  }
+}
+
 export function useDebugApiEffect(
   apiCall: () => Promise<void> | void,
   deps: DependencyList | undefined,
@@ -90,34 +99,18 @@ export function useDebugApiEffect(
   }
 ): void {
   const { onError, logApiDetails = true, ...effectOptions } = options;
+  const fullName = `${effectOptions.componentName}.${effectOptions.name}`;
 
   useDebugEffect(
     () => {
-      const handleApiCall = async () => {
+      const run = async (): Promise<void> => {
         try {
-          if (debug.enabled && logApiDetails) {
-            debug.debugLog('api', `🚀 ${effectOptions.componentName}.${effectOptions.name} starting API call`);
-          }
-          
-          const result = await apiCall();
-          
-          if (debug.enabled && logApiDetails) {
-            debug.debugLog('api', `✅ ${effectOptions.componentName}.${effectOptions.name} API call completed`, { result });
-          }
+          await executeApiCall(apiCall, fullName, logApiDetails);
         } catch (error) {
-          if (debug.enabled) {
-            debug.debugLog('api', `❌ ${effectOptions.componentName}.${effectOptions.name} API call failed`, { error });
-          }
-          
-          if (onError) {
-            onError(error);
-          } else {
-            console.error(`API effect error in ${effectOptions.componentName}.${effectOptions.name}:`, error);
-          }
+          handleApiError(error, fullName, onError);
         }
       };
-
-      handleApiCall();
+      void run();
     },
     deps,
     effectOptions
@@ -127,6 +120,46 @@ export function useDebugApiEffect(
 /**
  * Debug version of useEffect with timeout tracking
  */
+function setupTimeout(
+  effect: EffectCallback,
+  timeout: number,
+  name: string
+): () => void {
+  const timeoutId = setTimeout((): void => {
+    if (debug.enabled) {
+      debug.debugLog('lifecycle', `⏰ ${name} timeout triggered`, { timeout });
+    }
+    effect();
+  }, timeout);
+
+  return (): void => {
+    clearTimeout(timeoutId);
+    if (debug.enabled) {
+      debug.debugLog('lifecycle', `⏰ ${name} timeout cleared`, { timeout });
+    }
+  };
+}
+
+function setupInterval(
+  effect: EffectCallback,
+  interval: number,
+  name: string
+): () => void {
+  const intervalId = setInterval((): void => {
+    if (debug.enabled) {
+      debug.debugLog('lifecycle', `🔄 ${name} interval triggered`, { interval });
+    }
+    effect();
+  }, interval);
+
+  return (): void => {
+    clearInterval(intervalId);
+    if (debug.enabled) {
+      debug.debugLog('lifecycle', `🔄 ${name} interval cleared`, { interval });
+    }
+  };
+}
+
 export function useDebugTimerEffect(
   effect: EffectCallback,
   deps: DependencyList | undefined,
@@ -136,41 +169,12 @@ export function useDebugTimerEffect(
   }
 ): void {
   const { timeout, interval, ...effectOptions } = options;
+  const fullName = `${effectOptions.componentName}.${effectOptions.name}`;
 
   useDebugEffect(
     () => {
-      if (timeout) {
-        const timeoutId = setTimeout(() => {
-          if (debug.enabled) {
-            debug.debugLog('lifecycle', `⏰ ${effectOptions.componentName}.${effectOptions.name} timeout triggered`, { timeout });
-          }
-          effect();
-        }, timeout);
-
-        return () => {
-          clearTimeout(timeoutId);
-          if (debug.enabled) {
-            debug.debugLog('lifecycle', `⏰ ${effectOptions.componentName}.${effectOptions.name} timeout cleared`, { timeout });
-          }
-        };
-      }
-
-      if (interval) {
-        const intervalId = setInterval(() => {
-          if (debug.enabled) {
-            debug.debugLog('lifecycle', `🔄 ${effectOptions.componentName}.${effectOptions.name} interval triggered`, { interval });
-          }
-          effect();
-        }, interval);
-
-        return () => {
-          clearInterval(intervalId);
-          if (debug.enabled) {
-            debug.debugLog('lifecycle', `🔄 ${effectOptions.componentName}.${effectOptions.name} interval cleared`, { interval });
-          }
-        };
-      }
-
+      if (timeout) return setupTimeout(effect, timeout, fullName);
+      if (interval) return setupInterval(effect, interval, fullName);
       return effect();
     },
     deps,
@@ -186,7 +190,7 @@ export function useDebugMountEffect(
   options: Pick<UseDebugEffectOptions, 'componentName' | 'name'>
 ): void {
   useDebugEffect(
-    () => {
+    (): (() => void) | void => {
       const cleanup = onMount();
       return cleanup;
     },

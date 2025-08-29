@@ -10,22 +10,41 @@ class ApiService {
     this.timeout = config.api.timeout
   }
 
+  private createAbortController(): { controller: AbortController; timeoutId: NodeJS.Timeout } {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+    return { controller, timeoutId }
+  }
+
+  private buildHeaders(options: RequestInit): HeadersInit {
+    return {
+      'Content-Type': 'application/json',
+      ...CorrelationIdService.getHeaders(),
+      ...options.headers,
+    }
+  }
+
+  private handleError(error: unknown): never {
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout')
+      }
+      throw error
+    }
+    throw new Error('Unknown error occurred')
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+    const { controller, timeoutId } = this.createAbortController()
 
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         ...options,
         signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...CorrelationIdService.getHeaders(),
-          ...options.headers,
-        },
+        headers: this.buildHeaders(options),
       })
 
       clearTimeout(timeoutId)
@@ -37,15 +56,7 @@ class ApiService {
       return response.json()
     } catch (error) {
       clearTimeout(timeoutId)
-      
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          throw new Error('Request timeout')
-        }
-        throw error
-      }
-      
-      throw new Error('Unknown error occurred')
+      this.handleError(error)
     }
   }
 

@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { LogEntry } from '../services/logs-api';
 import type { DebugMessage } from '../components/DebugConsole';
+import { copyToClipboard, showCopySuccess, formatError } from '../utils/clipboard-copy';
 
 export interface UseClipboardActionsReturn {
   handleCopyLogsAsJSON: () => void;
@@ -10,8 +11,53 @@ export interface UseClipboardActionsReturn {
 interface UseClipboardActionsParams {
   logs: LogEntry[];
   debugMessages: DebugMessage[];
-  addDebugMessage: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => void;
+  addDebugMessage: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: Record<string, unknown>) => void;
 }
+
+const buildDebugInfo = (messages: DebugMessage[], logs: LogEntry[]): Record<string, unknown> => {
+  const errors = messages.filter((m: DebugMessage) => m.level === 'error');
+  return {
+    timestamp: new Date().toISOString(),
+    debugMessages: messages,
+    databaseLogs: logs,
+    userAgent: navigator.userAgent,
+    url: window.location.href,
+    summary: {
+      totalDebugMessages: messages.length,
+      totalDatabaseLogs: logs.length,
+      errorCount: errors.length,
+      lastError: errors[0]
+    }
+  };
+};
+
+const handleCopyError = (
+  error: unknown, 
+  message: string, 
+  addDebugMessage: UseClipboardActionsParams['addDebugMessage']
+): void => {
+  addDebugMessage('error', message, { error: formatError(error) });
+};
+
+const copyLogsSuccessHandler = (
+  logs: LogEntry[], 
+  addDebugMessage: UseClipboardActionsParams['addDebugMessage']
+): void => {
+  addDebugMessage('info', 'Database logs copied to clipboard', { count: logs.length });
+  showCopySuccess('Database logs copied to clipboard!');
+};
+
+const copyDebugInfoSuccessHandler = (
+  debugMessages: DebugMessage[], 
+  logs: LogEntry[],
+  addDebugMessage: UseClipboardActionsParams['addDebugMessage']
+): void => {
+  addDebugMessage('info', 'Complete debug info copied to clipboard', { 
+    messagesCount: debugMessages.length,
+    logsCount: logs.length 
+  });
+  showCopySuccess('Complete debug info copied to clipboard!');
+};
 
 export const useClipboardActions = ({ 
   logs, 
@@ -19,46 +65,24 @@ export const useClipboardActions = ({
   addDebugMessage 
 }: UseClipboardActionsParams): UseClipboardActionsReturn => {
   
-  const handleCopyLogsAsJSON = useCallback(() => {
+  const handleCopyLogsAsJSON = useCallback((): void => {
     try {
       const jsonData = JSON.stringify(logs, null, 2);
-      navigator.clipboard.writeText(jsonData);
-      addDebugMessage('info', 'Database logs copied to clipboard', { count: logs.length });
-      alert('Database logs copied to clipboard!');
+      copyToClipboard(jsonData);
+      copyLogsSuccessHandler(logs, addDebugMessage);
     } catch (error) {
-      addDebugMessage('error', 'Failed to copy database logs', { 
-        error: error instanceof Error ? error.message : String(error) 
-      });
+      handleCopyError(error, 'Failed to copy database logs', addDebugMessage);
     }
   }, [logs, addDebugMessage]);
 
-  const handleCopyDebugInfo = useCallback(() => {
+  const handleCopyDebugInfo = useCallback((): void => {
     try {
-      const debugInfo = {
-        timestamp: new Date().toISOString(),
-        debugMessages: debugMessages,
-        databaseLogs: logs,
-        userAgent: navigator.userAgent,
-        url: window.location.href,
-        summary: {
-          totalDebugMessages: debugMessages.length,
-          totalDatabaseLogs: logs.length,
-          errorCount: debugMessages.filter((m: DebugMessage) => m.level === 'error').length,
-          lastError: debugMessages.find((m: DebugMessage) => m.level === 'error')
-        }
-      };
-      
+      const debugInfo = buildDebugInfo(debugMessages, logs);
       const jsonData = JSON.stringify(debugInfo, null, 2);
-      navigator.clipboard.writeText(jsonData);
-      addDebugMessage('info', 'Complete debug info copied to clipboard', { 
-        messagesCount: debugMessages.length,
-        logsCount: logs.length 
-      });
-      alert('Complete debug info copied to clipboard! You can paste this to share all error details.');
+      copyToClipboard(jsonData);
+      copyDebugInfoSuccessHandler(debugMessages, logs, addDebugMessage);
     } catch (error) {
-      addDebugMessage('error', 'Failed to copy debug info', { 
-        error: error instanceof Error ? error.message : String(error) 
-      });
+      handleCopyError(error, 'Failed to copy debug info', addDebugMessage);
     }
   }, [debugMessages, logs, addDebugMessage]);
 

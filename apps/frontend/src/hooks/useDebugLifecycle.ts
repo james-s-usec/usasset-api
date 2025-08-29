@@ -36,13 +36,13 @@ export function useDebugLifecycle(options: UseDebugLifecycleOptions): DebugLifec
     
     logComponentEntry(name, props);
     
-    return () => {
+    return (): void => {
       debug.debugLog('lifecycle', `🔥 ${name} unmounting`, {
         renderCount: renderCountRef.current,
         lifetimeMs: Date.now() - mountTime
       });
     };
-  }, [name]);
+  }, [name, props, trackPerformance]);
   
   return { renderCount: renderCountRef, mountTime: mountTimeRef };
 }

@@ -1,4 +1,7 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box } from '@mui/material';
+import React from 'react';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
+import { JsonDisplay } from './JsonDisplay';
+import { useClipboard } from '../hooks/useClipboard';
 
 export interface MetadataDialogProps {
   open: boolean;
@@ -7,11 +10,8 @@ export interface MetadataDialogProps {
   onClose: () => void;
 }
 
-export const MetadataDialog = ({ open, data, title, onClose }: MetadataDialogProps) => {
-  const handleCopyToClipboard = () => {
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    alert('Metadata copied to clipboard!');
-  };
+export const MetadataDialog = ({ open, data, title, onClose }: MetadataDialogProps): React.ReactElement => {
+  const { copyJsonToClipboard } = useClipboard();
 
   return (
     <Dialog
@@ -21,30 +21,15 @@ export const MetadataDialog = ({ open, data, title, onClose }: MetadataDialogPro
       fullWidth
       PaperProps={{ sx: { maxHeight: '80vh' } }}
     >
-      <DialogTitle>
-        {title}
-      </DialogTitle>
+      <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        <Box sx={{ 
-          backgroundColor: '#f5f5f5', 
-          p: 2, 
-          borderRadius: 1,
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          overflowX: 'auto',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word'
-        }}>
-          {JSON.stringify(data, null, 2)}
-        </Box>
+        <JsonDisplay data={data} />
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleCopyToClipboard}>
+        <Button onClick={() => copyJsonToClipboard(data, 'Metadata copied to clipboard!')}>
           Copy JSON
         </Button>
-        <Button onClick={onClose}>
-          Close
-        </Button>
+        <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
   );

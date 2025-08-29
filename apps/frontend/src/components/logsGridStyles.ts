@@ -1,6 +1,6 @@
 import type { RowClassParams } from 'ag-grid-community';
 
-export const getLogRowStyle = (params: RowClassParams) => {
+export const getLogRowStyle = (params: RowClassParams): { backgroundColor: string } | undefined => {
   if (params.data.level === 'ERROR') {
     return { backgroundColor: '#ffebee' };
   }

@@ -5,8 +5,8 @@
  * Follows CLAUDE.md principle: "Log intermediate results"
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { logStateChange, debug } from '../utils/debug';
+import { useState, useCallback, useRef } from 'react';
+import { useDebugStateLogger } from './useDebugStateLogger';
 
 interface UseDebugStateOptions<T> {
   name: string;
@@ -24,48 +24,29 @@ export function useDebugState<T>(
   
   const [value, setValueInternal] = useState<T>(initialValue);
   const prevValueRef = useRef<T>(initialValue);
-  const setCountRef = useRef(0);
+  const { logStats } = useDebugStateLogger({
+    componentName,
+    name,
+    initialValue,
+    logAllChanges
+  });
 
-  // Log initial state
-  useEffect(() => {
-    if (!debug.enabled) return;
-    debug.debugLog('state', `🎬 ${componentName}.${name} initialized`, {
-      initialValue,
-      type: typeof initialValue
-    });
-  }, [componentName, name, initialValue]); // Dependencies for initialization logging
-
-  const setValue = useCallback((newValue: T | ((prev: T) => T)) => {
-    setValueInternal(prev => {
-      const nextValue = typeof newValue === 'function' ? (newValue as (prev: T) => T)(prev) : newValue;
+  const setValue = useCallback((newValue: T | ((prev: T) => T)): void => {
+    setValueInternal((prev: T) => {
+      const isFunc = typeof newValue === 'function';
+      const next = isFunc ? (newValue as (prev: T) => T)(prev) : newValue;
       
-      // Check if value actually changed
       const hasChanged = compareFunction ? 
-        !compareFunction(prev, nextValue) :
-        prev !== nextValue;
+        !compareFunction(prev, next) :
+        prev !== next;
 
-      if (!hasChanged && logOnlyChanged) {
-        return prev; // Don't update if no change
-      }
+      if (!hasChanged && logOnlyChanged) return prev;
 
-      // Log the state change
-      if (debug.enabled && (logAllChanges || hasChanged)) {
-        setCountRef.current += 1;
-        logStateChange(componentName, name, prev, nextValue);
-        
-        debug.debugLog('state', `📊 ${componentName}.${name} stats`, {
-          updateCount: setCountRef.current,
-          hasChanged,
-          previousType: typeof prev,
-          nextType: typeof nextValue,
-          isFunction: typeof newValue === 'function'
-        });
-      }
-
-      prevValueRef.current = nextValue;
-      return nextValue;
+      logStats(hasChanged, prev, next, isFunc);
+      prevValueRef.current = next;
+      return next;
     });
-  }, [name, componentName, logAllChanges, logOnlyChanged, compareFunction]);
+  }, [logOnlyChanged, compareFunction, logStats]);
 
   return [value, setValue];
 }
@@ -76,10 +57,10 @@ export function useDebugState<T>(
 export function useDebugObjectState<T extends Record<string, unknown>>(
   initialValue: T,
   options: Omit<UseDebugStateOptions<T>, 'compareFunction'>
-) {
+): [T, (value: T | ((prev: T) => T)) => void] {
   return useDebugState(initialValue, {
     ...options,
-    compareFunction: (prev, next) => JSON.stringify(prev) === JSON.stringify(next)
+    compareFunction: (prev, next): boolean => JSON.stringify(prev) === JSON.stringify(next)
   });
 }
 
@@ -89,10 +70,10 @@ export function useDebugObjectState<T extends Record<string, unknown>>(
 export function useDebugArrayState<T>(
   initialValue: T[],
   options: Omit<UseDebugStateOptions<T[]>, 'compareFunction'>
-) {
+): [T[], (value: T[] | ((prev: T[]) => T[])) => void] {
   return useDebugState(initialValue, {
     ...options,
-    compareFunction: (prev, next) => {
+    compareFunction: (prev, next): boolean => {
       if (prev.length !== next.length) return false;
       return JSON.stringify(prev) === JSON.stringify(next);
     }
@@ -107,7 +88,7 @@ export function useDebugValidatedState<T>(
   options: UseDebugStateOptions<T> & {
     validator?: (value: T) => string | null;
   }
-) {
+): [T, (value: T | ((prev: T) => T)) => void, string | null] {
   const { validator, ...debugOptions } = options;
   const [value, setValue] = useDebugState(initialValue, debugOptions);
 
@@ -129,5 +110,5 @@ export function useDebugValidatedState<T>(
     setValue(newValue);
   }, [value, setValue, validator, debugOptions.componentName, debugOptions.name]);
 
-  return [value, setValueWithValidation] as const;
+  return [value, setValueWithValidation, null] as const;
 }

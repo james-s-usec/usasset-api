@@ -9,8 +9,8 @@ import type { UserData, CreateUserRequest, UpdateUserRequest } from '../types/us
 interface UseUsersPageHandlersProps {
   editingUser: UserData | null;
   formData: Partial<CreateUserRequest>;
-  createUser: (data: CreateUserRequest) => Promise<UserData>;
-  updateUser: (id: string, data: UpdateUserRequest) => Promise<UserData>;
+  createUser: (data: CreateUserRequest) => Promise<void>;
+  updateUser: (id: string, data: UpdateUserRequest) => Promise<void>;
   deleteUser: (user: UserData) => Promise<void>;
   openEditDialog: (user: UserData) => void;
   closeDialog: () => void;
@@ -34,35 +34,47 @@ export function useUsersPageHandlers(props: UseUsersPageHandlersProps): UseUsers
     openEditDialog, closeDialog, logEvent, logCustom, startTiming, endTiming
   } = props;
 
-  const handleSubmit = useCallback(async () => {
-    const operation = editingUser ? 'update' : 'create';
-    const timingMark = startTiming(`${operation}-user`);
-    
+  const logSubmitStart = (operation: string, userId?: string): void => {
     logEvent(`user-${operation}-form`, {
-      editingUser: editingUser?.id,
+      editingUser: userId,
       formData: Object.keys(formData)
     });
+  };
+
+  const handleUpdate = async (user: UserData, mark?: string): Promise<void> => {
+    const updateData: UpdateUserRequest = {
+      name: formData.name || undefined,
+      role: formData.role
+    };
+    await updateUser(user.id, updateData);
+    logCustom(`User ${user.id} updated successfully`);
+    endTiming(mark, 'update-user-success');
+  };
+
+  const handleCreate = async (mark?: string): Promise<void> => {
+    await createUser(formData as CreateUserRequest);
+    logCustom('New user created successfully');
+    endTiming(mark, 'create-user-success');
+  };
+
+  const handleSubmit = useCallback(async () => {
+    const operation = editingUser ? 'update' : 'create';
+    const mark = startTiming(`${operation}-user`);
+    
+    logSubmitStart(operation, editingUser?.id);
 
     try {
       if (editingUser) {
-        const updateData: UpdateUserRequest = {
-          name: formData.name || undefined,
-          role: formData.role
-        };
-        await updateUser(editingUser.id, updateData);
-        logCustom(`User ${editingUser.id} updated successfully`);
+        await handleUpdate(editingUser, mark);
       } else {
-        await createUser(formData as CreateUserRequest);
-        logCustom('New user created successfully');
+        await handleCreate(mark);
       }
-      
-      endTiming(timingMark, `${operation}-user-success`);
       closeDialog();
     } catch (error) {
       logCustom(`Failed to ${operation} user`, { error });
-      endTiming(timingMark, `${operation}-user-error`);
+      endTiming(mark, `${operation}-user-error`);
     }
-  }, [editingUser, formData, createUser, updateUser, closeDialog, logEvent, logCustom, startTiming, endTiming]);
+  }, [editingUser, formData, createUser, updateUser, closeDialog, logEvent, logCustom, startTiming, endTiming, handleCreate, handleUpdate, logSubmitStart]);
 
   const handleEditDialog = useCallback((user: UserData) => {
     logEvent('edit-user-button', { userId: user.id });
@@ -71,15 +83,15 @@ export function useUsersPageHandlers(props: UseUsersPageHandlersProps): UseUsers
 
   const handleDeleteUser = useCallback(async (user: UserData) => {
     logEvent('delete-user-button', { userId: user.id });
-    const timingMark = startTiming('delete-user');
+    const mark = startTiming('delete-user');
     
     try {
       await deleteUser(user);
       logCustom(`Successfully deleted user ${user.id}`);
-      endTiming(timingMark, 'delete-user-success');
+      endTiming(mark, 'delete-user-success');
     } catch (error) {
       logCustom(`Failed to delete user ${user.id}`, { error });
-      endTiming(timingMark, 'delete-user-error');
+      endTiming(mark, 'delete-user-error');
     }
   }, [deleteUser, logEvent, logCustom, startTiming, endTiming]);
 

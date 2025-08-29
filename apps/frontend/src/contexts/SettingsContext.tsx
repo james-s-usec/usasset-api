@@ -5,71 +5,51 @@ interface SettingsProviderProps {
   children: React.ReactNode;
 }
 
-export const SettingsProvider = ({ children }: SettingsProviderProps) => {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+const loadSavedSettings = (): AppSettings => {
+  const saved = localStorage.getItem('usasset-settings');
+  if (!saved) return DEFAULT_SETTINGS;
+  
+  try {
+    const parsed = JSON.parse(saved);
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+    return DEFAULT_SETTINGS;
+  }
+};
 
-  // Load settings from localStorage on mount
+const saveToStorage = (settings: AppSettings): void => {
+  try {
+    localStorage.setItem('usasset-settings', JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent('settings-changed', { 
+      detail: settings 
+    }));
+  } catch (error) {
+    console.error('Failed to save settings:', error);
+  }
+};
+
+export const SettingsProvider = ({ children }: SettingsProviderProps): React.ReactElement => {
+  const [settings, setSettings] = useState<AppSettings>(loadSavedSettings);
+
   useEffect(() => {
-    const savedSettings = localStorage.getItem('usasset-settings');
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-      } catch (error) {
-        console.error('Failed to load settings:', error);
-      }
-    }
+    const handleChange = (e: CustomEvent): void => setSettings(e.detail);
+    window.addEventListener('settings-changed', handleChange as EventListener);
+    return (): void => window.removeEventListener('settings-changed', handleChange as EventListener);
   }, []);
 
-  // Listen for settings changes from other tabs/windows
-  useEffect(() => {
-    const handleSettingsChange = (event: CustomEvent) => {
-      setSettings(event.detail);
-    };
-
-    window.addEventListener('settings-changed', handleSettingsChange as EventListener);
-    
-    return () => {
-      window.removeEventListener('settings-changed', handleSettingsChange as EventListener);
-    };
-  }, []);
-
-  const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
-    const updatedSettings = { ...settings, ...newSettings };
-    setSettings(updatedSettings);
-    
-    try {
-      localStorage.setItem('usasset-settings', JSON.stringify(updatedSettings));
-      
-      // Notify other components/tabs
-      window.dispatchEvent(new CustomEvent('settings-changed', { 
-        detail: updatedSettings 
-      }));
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
+  const updateSettings = useCallback((newSettings: Partial<AppSettings>): void => {
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    saveToStorage(updated);
   }, [settings]);
 
-  const resetSettings = useCallback(() => {
+  const resetSettings = useCallback((): void => {
     setSettings(DEFAULT_SETTINGS);
-    
-    try {
-      localStorage.setItem('usasset-settings', JSON.stringify(DEFAULT_SETTINGS));
-      
-      // Notify other components/tabs
-      window.dispatchEvent(new CustomEvent('settings-changed', { 
-        detail: DEFAULT_SETTINGS 
-      }));
-    } catch (error) {
-      console.error('Failed to reset settings:', error);
-    }
+    saveToStorage(DEFAULT_SETTINGS);
   }, []);
 
-  const value = {
-    settings,
-    updateSettings,
-    resetSettings
-  };
+  const value = { settings, updateSettings, resetSettings };
 
   return (
     <SettingsContext.Provider value={value}>

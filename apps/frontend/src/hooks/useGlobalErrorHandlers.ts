@@ -8,7 +8,7 @@ export const useGlobalErrorHandlers = ({ addDebugMessage }: UseGlobalErrorHandle
   
   useEffect(() => {
     // Global error handler for unhandled JavaScript errors
-    const handleGlobalError = (event: ErrorEvent) => {
+    const handleGlobalError = (event: ErrorEvent): void => {
       addDebugMessage('error', 'Global JavaScript Error', {
         message: event.message,
         filename: event.filename,
@@ -20,7 +20,7 @@ export const useGlobalErrorHandlers = ({ addDebugMessage }: UseGlobalErrorHandle
     };
 
     // Global handler for unhandled promise rejections
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent): void => {
       addDebugMessage('error', 'Unhandled Promise Rejection', {
         reason: event.reason instanceof Error ? event.reason.message : String(event.reason),
         stack: event.reason instanceof Error ? event.reason.stack : undefined,
@@ -33,7 +33,7 @@ export const useGlobalErrorHandlers = ({ addDebugMessage }: UseGlobalErrorHandle
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     // Cleanup function to remove event listeners
-    return () => {
+    return (): void => {
       window.removeEventListener('error', handleGlobalError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
