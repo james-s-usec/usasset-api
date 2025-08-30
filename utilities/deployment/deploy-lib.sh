@@ -215,7 +215,9 @@ deploy_container_app() {
     local deploy_cmd="az containerapp update"
     deploy_cmd="$deploy_cmd --name $app_name"
     deploy_cmd="$deploy_cmd --resource-group $RG_NAME"
-    deploy_cmd="$deploy_cmd --image $ACR_NAME.azurecr.io/${app_name%%-*}:$image_tag"
+    # Extract the service name from the app name (e.g., usasset-backend -> backend)
+    local service_name="${app_name#*-}"
+    deploy_cmd="$deploy_cmd --image $ACR_NAME.azurecr.io/$service_name:$image_tag"
     deploy_cmd="$deploy_cmd --revision-suffix deploy-$image_tag"
     
     # Add environment variables if provided
