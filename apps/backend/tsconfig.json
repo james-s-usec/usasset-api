@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["node", "jest", "express"],
+    "types": ["node", "jest", "express", "supertest"],
     "typeRoots": ["../../node_modules/@types", "./src/types"],
     "module": "commonjs",
     "declaration": true,
@@ -24,5 +24,7 @@
     "noImplicitThis": true,
     "alwaysStrict": true,
     "noFallthroughCasesInSwitch": true
-  }
+  },
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

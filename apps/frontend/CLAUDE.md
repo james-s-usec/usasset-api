@@ -16,6 +16,19 @@
 
 # USAsset Frontend
 
+## ⚠️ CRITICAL: DO NOT MODIFY PACKAGE.JSON
+**NEVER change package.json** without explicit user approval. This file contains:
+- React 18 with specific tested versions
+- Material-UI dependencies with exact versions
+- Vite configuration and plugins
+- ESLint and TypeScript settings
+
+If you encounter dependency issues:
+- Check tsconfig.json paths
+- Verify vite.config.ts settings
+- Review ESLint configuration
+But DO NOT add or modify dependencies in package.json!
+
 ## Overview
 React + TypeScript frontend built with Vite, configured for Azure Static Web Apps or Container Apps deployment.
 

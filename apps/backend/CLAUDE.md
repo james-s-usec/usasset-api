@@ -16,6 +16,19 @@
 
 # USAsset Backend
 
+## ⚠️ CRITICAL: DO NOT MODIFY PACKAGE.JSON
+**NEVER change package.json** without explicit user approval. This file contains:
+- Carefully tested dependency versions
+- CI/CD scripts that must not change
+- Database scripts (Prisma migrations, seeds)
+- Azure deployment configurations
+
+If imports fail or dependencies seem missing, check:
+1. tsconfig.json configuration
+2. ESLint configuration
+3. Module resolution settings
+But DO NOT add dependencies to package.json!
+
 ## Overview
 NestJS backend API configured for Azure Container Apps deployment with PostgreSQL database.
 

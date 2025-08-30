@@ -16,6 +16,20 @@
 
 # USAsset Project
 
+## 🚫 ABSOLUTE RULE: NEVER MODIFY PACKAGE.JSON
+**DO NOT TOUCH ANY package.json FILES IN THIS PROJECT**
+- Root package.json orchestrates the monorepo
+- Backend package.json has critical NestJS/Prisma configs
+- Frontend package.json has exact React/MUI versions
+- All scripts are carefully configured for CI/CD
+
+**If you think you need to change package.json, YOU ARE WRONG.**
+Instead:
+- Fix tsconfig.json for TypeScript issues
+- Update ESLint config for linting issues
+- Adjust build configs for build issues
+- But NEVER touch package.json
+
 ## ⚠️ Critical Configuration Note: Database Connection
 **IMPORTANT**: The backend .env file MUST use Docker PostgreSQL credentials, not Prisma local dev server URLs!
 - ✅ **Correct format**: `postgresql://dbadmin:localpassword123@localhost:5433/usasset`
@@ -44,6 +58,8 @@ USAsset3/
 - 📘 **[Backend Documentation](./apps/backend/CLAUDE.md)** - NestJS API, configuration, logging
 - 📗 **[Frontend Documentation](./apps/frontend/CLAUDE.md)** - React app, Vite config, API integration
 - 🏗️ **[Infrastructure Documentation](./infra/CLAUDE.md)** - Azure Bicep templates, deployment guide
+- 🦆 **[Debugging Guide](./docs/DEBUGGING_GUIDE.md)** - Rubber duck debugging, troubleshooting commands
+- 📚 **[Pragmatic Principles](./docs/PRAGMATIC_PRINCIPLES.md)** - Pragmatic Programmer principles applied
 
 ## Essential Commands
 ```bash
@@ -200,6 +216,58 @@ See individual CLAUDE.md files in each directory for detailed configuration.
 - Don't test framework code or simple getters
 
 **Guiding Principle**: Follow these rules religiously and complexity stays manageable.
+
+## 🦆 Rubber Duck Debugging Protocol
+**When stuck on a problem, use the rubber duck technique:**
+
+### Pragmatic Commands Available:
+- `duck [problem]` - Rubber duck debugging session
+- `broken-windows` - Find technical debt to fix NOW
+- `find-duplication` - Locate DRY violations
+- `tracer [feature]` - Build minimal end-to-end slice
+- `check-coupling [module]` - Analyze dependencies
+- `estimate [task]` - PERT estimation technique
+- `profile [operation]` - Performance analysis
+
+### Command: `duck [problem]`
+When you say "duck" followed by your problem, I will:
+1. Ask you to explain what the code SHOULD do
+2. Ask you to explain what it ACTUALLY does
+3. Help you walk through it step-by-step
+4. Point out assumptions you might be making
+5. Not solve it for you - just listen and ask clarifying questions
+
+### Example Usage:
+```
+User: duck - my API returns 500 but the logs show nothing
+Claude: 🦆 *listening* - Let's start from the beginning. What endpoint are you calling and what should it return?
+User: It's POST /users and should create a user...
+Claude: 🦆 *nods* - Walk me through what happens when the request comes in. Start with the controller.
+User: The controller validates the... OH WAIT, I'm not awaiting the async validation!
+Claude: 🦆 *quack* - Glad I could help by listening!
+```
+
+### Why It Works (Pragmatic Programmer wisdom):
+"By having to verbalize some of these assumptions, you may suddenly gain new insight into the problem."
+The act of explaining forces you to:
+- State hidden assumptions explicitly
+- Think through the logic linearly
+- Notice gaps in your mental model
+- Catch silly mistakes you're blind to
+
+## ⚠️ CRITICAL: NEVER MODIFY PACKAGE.JSON
+**DO NOT TOUCH package.json FILES** - These are carefully configured with:
+- Exact dependency versions for stability
+- Specific scripts for CI/CD pipeline
+- Workspace configurations for monorepo
+- Custom build and test orchestration
+
+If you think you need to modify package.json, STOP and ask the user first.
+Common mistakes to avoid:
+- Adding new dependencies without approval
+- Changing script commands
+- Modifying version numbers
+- Adding or removing workspaces
 
 ## Deployment Notes
 
