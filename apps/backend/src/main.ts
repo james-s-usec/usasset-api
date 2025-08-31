@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { createLoggerConfig } from './config/logger.config';
-import { DEFAULT_PORT } from './common/constants';
+import { DEFAULT_PORT, GRACEFUL_SHUTDOWN_TIMEOUT_MS } from './common/constants';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 
@@ -40,6 +40,35 @@ function handleStartupError(logger: Logger, error: unknown): void {
   process.exit(1);
 }
 
+function setupGracefulShutdown(
+  app: Awaited<ReturnType<typeof NestFactory.create>>,
+  logger: Logger,
+): void {
+  const shutdown = async (signal: string): Promise<void> => {
+    logger.log(`Received ${signal}, shutting down gracefully`);
+
+    // Force exit after timeout if graceful shutdown fails
+    const forceExitTimer = setTimeout(() => {
+      logger.error('Graceful shutdown timed out, forcing exit');
+      process.exit(1);
+    }, GRACEFUL_SHUTDOWN_TIMEOUT_MS);
+
+    try {
+      await app.close();
+      clearTimeout(forceExitTimer);
+      logger.log('Application shut down successfully');
+      process.exit(0);
+    } catch (error) {
+      clearTimeout(forceExitTimer);
+      logger.error('Error during shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+}
+
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
@@ -63,6 +92,8 @@ async function bootstrap(): Promise<void> {
         transform: true,
       }),
     );
+
+    setupGracefulShutdown(app, logger);
 
     const port = process.env.PORT ?? DEFAULT_PORT;
     await app.listen(port);

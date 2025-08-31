@@ -1,5 +1,6 @@
 export const DEFAULT_PORT = 3000;
 export const DEFAULT_TEST_PORT = 8080;
+export const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 10000;
 
 export const DATABASE_RETRY_MAX_ATTEMPTS = 5;
 export const DATABASE_RETRY_BASE_DELAY = 1000;
