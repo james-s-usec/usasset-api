@@ -1,27 +1,38 @@
 import { BaseCommand } from "./base-command.js";
 import axios from "axios";
-import { DEFAULT_API_BASE_URL, HTTP_TIMEOUT_MS } from "../lib/constants.js";
+import {
+  HTTP_TIMEOUT_MS,
+  SEPARATOR_LENGTH,
+  JSON_INDENT_SPACES,
+  METHOD_NAME_PAD_LENGTH,
+} from "../lib/constants.js";
 import { ErrorHandler } from "../lib/error-handler.js";
 
-interface OpenAPIPath {
-  [method: string]: {
-    summary?: string;
-    description?: string;
-    parameters?: Array<{
-      name: string;
-      in: string;
-      required?: boolean;
+interface OpenAPIParameter {
+  name: string;
+  in: string;
+  required?: boolean;
+  schema?: Record<string, unknown>;
+}
+
+interface OpenAPIRequestBody {
+  content?: {
+    [mediaType: string]: {
       schema?: Record<string, unknown>;
-    }>;
-    requestBody?: {
-      content?: {
-        [mediaType: string]: {
-          schema?: Record<string, unknown>;
-        };
-      };
     };
-    responses?: Record<string, unknown>;
   };
+}
+
+interface OpenAPIMethod {
+  summary?: string;
+  description?: string;
+  parameters?: Array<OpenAPIParameter>;
+  requestBody?: OpenAPIRequestBody;
+  responses?: Record<string, unknown>;
+}
+
+interface OpenAPIPath {
+  [method: string]: OpenAPIMethod;
 }
 
 interface OpenAPISpec {
@@ -65,6 +76,7 @@ export class ApiDocsCommand extends BaseCommand {
   }
 
   private async fetchOpenAPISpec(): Promise<OpenAPISpec> {
+    // Note: OpenAPI spec is at root, not under /api
     const response = await axios.get<OpenAPISpec>(
       "http://localhost:3000/api-docs-json",
       { timeout: HTTP_TIMEOUT_MS },
@@ -77,17 +89,19 @@ export class ApiDocsCommand extends BaseCommand {
     console.log(`📝 ${spec.info.description}\n`);
 
     console.log("🔗 Available Endpoints:");
-    console.log("=".repeat(80));
+    console.log("=".repeat(SEPARATOR_LENGTH));
 
     Object.entries(spec.paths).forEach(([path, methods]) => {
       console.log(`\n📍 ${path}`);
       Object.entries(methods).forEach(([method, details]) => {
         const summary = details.summary || "No description";
-        console.log(`   ${method.toUpperCase().padEnd(7)} - ${summary}`);
+        console.log(
+          `   ${method.toUpperCase().padEnd(METHOD_NAME_PAD_LENGTH)} - ${summary}`,
+        );
       });
     });
 
-    console.log("\n" + "=".repeat(80));
+    console.log("\n" + "=".repeat(SEPARATOR_LENGTH));
     console.log("\n💡 Tips:");
     console.log("   - Use 'api-docs detailed' for full documentation");
     console.log("   - Use 'api-docs json' for raw OpenAPI spec");
@@ -98,63 +112,90 @@ export class ApiDocsCommand extends BaseCommand {
     console.log(`📖 ${spec.info.title} v${spec.info.version}`);
     console.log(`📝 ${spec.info.description}\n`);
 
-    Object.entries(spec.paths).forEach(([path, methods]) => {
-      console.log("\n" + "=".repeat(80));
+    this.displayDetailedPaths(spec.paths);
+    this.displayDetailedSchemas(spec.components?.schemas);
+  }
+
+  private displayDetailedPaths(paths: Record<string, OpenAPIPath>): void {
+    Object.entries(paths).forEach(([path, methods]) => {
+      console.log("\n" + "=".repeat(SEPARATOR_LENGTH));
       console.log(`📍 ${path}`);
-      console.log("=".repeat(80));
-
-      Object.entries(methods).forEach(([method, details]) => {
-        console.log(`\n🔧 ${method.toUpperCase()}`);
-        if (details.summary) {
-          console.log(`   Summary: ${details.summary}`);
-        }
-        if (details.description) {
-          console.log(`   Description: ${details.description}`);
-        }
-
-        if (details.parameters && details.parameters.length > 0) {
-          console.log(`\n   📥 Parameters:`);
-          details.parameters.forEach((param) => {
-            const required = param.required ? " (required)" : " (optional)";
-            console.log(`      - ${param.name} (${param.in})${required}`);
-            if (param.schema) {
-              console.log(`        Type: ${JSON.stringify(param.schema)}`);
-            }
-          });
-        }
-
-        if (details.requestBody?.content) {
-          console.log(`\n   📤 Request Body:`);
-          Object.entries(details.requestBody.content).forEach(
-            ([mediaType, content]) => {
-              console.log(`      Content-Type: ${mediaType}`);
-              if (content.schema) {
-                console.log(
-                  `      Schema: ${JSON.stringify(content.schema, null, 2).replace(/\n/g, "\n      ")}`,
-                );
-              }
-            },
-          );
-        }
-
-        if (details.responses) {
-          console.log(`\n   📊 Responses:`);
-          Object.entries(details.responses).forEach(([status, response]) => {
-            console.log(`      ${status}: ${JSON.stringify(response)}`);
-          });
-        }
-      });
+      console.log("=".repeat(SEPARATOR_LENGTH));
+      this.displayPathMethods(methods);
     });
+  }
 
-    if (spec.components?.schemas) {
-      console.log("\n\n" + "=".repeat(80));
-      console.log("📋 Data Models");
-      console.log("=".repeat(80));
-      Object.entries(spec.components.schemas).forEach(([name, schema]) => {
-        console.log(`\n📦 ${name}`);
-        console.log(JSON.stringify(schema, null, 2));
-      });
+  private displayPathMethods(methods: OpenAPIPath): void {
+    Object.entries(methods).forEach(([method, details]) => {
+      console.log(`\n🔧 ${method.toUpperCase()}`);
+      this.displayMethodDetails(details);
+    });
+  }
+
+  private displayMethodDetails(details: any): void {
+    if (details.summary) {
+      console.log(`   Summary: ${details.summary}`);
     }
+    if (details.description) {
+      console.log(`   Description: ${details.description}`);
+    }
+
+    this.displayParameters(details.parameters);
+    this.displayRequestBody(details.requestBody);
+    this.displayResponses(details.responses);
+  }
+
+  private displayParameters(parameters?: Array<any>): void {
+    if (!parameters || parameters.length === 0) return;
+
+    console.log(`\n   📥 Parameters:`);
+    parameters.forEach((param) => {
+      const required = param.required ? " (required)" : " (optional)";
+      console.log(`      - ${param.name} (${param.in})${required}`);
+      if (param.schema) {
+        console.log(`        Type: ${JSON.stringify(param.schema)}`);
+      }
+    });
+  }
+
+  private displayRequestBody(requestBody?: any): void {
+    if (!requestBody?.content) return;
+
+    console.log(`\n   📤 Request Body:`);
+    Object.entries(requestBody.content).forEach(
+      ([mediaType, content]: [string, any]) => {
+        console.log(`      Content-Type: ${mediaType}`);
+        if (content.schema) {
+          const schemaStr = JSON.stringify(
+            content.schema,
+            null,
+            JSON_INDENT_SPACES,
+          );
+          console.log(`      Schema: ${schemaStr.replace(/\n/g, "\n      ")}`);
+        }
+      },
+    );
+  }
+
+  private displayResponses(responses?: Record<string, unknown>): void {
+    if (!responses) return;
+
+    console.log(`\n   📊 Responses:`);
+    Object.entries(responses).forEach(([status, response]) => {
+      console.log(`      ${status}: ${JSON.stringify(response)}`);
+    });
+  }
+
+  private displayDetailedSchemas(schemas?: Record<string, unknown>): void {
+    if (!schemas) return;
+
+    console.log("\n\n" + "=".repeat(SEPARATOR_LENGTH));
+    console.log("📋 Data Models");
+    console.log("=".repeat(SEPARATOR_LENGTH));
+    Object.entries(schemas).forEach(([name, schema]) => {
+      console.log(`\n📦 ${name}`);
+      console.log(JSON.stringify(schema, null, JSON_INDENT_SPACES));
+    });
   }
 
   private displayUsage(): void {
