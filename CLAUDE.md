@@ -57,7 +57,9 @@ USAsset3/
 ## Quick Links to Documentation
 - 📘 **[Backend Documentation](./apps/backend/CLAUDE.md)** - NestJS API, configuration, logging
 - 📗 **[Frontend Documentation](./apps/frontend/CLAUDE.md)** - React app, Vite config, API integration
+- ⚡ **[CLI Documentation](./apps/cli/CLAUDE.md)** - CLI tool for backend management, zero coupling
 - 🏗️ **[Infrastructure Documentation](./infra/CLAUDE.md)** - Azure Bicep templates, deployment guide
+- 📋 **[CLI Usage Guide](./docs/CLI_USAGE_GUIDE.md)** - Complete CLI commands and workflow reference
 - 🦆 **[Debugging Guide](./docs/DEBUGGING_GUIDE.md)** - Rubber duck debugging, troubleshooting commands
 - 📚 **[Pragmatic Principles](./docs/PRAGMATIC_PRINCIPLES.md)** - Pragmatic Programmer principles applied
 
@@ -65,9 +67,15 @@ USAsset3/
 ```bash
 # Development
 npm run dev                                    # Start both frontend & backend
-npm run ci                                     # Run lint, typecheck, test, build
-npm run lint                                   # Check code style
-npm run typecheck                             # TypeScript validation
+npm run ci                                     # Run lint, typecheck, test, build (includes CLI)
+npm run lint                                   # Check code style (all workspaces)
+npm run typecheck                             # TypeScript validation (all workspaces)
+
+# CLI Management (from apps/cli/ after npm run build)
+./bin/usasset start                           # Start backend with health check
+./bin/usasset health                          # Check backend health endpoint
+./bin/usasset status                          # Show process PID and status
+./bin/usasset stop                           # Graceful shutdown (SIGTERM)
 
 # Deployment & Verification (use v2 for production)
 ./utilities/deployment/update-azure-v2.sh     # Deploy to Azure (hardened)

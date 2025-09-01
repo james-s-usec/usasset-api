@@ -1,6 +1,8 @@
 import { spawn } from "cross-spawn";
 import type { ChildProcess } from "node:child_process";
 import { join } from "path";
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
+import { PID_FILE_NAME } from "./constants.js";
 
 export interface ProcessOptions {
   command: string[];
@@ -28,10 +30,15 @@ export class ProcessManager {
       cwd: backendPath,
       stdio: "inherit",
       detached: false,
+      env: { ...process.env },
     });
 
     const pid = childProcess.pid || 0;
     this.processes.set("backend", childProcess);
+
+    if (pid > 0) {
+      this.writePidFile(pid);
+    }
 
     return {
       pid,
@@ -41,34 +48,69 @@ export class ProcessManager {
   }
 
   public stopBackend(): boolean {
-    const backendProcess: ChildProcess | undefined =
-      this.processes.get("backend");
-    if (backendProcess === undefined) {
+    const pid = this.readPidFile();
+    if (pid === undefined || !this.isProcessRunning(pid)) {
       return false;
     }
 
-    // Send SIGTERM for graceful shutdown (learned from Step 1)
-    const killed: boolean = backendProcess.kill("SIGTERM");
-    this.processes.delete("backend");
-
-    return killed;
+    try {
+      // Send SIGTERM for graceful shutdown (learned from Step 1)
+      process.kill(pid, "SIGTERM");
+      this.deletePidFile();
+      this.processes.delete("backend");
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   public getBackendPid(): number | undefined {
-    const backendProcess: ChildProcess | undefined =
-      this.processes.get("backend");
-    if (backendProcess === undefined) {
-      return undefined;
-    }
-    return backendProcess.pid;
+    return this.readPidFile();
   }
 
   public isBackendRunning(): boolean {
-    const backendProcess: ChildProcess | undefined =
-      this.processes.get("backend");
-    if (backendProcess === undefined) {
+    const pid = this.readPidFile();
+    return pid !== undefined && this.isProcessRunning(pid);
+  }
+
+  private writePidFile(pid: number): void {
+    try {
+      writeFileSync(PID_FILE_NAME, pid.toString(), { encoding: "utf8" });
+    } catch {
+      // Silently fail - PID tracking is nice-to-have
+    }
+  }
+
+  private readPidFile(): number | undefined {
+    try {
+      if (!existsSync(PID_FILE_NAME)) {
+        return undefined;
+      }
+      const pidStr = readFileSync(PID_FILE_NAME, { encoding: "utf8" });
+      const pid = parseInt(pidStr.trim(), 10);
+      return isNaN(pid) ? undefined : pid;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private deletePidFile(): void {
+    try {
+      if (existsSync(PID_FILE_NAME)) {
+        unlinkSync(PID_FILE_NAME);
+      }
+    } catch {
+      // Silently fail - cleanup is nice-to-have
+    }
+  }
+
+  private isProcessRunning(pid: number): boolean {
+    try {
+      // process.kill(pid, 0) throws if process doesn't exist
+      process.kill(pid, 0);
+      return true;
+    } catch {
       return false;
     }
-    return !backendProcess.killed;
   }
 }

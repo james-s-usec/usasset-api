@@ -9,27 +9,30 @@ export class CliLogger {
     this.ensureLogDirectory();
   }
 
-  public log(command: string, message: string): void {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] 🔧 CLI: ${message}\n`;
-
-    // Log to console
+  public info(message: string): void {
     console.log(message);
-
-    // Log to file (following existing .logs/ pattern)
-    const filename = this.getLogFilename(command);
-    writeFileSync(filename, logEntry, { flag: "a" });
+    this.writeToFile("INFO", message);
   }
 
-  public error(command: string, message: string): void {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ❌ CLI ERROR: ${message}\n`;
+  public success(message: string): void {
+    console.log(message);
+    this.writeToFile("SUCCESS", message);
+  }
 
-    // Log to console
+  public warn(message: string): void {
+    console.warn(message);
+    this.writeToFile("WARN", message);
+  }
+
+  public error(message: string): void {
     console.error(message);
+    this.writeToFile("ERROR", message);
+  }
 
-    // Log to file
-    const filename = this.getLogFilename(command);
+  private writeToFile(level: string, message: string): void {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${level}: ${message}\n`;
+    const filename = this.getLogFilename();
     writeFileSync(filename, logEntry, { flag: "a" });
   }
 
@@ -39,8 +42,8 @@ export class CliLogger {
     }
   }
 
-  private getLogFilename(command: string): string {
+  private getLogFilename(): string {
     const timestamp = new Date().toISOString().replace(/:/g, "").split(".")[0];
-    return join(this.logDir, `cli-${command}_${timestamp}.log`);
+    return join(this.logDir, `cli_${timestamp}.log`);
   }
 }
