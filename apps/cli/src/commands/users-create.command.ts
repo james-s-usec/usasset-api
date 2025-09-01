@@ -18,10 +18,10 @@ export class UsersCreateCommand extends BaseCommand {
       this.logger.info("👤 Creating user...");
 
       const userData = {
-        firstName: options.firstName,
-        lastName: options.lastName,
-        email: options.email,
-        role: options.role,
+        firstName: String(options.firstName),
+        lastName: String(options.lastName),
+        email: String(options.email),
+        role: String(options.role),
       };
 
       const user = await this.userApiClient.createUser(userData);

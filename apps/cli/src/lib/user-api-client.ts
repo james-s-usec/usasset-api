@@ -5,7 +5,7 @@ import {
   DEFAULT_PAGE_LIMIT,
 } from "./constants.js";
 
-export interface User {
+export interface User extends Record<string, unknown> {
   id: number;
   firstName: string;
   lastName: string;

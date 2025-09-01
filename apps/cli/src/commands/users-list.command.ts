@@ -10,13 +10,21 @@ export class UsersListCommand extends BaseCommand {
     this.userApiClient = new UserApiClient();
   }
 
+  private parseNumericOption(value: unknown, defaultValue: string): number {
+    return parseInt(
+      typeof value === "string" || typeof value === "number"
+        ? String(value)
+        : defaultValue,
+    );
+  }
+
   public async execute(
     _args: string[],
     options: CommandOptions,
   ): Promise<void> {
     try {
-      const page = parseInt(options.page || "1");
-      const limit = parseInt(options.limit || "50");
+      const page = this.parseNumericOption(options.page, "1");
+      const limit = this.parseNumericOption(options.limit, "50");
 
       this.logger.info("📋 Fetching users...");
       const response = await this.userApiClient.listUsers(page, limit);

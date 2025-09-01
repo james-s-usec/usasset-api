@@ -1,6 +1,6 @@
 import { spawn } from "cross-spawn";
 import type { ChildProcess } from "node:child_process";
-import { join } from "path";
+import { join, dirname } from "path";
 import { writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
 import { PID_FILE_NAME } from "./constants.js";
 
@@ -24,9 +24,13 @@ export class ProcessManager {
   >();
 
   public spawnBackend(command: string[]): ProcessResult {
-    const backendPath = join(process.cwd(), "apps/backend");
+    // Go up two levels from CLI bin to get to project root
+    const cliPath = dirname(dirname(dirname(process.argv[1])));
+    const projectRoot = dirname(dirname(cliPath));
+    const backendPath = join(projectRoot, "apps/backend");
 
-    const childProcess = spawn(command[0], command.slice(1), {
+    // Use npx to run npm scripts properly
+    const childProcess = spawn("npx", ["--no-install", ...command], {
       cwd: backendPath,
       stdio: "inherit",
       detached: false,

@@ -5,6 +5,20 @@ export interface TableColumn {
 }
 
 export class TableFormatter {
+  private static formatCellValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      return String(value);
+    }
+    return JSON.stringify(value);
+  }
+
   public static formatTable(
     data: Record<string, unknown>[],
     columns: TableColumn[],
@@ -14,23 +28,18 @@ export class TableFormatter {
     }
 
     const lines: string[] = [];
-
-    // Header
     const headerLine = columns
       .map((col) => col.label.padEnd(col.width))
       .join(" | ");
-    lines.push(headerLine);
-
-    // Separator
     const separatorLine = columns
       .map((col) => "-".repeat(col.width))
       .join("-+-");
-    lines.push(separatorLine);
 
-    // Data rows
+    lines.push(headerLine, separatorLine);
+
     for (const row of data) {
       const dataLine = columns
-        .map((col) => String(row[col.key] ?? "").padEnd(col.width))
+        .map((col) => this.formatCellValue(row[col.key]).padEnd(col.width))
         .join(" | ");
       lines.push(dataLine);
     }
