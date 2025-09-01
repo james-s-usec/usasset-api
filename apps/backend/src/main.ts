@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { createLoggerConfig } from './config/logger.config';
 import { DEFAULT_PORT, GRACEFUL_SHUTDOWN_TIMEOUT_MS } from './common/constants';
@@ -13,6 +14,22 @@ function configureCors(
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     credentials: true,
   });
+}
+
+function configureSwagger(
+  app: Awaited<ReturnType<typeof NestFactory.create>>,
+): void {
+  const config = new DocumentBuilder()
+    .setTitle('USAsset API')
+    .setDescription('USAsset backend API documentation')
+    .setVersion('1.0')
+    .addTag('users', 'User management endpoints')
+    .addTag('health', 'Health check endpoints')
+    .addTag('logs', 'Logging and debugging endpoints')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api-docs', app, document);
 }
 
 function logStartupInfo(logger: Logger, port: string | number): void {
@@ -69,6 +86,25 @@ function setupGracefulShutdown(
   process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
+function configureApp(
+  app: Awaited<ReturnType<typeof NestFactory.create>>,
+): void {
+  configureCors(app);
+  configureSwagger(app);
+
+  const globalExceptionFilter = app.get(GlobalExceptionFilter);
+  const responseTransformInterceptor = app.get(ResponseTransformInterceptor);
+  app.useGlobalFilters(globalExceptionFilter);
+  app.useGlobalInterceptors(responseTransformInterceptor);
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+}
+
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
@@ -79,20 +115,7 @@ async function bootstrap(): Promise<void> {
       logger: createLoggerConfig(),
     });
 
-    configureCors(app);
-
-    const globalExceptionFilter = app.get(GlobalExceptionFilter);
-    const responseTransformInterceptor = app.get(ResponseTransformInterceptor);
-    app.useGlobalFilters(globalExceptionFilter);
-    app.useGlobalInterceptors(responseTransformInterceptor);
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-
+    configureApp(app);
     setupGracefulShutdown(app, logger);
 
     const port = process.env.PORT ?? DEFAULT_PORT;

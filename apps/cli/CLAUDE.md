@@ -64,11 +64,66 @@ npm run build               # Compile TypeScript
 ```
 
 ### Available Commands
+
+#### Process Management
 ```bash
 ./bin/usasset start         # Start backend with health check
 ./bin/usasset stop          # Gracefully stop backend (SIGTERM)
 ./bin/usasset health        # Check backend /health endpoint
 ./bin/usasset status        # Show process status and PID
+```
+
+#### Logs & Debugging
+```bash
+./bin/usasset logs list               # List recent logs (default: 10)
+./bin/usasset logs list --limit 50    # Show more logs
+./bin/usasset logs list --level ERROR # Filter by log level
+./bin/usasset logs errors              # Show recent errors with stack traces
+./bin/usasset logs errors --limit 20  # Show more errors
+./bin/usasset logs trace <id>         # Trace request by correlation ID
+```
+
+#### API Documentation
+```bash
+./bin/usasset api-docs                # Show API endpoint summary
+./bin/usasset api-docs detailed       # Show full API documentation with DTOs
+./bin/usasset api-docs json           # Export raw OpenAPI spec as JSON
+```
+
+**Enhanced Debugging with logs trace:**
+The `logs trace` command now displays comprehensive request/response data:
+- 📨 Request Headers (excluding Authorization)
+- 📥 Request Body (full JSON payload)
+- 📤 Response Data (full JSON response)
+- 📜 Stack Traces for errors
+- ⏱️ Request timing and status codes
+
+Example output:
+```
+./bin/usasset logs trace 87c6326c-00a9-4cb4-93c6-299f1afa2a29
+
+🔍 Request Trace for 87c6326c-00a9-4cb4-93c6-299f1afa2a29:
+1. [9/1/2025, 4:36:34 PM] ℹ️
+   POST /api/users - 201 - 6ms
+   📍 POST /api/users
+   📊 Status: 201
+   ⏱️  Duration: 6ms
+   📨 Request Headers:
+      host: localhost:3000
+      user-agent: curl/8.5.0
+      content-type: application/json
+   📥 Request Body:
+      {
+        "name": "Debug Test",
+        "email": "debug@test.com"
+      }
+   📤 Response Data:
+      {
+        "id": "aa78eaeb-bfc8-4e15-ad7e-6c4cf1fb84e5",
+        "email": "debug@test.com",
+        "name": "Debug Test",
+        ...
+      }
 ```
 
 ### Development Commands

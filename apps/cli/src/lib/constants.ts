@@ -13,3 +13,11 @@ export const PID_FILE_NAME = ".usasset.pid";
 export const DEFAULT_API_BASE_URL = "http://localhost:3000/api";
 export const DEFAULT_PAGE_LIMIT = 50;
 export const MAX_BULK_OPERATION_SIZE = 100;
+
+// UI formatting constants
+export const SEPARATOR_LENGTH = 80;
+export const STACK_PREVIEW_LINES = 2;
+export const STACK_FULL_LINES = 5;
+export const DEFAULT_LOGS_LIMIT = 50;
+export const JSON_INDENT_SPACES = 2;
+export const METHOD_NAME_PAD_LENGTH = 7;

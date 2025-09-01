@@ -119,11 +119,131 @@ npm run test:e2e        # Run e2e tests
 - ✅ NestJS ConfigModule with validation
 - ✅ Azure Key Vault integration ready
 - ✅ Health check endpoints (/health, /health/ready, /health/live)
+- ✅ Comprehensive logging and debugging API (/logs)
+- ✅ Request tracing with correlation IDs
 - ✅ CORS configuration
 - ✅ Winston file logging
 - ✅ TypeScript with strict mode
 - ✅ Jest testing setup
 - ✅ ESLint configured
+- ✅ Swagger/OpenAPI documentation (/api-docs)
+
+## 📚 API Documentation (Swagger)
+
+### **Interactive Documentation**
+- **Swagger UI**: http://localhost:3000/api-docs
+- **OpenAPI JSON**: http://localhost:3000/api-docs-json
+- **CLI Access**: `./bin/usasset api-docs`
+
+### **Available Documentation**
+- All endpoints with descriptions
+- Request/response schemas (DTOs)
+- Parameter documentation
+- Authentication requirements (when implemented)
+- Try-it-out functionality in Swagger UI
+
+### **Adding Documentation to New Endpoints**
+```typescript
+@ApiTags('feature-name')
+@Controller('api/feature')
+export class FeatureController {
+  @Get()
+  @ApiOperation({ summary: 'Get all features' })
+  @ApiResponse({ status: 200, description: 'Success' })
+  public async findAll() { }
+}
+```
+
+## 🔍 Debugging & Logs API
+
+### **Logs API Endpoints**
+The backend provides comprehensive logging for debugging and monitoring:
+
+```bash
+# List recent logs (paginated)
+GET /logs                           # Default: 50 most recent logs
+GET /logs?page=2&limit=20           # Pagination controls
+GET /logs?level=ERROR               # Filter by log level (ERROR, INFO, DEBUG, WARN)
+GET /logs?correlationId=abc123      # Trace specific request by correlation ID
+
+# Clear logs (use with caution)
+DELETE /logs                        # Delete all log entries
+```
+
+### **Response Format**
+```json
+{
+  "success": true,
+  "data": {
+    "logs": [
+      {
+        "id": "uuid",
+        "correlation_id": "abc123",
+        "level": "ERROR",
+        "message": "GET /api/invalid - 404 - Cannot GET /api/invalid",
+        "metadata": {
+          "url": "/api/invalid",
+          "method": "GET", 
+          "statusCode": 404,
+          "stack": "Full error stack trace...",
+          "userAgent": "curl/8.5.0",
+          "ip": "::1"
+        },
+        "timestamp": "2025-09-01T21:33:47.643Z",
+        "created_at": "2025-09-01T21:33:47.643Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "total": 1247,
+      "totalPages": 25
+    }
+  }
+}
+```
+
+### **What Gets Logged Automatically**
+- ✅ **All HTTP requests** with response times
+- ✅ **All errors** with full stack traces  
+- ✅ **Validation errors** with field details
+- ✅ **Database operations** (via Prisma query logging)
+- ✅ **Request/response data** for debugging
+- ✅ **Performance metrics** (response times, slow queries)
+- ✅ **User agents and IP addresses**
+- ✅ **Correlation IDs** for request tracing
+
+### **Correlation ID Tracing**
+Every request gets a unique correlation ID that appears in:
+- Response headers: `x-correlation-id`
+- All log entries for that request
+- Error responses for easy tracing
+
+Example workflow:
+1. API call returns error with `correlationId: "abc123"`
+2. Query logs: `GET /logs?correlationId=abc123`
+3. See full request trace including all database queries
+
+### **Common Debugging Queries**
+```bash
+# Find recent errors
+curl "http://localhost:3000/logs?level=ERROR&limit=10"
+
+# Trace a failed request
+curl "http://localhost:3000/logs?correlationId=abc123"
+
+# Monitor API performance (slow requests)
+curl "http://localhost:3000/logs" | jq '.data.logs[] | select(.metadata.duration > 100)'
+
+# Check validation errors
+curl "http://localhost:3000/logs?level=ERROR" | jq '.data.logs[] | select(.message | contains("validation"))'
+```
+
+### **Development vs Production Logging**
+- **Development**: Console output + database logging
+- **Production**: JSON format + database + optional file logging
+- **Never logs secrets** - shows `[SET]` or `[NOT SET]` instead
+- **Structured metadata** for log aggregation tools
 
 ## Dependencies
 - **Framework**: NestJS 11.x

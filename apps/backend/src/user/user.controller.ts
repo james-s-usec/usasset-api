@@ -14,6 +14,14 @@ import {
   NotFoundException,
   Req,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { User } from '@prisma/client';
 import { UserQueryService } from './services/user-query.service';
@@ -29,6 +37,7 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE } from '../common/constants';
 import { DatabaseLoggerService } from '../common/services/database-logger.service';
 import { CORRELATION_ID_KEY } from '../common/middleware/correlation-id.middleware';
 
+@ApiTags('users')
 @Controller('api/users')
 export class UserController {
   public constructor(
@@ -39,6 +48,10 @@ export class UserController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: 'Get all users with pagination' })
+  @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   public async findAll(
     @Query(ValidationPipe) pagination: PaginationDto,
   ): Promise<{ users: User[]; pagination: Record<string, number> }> {
@@ -107,6 +120,10 @@ export class UserController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get a user by ID' })
+  @ApiResponse({ status: 200, description: 'User found' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   public async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<User> {
     const user = await this.userQueryService.findById(id);
     if (!user) {
@@ -117,6 +134,10 @@ export class UserController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new user' })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiBody({ type: CreateUserDto })
   public async create(
     @Body(ValidationPipe) createUserDto: CreateUserDto,
   ): Promise<User> {

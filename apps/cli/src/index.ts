@@ -222,4 +222,62 @@ usersCommand
     }
   });
 
+// Logs management commands
+const logsCommand = program
+  .command("logs")
+  .description("View and manage application logs");
+
+logsCommand
+  .command("list")
+  .description("List recent logs")
+  .option("-p, --page <number>", "Page number", "1")
+  .option("-l, --limit <number>", "Number of logs to show", "10")
+  .option("--level <level>", "Filter by log level (ERROR, INFO, DEBUG, WARN)")
+  .action(async (options: Record<string, unknown>) => {
+    const command = CommandFactory.createCommand("logs:list");
+    if (command) {
+      await command.execute([], options);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+logsCommand
+  .command("errors")
+  .description("Show recent error logs")
+  .option("-l, --limit <number>", "Number of errors to show", "10")
+  .action(async (options: Record<string, unknown>) => {
+    const command = CommandFactory.createCommand("logs:errors");
+    if (command) {
+      await command.execute([], options);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+logsCommand
+  .command("trace <correlationId>")
+  .description("Trace a request by correlation ID")
+  .action(async (correlationId: string) => {
+    const command = CommandFactory.createCommand("logs:trace");
+    if (command) {
+      await command.execute([correlationId]);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+// API Documentation command
+program
+  .command("api-docs [format]")
+  .description("Display API documentation (summary, detailed, json)")
+  .action(async (format: string = "summary") => {
+    const command = CommandFactory.createCommand("api-docs");
+    if (command) {
+      await command.execute([format]);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
 program.parse();
