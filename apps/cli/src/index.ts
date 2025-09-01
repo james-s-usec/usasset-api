@@ -90,6 +90,23 @@ program
     }
   });
 
+program
+  .command("cleanup")
+  .description("Clean up processes using backend port")
+  .option("-p, --port <number>", "Port to clean up", "3000")
+  .action((options: { port: string }) => {
+    const port = parseInt(options.port, 10);
+    logger.info(`🧹 Cleaning up processes on port ${port}...`);
+
+    const cleaned = processManager.cleanupPort(port);
+
+    if (cleaned) {
+      logger.success(`✅ Port ${port} is now available`);
+    } else {
+      logger.info(`ℹ️  Port ${port} was already available`);
+    }
+  });
+
 // User management commands using factory pattern
 const usersCommand = program
   .command("users")
@@ -112,14 +129,94 @@ usersCommand
 usersCommand
   .command("create")
   .description("Create a new user")
-  .requiredOption("-f, --first-name <firstName>", "First name")
-  .requiredOption("-l, --last-name <lastName>", "Last name")
   .requiredOption("-e, --email <email>", "Email address")
-  .requiredOption("-r, --role <role>", "User role")
+  .option("-n, --name <name>", "User name")
+  .option("-r, --role <role>", "User role (USER, ADMIN, SUPER_ADMIN)", "USER")
   .action(async (options) => {
     const command = CommandFactory.createCommand("users:create");
     if (command) {
       await command.execute([], options as Record<string, unknown>);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+usersCommand
+  .command("get <id>")
+  .description("Get a user by ID")
+  .action(async (id: string) => {
+    const command = CommandFactory.createCommand("users:get");
+    if (command) {
+      await command.execute([id]);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+usersCommand
+  .command("update <id>")
+  .description("Update a user by ID")
+  .option("-e, --email <email>", "Email address")
+  .option("-n, --name <name>", "User name")
+  .option("-r, --role <role>", "User role (USER, ADMIN, SUPER_ADMIN)")
+  .action(async (id: string, options: Record<string, unknown>) => {
+    const command = CommandFactory.createCommand("users:update");
+    if (command) {
+      await command.execute([id], options);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+usersCommand
+  .command("delete <id>")
+  .description("Delete a user by ID")
+  .option("-f, --force", "Skip confirmation")
+  .action(async (id: string, options: Record<string, unknown>) => {
+    const command = CommandFactory.createCommand("users:delete");
+    if (command) {
+      await command.execute([id], options);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+usersCommand
+  .command("bulk-create")
+  .description("Create multiple users from JSON file")
+  .requiredOption("-f, --file <path>", "JSON file with users array")
+  .action(async (options: Record<string, unknown>) => {
+    const command = CommandFactory.createCommand("users:bulk-create");
+    if (command) {
+      await command.execute([], options);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+usersCommand
+  .command("bulk-update")
+  .description("Update multiple users from JSON file")
+  .requiredOption("-f, --file <path>", "JSON file with updates array")
+  .action(async (options: Record<string, unknown>) => {
+    const command = CommandFactory.createCommand("users:bulk-update");
+    if (command) {
+      await command.execute([], options);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+usersCommand
+  .command("bulk-delete")
+  .description("Delete multiple users by IDs")
+  .option("-i, --ids <ids>", "Comma-separated list of user IDs")
+  .option("-f, --file <path>", "JSON file with IDs array")
+  .option("--force", "Skip confirmation")
+  .action(async (options: Record<string, unknown>) => {
+    const command = CommandFactory.createCommand("users:bulk-delete");
+    if (command) {
+      await command.execute([], options);
     } else {
       logger.error("❌ Command not found");
     }

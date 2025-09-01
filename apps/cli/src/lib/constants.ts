@@ -12,3 +12,4 @@ export const PID_FILE_NAME = ".usasset.pid";
 // API client constants
 export const DEFAULT_API_BASE_URL = "http://localhost:3000/api";
 export const DEFAULT_PAGE_LIMIT = 50;
+export const MAX_BULK_OPERATION_SIZE = 100;

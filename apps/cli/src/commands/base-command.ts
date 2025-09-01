@@ -13,6 +13,6 @@ export abstract class BaseCommand {
 
   public abstract execute(
     args: string[],
-    options: CommandOptions,
+    options?: CommandOptions,
   ): Promise<void>;
 }

@@ -6,25 +6,27 @@ import {
 } from "./constants.js";
 
 export interface User extends Record<string, unknown> {
-  id: number;
-  firstName: string;
-  lastName: string;
+  id: string;
   email: string;
+  name?: string;
   role: string;
-  createdAt: string;
-  updatedAt: string;
+  is_deleted: boolean;
+  created_at: string;
+  created_by?: string | null;
+  updated_at: string;
+  updated_by?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 export interface CreateUserRequest {
-  firstName: string;
-  lastName: string;
   email: string;
-  role: string;
+  name?: string;
+  role?: string;
 }
 
 export interface UpdateUserRequest {
-  firstName?: string;
-  lastName?: string;
+  name?: string;
   email?: string;
   role?: string;
 }
@@ -51,25 +53,59 @@ export class UserApiClient {
       params: { page, limit },
       timeout: HTTP_TIMEOUT_MS,
     });
-    return response.data as UsersResponse;
+
+    // Map backend response format to expected format
+    const backendResponse = response.data as {
+      success: boolean;
+      data: {
+        users: User[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      };
+    };
+
+    return {
+      data: backendResponse.data.users,
+      total: backendResponse.data.pagination.total,
+      page: backendResponse.data.pagination.page,
+      limit: backendResponse.data.pagination.limit,
+    };
   }
 
-  public async getUserById(id: number): Promise<User> {
+  public async getUserById(id: string): Promise<User> {
     const response = await axios.get(`${this.baseUrl}/users/${id}`, {
       timeout: HTTP_TIMEOUT_MS,
     });
-    return response.data as User;
+
+    // Handle wrapped response format
+    const backendResponse = response.data as {
+      success: boolean;
+      data: User;
+    };
+
+    return backendResponse.data;
   }
 
   public async createUser(userData: CreateUserRequest): Promise<User> {
     const response = await axios.post(`${this.baseUrl}/users`, userData, {
       timeout: HTTP_TIMEOUT_MS,
     });
-    return response.data as User;
+
+    // Handle wrapped response format
+    const backendResponse = response.data as {
+      success: boolean;
+      data: User;
+    };
+
+    return backendResponse.data;
   }
 
   public async updateUser(
-    id: number,
+    id: string,
     userData: UpdateUserRequest,
   ): Promise<User> {
     const response = await axios.patch(
@@ -79,12 +115,72 @@ export class UserApiClient {
         timeout: HTTP_TIMEOUT_MS,
       },
     );
-    return response.data as User;
+
+    // Handle wrapped response format
+    const backendResponse = response.data as {
+      success: boolean;
+      data: User;
+    };
+
+    return backendResponse.data;
   }
 
-  public async deleteUser(id: number): Promise<void> {
+  public async deleteUser(id: string): Promise<void> {
     await axios.delete(`${this.baseUrl}/users/${id}`, {
       timeout: HTTP_TIMEOUT_MS,
     });
+  }
+
+  public async bulkCreateUsers(users: CreateUserRequest[]): Promise<User[]> {
+    const response = await axios.post(
+      `${this.baseUrl}/users/bulk`,
+      { users },
+      {
+        timeout: HTTP_TIMEOUT_MS,
+      },
+    );
+
+    // Handle wrapped response format
+    const backendResponse = response.data as {
+      success: boolean;
+      data: User[];
+    };
+
+    return backendResponse.data;
+  }
+
+  public async bulkUpdateUsers(
+    updates: Array<{ id: string } & Partial<UpdateUserRequest>>,
+  ): Promise<User[]> {
+    const response = await axios.patch(
+      `${this.baseUrl}/users/bulk`,
+      { updates },
+      {
+        timeout: HTTP_TIMEOUT_MS,
+      },
+    );
+
+    // Handle wrapped response format
+    const backendResponse = response.data as {
+      success: boolean;
+      data: User[];
+    };
+
+    return backendResponse.data;
+  }
+
+  public async bulkDeleteUsers(ids: string[]): Promise<{ deleted: number }> {
+    const response = await axios.delete(`${this.baseUrl}/users/bulk`, {
+      data: { ids },
+      timeout: HTTP_TIMEOUT_MS,
+    });
+
+    // Handle wrapped response format
+    const backendResponse = response.data as {
+      success: boolean;
+      data: { deleted: number };
+    };
+
+    return backendResponse.data;
   }
 }

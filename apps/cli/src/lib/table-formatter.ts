@@ -47,15 +47,35 @@ export class TableFormatter {
     return lines.join("\n");
   }
 
+  private static formatId(value: unknown): string {
+    const ID_LENGTH = 8;
+    if (value === undefined || value === null) return "";
+    if (typeof value !== "string" && typeof value !== "number") return "";
+    return String(value).substring(0, ID_LENGTH) + "...";
+  }
+
+  private static formatDate(value: unknown): string {
+    if (value === undefined || value === null) return "";
+    if (typeof value !== "string" && typeof value !== "number") return "";
+    const dateValue = new Date(String(value));
+    return isNaN(dateValue.getTime()) ? "" : dateValue.toLocaleDateString();
+  }
+
   public static formatUserTable(users: Record<string, unknown>[]): string {
     const columns: TableColumn[] = [
-      { key: "id", label: "ID", width: 6 },
-      { key: "firstName", label: "First Name", width: 15 },
-      { key: "lastName", label: "Last Name", width: 15 },
-      { key: "email", label: "Email", width: 25 },
+      { key: "id", label: "ID", width: 12 },
+      { key: "name", label: "Name", width: 20 },
+      { key: "email", label: "Email", width: 30 },
       { key: "role", label: "Role", width: 12 },
+      { key: "created_at", label: "Created", width: 12 },
     ];
 
-    return this.formatTable(users, columns);
+    const transformedUsers = users.map((user) => ({
+      ...user,
+      id: this.formatId(user.id),
+      created_at: this.formatDate(user.created_at),
+    }));
+
+    return this.formatTable(transformedUsers, columns);
   }
 }
