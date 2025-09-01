@@ -1,0 +1,3 @@
+export const DEFAULT_HEALTH_TIMEOUT_MS = 30000;
+export const HEALTH_CHECK_INTERVAL_MS = 1000;
+export const HTTP_TIMEOUT_MS = 5000;
