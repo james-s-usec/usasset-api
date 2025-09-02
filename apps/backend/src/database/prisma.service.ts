@@ -20,7 +20,9 @@ export class PrismaService
 
   public constructor() {
     super({
-      log: ['query', 'info', 'warn', 'error'],
+      log: process.env.NODE_ENV === 'production' 
+        ? ['warn', 'error'] 
+        : ['info', 'warn', 'error'], // Removed 'query' to reduce spam
       errorFormat: 'pretty',
       datasources: {
         db: {

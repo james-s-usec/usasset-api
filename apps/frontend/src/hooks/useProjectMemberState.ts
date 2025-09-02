@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ProjectMember } from '../types/project.types';
-import { useDebugState } from './useDebugState';
+import { useDebugState, useDebugArrayState } from './useDebugState';
 
 export interface UseProjectMemberStateReturn {
   members: ProjectMember[];
@@ -14,7 +14,7 @@ export interface UseProjectMemberStateReturn {
 }
 
 export const useProjectMemberState = (): UseProjectMemberStateReturn => {
-  const [members, setMembers] = useDebugState<ProjectMember[]>([], { 
+  const [members, setMembers] = useDebugArrayState<ProjectMember>([], { 
     name: 'members', 
     componentName: 'useProjectMemberState' 
   });

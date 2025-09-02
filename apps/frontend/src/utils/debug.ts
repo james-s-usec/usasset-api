@@ -9,6 +9,7 @@
  */
 
 export type DebugLevel = 'debug' | 'info' | 'warn' | 'error';
+import config from '../config';
 export type DebugCategory = 
   | 'component' 
   | 'hook' 
@@ -32,20 +33,16 @@ class DebugUtil {
   private isEnabled: boolean;
   private enabledCategories: Set<DebugCategory>;
   private performanceMarks: Map<string, number> = new Map();
+  private consoleEnabled: boolean;
 
   constructor() {
-    // Check both VITE_DEBUG and VITE_DEBUG_ENABLED for flexibility
-    this.isEnabled = 
-      import.meta.env.VITE_DEBUG === 'true' || 
-      import.meta.env.VITE_DEBUG_ENABLED === 'true';
+    // Read settings from centralized config service
+    this.isEnabled = config.debug.enabled;
+    this.consoleEnabled = config.debug.consoleEnabled;
+    const categories = (config.debug.categories || []) as unknown as DebugCategory[];
+    this.enabledCategories = new Set(categories);
 
-    // Parse enabled categories from environment
-    const categoriesEnv = import.meta.env.VITE_DEBUG_CATEGORIES || '';
-    this.enabledCategories = new Set(
-      categoriesEnv ? categoriesEnv.split(',').map((c: string) => c.trim() as DebugCategory) : []
-    );
-
-    // If no specific categories set, enable all in development
+    // If no specific categories set, enable all when debug is enabled
     if (this.enabledCategories.size === 0 && this.isEnabled) {
       this.enabledCategories = new Set(['component', 'hook', 'api', 'state', 'event', 'performance', 'navigation', 'render', 'lifecycle']);
     }
@@ -212,7 +209,7 @@ class DebugUtil {
    * Generic logging method - split for complexity < 7
    */
   private handleConsoleLog(skipConsole: boolean, level: DebugLevel, message: string, data?: unknown): void {
-    if (!skipConsole) {
+    if (!skipConsole && this.consoleEnabled) {
       this.logToConsole(level, message, data);
     }
   }
@@ -226,7 +223,7 @@ class DebugUtil {
     url: string;
     userAgent: string;
   }): void {
-    if (!skipBackend && this.isEnabled) {
+    if (!skipBackend && this.isEnabled && config.debug.sendToBackend) {
       this.sendToBackend(logData).catch(error => {
         console.warn('Failed to send debug log to backend:', error);
       });
@@ -311,6 +308,13 @@ class DebugUtil {
    */
   setEnabled(enabled: boolean): void {
     this.isEnabled = enabled;
+  }
+
+  /**
+   * Enable/disable console output at runtime
+   */
+  setConsoleEnabled(enabled: boolean): void {
+    this.consoleEnabled = enabled;
   }
 
   /**

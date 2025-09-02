@@ -1,4 +1,4 @@
-import { useDebugApiEffect } from './useDebugEffect';
+// import { useDebugApiEffect } from './useDebugEffect';
 import { logHookCall } from '../utils/debug';
 import { useUsersState } from './useUsersState';
 import { useUsersApi } from './useUsersApi';
@@ -21,15 +21,16 @@ export const useUsers = (): UseUsersReturn => {
   const state = useUsersState();
   const api = useUsersApi(state);
 
-  useDebugApiEffect(
-    api.fetchUsers,
-    [],
-    {
-      name: 'initialFetch',
-      componentName: 'useUsers',
-      logDependencies: false
-    }
-  );
+  // Commented out - causing infinite loop
+  // useDebugApiEffect(
+  //   api.fetchUsers,
+  //   [],
+  //   {
+  //     name: 'initialFetch',
+  //     componentName: 'useUsers',
+  //     logDependencies: false
+  //   }
+  // );
 
   return {
     users: state.users,

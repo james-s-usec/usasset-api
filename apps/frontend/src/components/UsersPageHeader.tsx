@@ -5,10 +5,12 @@ import { UsersHeaderActions } from './UsersHeaderActions';
 
 interface UsersPageHeaderProps {
   onAdd: () => void;
+  onRefresh: () => void;
 }
 
 export const UsersPageHeader = ({
-  onAdd
+  onAdd,
+  onRefresh
 }: UsersPageHeaderProps): React.ReactElement => {
   return (
     <Box 
@@ -21,7 +23,7 @@ export const UsersPageHeader = ({
     >
       <UsersHeaderTitle />
       <UsersHeaderActions 
-        onRefresh={() => {}}
+        onRefresh={onRefresh}
         onCreate={onAdd}
       />
     </Box>

@@ -3,7 +3,7 @@
  * Manages users array and loading/error state
  */
 
-import { useDebugState } from './useDebugState';
+import { useDebugState, useDebugArrayState } from './useDebugState';
 import type { UserData } from '../types/user';
 
 interface UseUsersStateReturn {
@@ -17,10 +17,9 @@ interface UseUsersStateReturn {
 }
 
 export function useUsersState(): UseUsersStateReturn {
-  const [users, setUsers] = useDebugState<UserData[]>([], {
+  const [users, setUsers] = useDebugArrayState<UserData>([], {
     name: 'users',
-    componentName: 'useUsers',
-    logAllChanges: true
+    componentName: 'useUsers'
   });
   
   const [loading, setLoading] = useDebugState(true, {

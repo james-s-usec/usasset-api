@@ -1,7 +1,9 @@
 import { apiService } from './api';
+import config from '../config';
 
 export class DebugLogger {
   static async logUIEvent(event: string, details?: Record<string, unknown>): Promise<void> {
+    if (!config.debug.sendToBackend) return;
     try {
       await apiService.post('/logs', {
         level: 'debug',
@@ -20,6 +22,7 @@ export class DebugLogger {
   }
 
   static async logError(message: string, error: unknown, context?: Record<string, unknown>): Promise<void> {
+    if (!config.debug.sendToBackend) return;
     try {
       await apiService.post('/logs', {
         level: 'error',
@@ -40,6 +43,7 @@ export class DebugLogger {
   }
 
   static async logInfo(message: string, details?: Record<string, unknown>): Promise<void> {
+    if (!config.debug.sendToBackend) return;
     try {
       await apiService.post('/logs', {
         level: 'info',

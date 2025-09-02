@@ -84,7 +84,8 @@ export const useProjectMemberActions = (open: boolean, project: Project | null):
       void fetchMembers(project.id);
       void fetchUsers();
     }
-  }, [open, project, fetchMembers, fetchUsers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, project?.id]); // Functions are stable, only depend on primitive values
 
   return {
     members,

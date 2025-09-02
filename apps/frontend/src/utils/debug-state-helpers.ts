@@ -14,7 +14,7 @@ export const logStateInitialization = (
   debug.debugLog('state', `🎬 ${componentName}.${name} initialized`, {
     initialValue,
     type: typeof initialValue
-  });
+  }, { skipBackend: true });
 };
 
 export const logStateStats = (params: {
@@ -39,7 +39,7 @@ export const logStateStats = (params: {
     previousType: typeof prev,
     nextType: typeof next,
     isFunction: isFunc
-  });
+  }, { skipBackend: true });
 };
 
 export const shouldUpdateValue = <T>(params: {

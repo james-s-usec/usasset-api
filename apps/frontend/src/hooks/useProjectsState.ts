@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { useDebugState } from './useDebugState';
+import { useDebugState, useDebugArrayState } from './useDebugState';
 import type { Project, ProjectSearchParams } from '../types/project.types';
 
 interface UseProjectsStateReturn {
@@ -24,7 +24,7 @@ interface UseProjectsStateReturn {
 export function useProjectsState(): UseProjectsStateReturn {
   const debugOpts = { componentName: 'useProjects' };
   
-  const [projects, setProjects] = useDebugState<Project[]>([], { ...debugOpts, name: 'projects' });
+  const [projects, setProjects] = useDebugArrayState<Project>([], { ...debugOpts, name: 'projects' });
   const [loading, setLoading] = useDebugState(false, { ...debugOpts, name: 'loading' });
   const [error, setError] = useDebugState<string | null>(null, { ...debugOpts, name: 'error' });
   const [total, setTotal] = useDebugState(0, { ...debugOpts, name: 'total' });

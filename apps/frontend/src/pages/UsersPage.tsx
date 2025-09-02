@@ -3,7 +3,7 @@
  * Main page for user management - simplified composition
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Box } from '@mui/material';
 import { useUsers } from '../hooks/useUsers';
 import { useUserDialog } from '../hooks/useUserDialog';
@@ -22,9 +22,18 @@ export function UsersPage(): React.ReactElement {
   const notifications = useNotifications();
   const handlers = useUsersPageHandlers({ ...dialog, ...users, ...debug, ...notifications, deleteUser: users.deleteUser });
 
+  // Fetch users on mount
+  useEffect(() => {
+    void users.fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only fetch on mount, function is stable
+
   return (
     <Box sx={{ p: 4 }}>
-      <UsersPageHeader onAdd={() => { handlers.handleCreateNew(); dialog.openCreateDialog(); }} />
+      <UsersPageHeader 
+        onAdd={() => { handlers.handleCreateNew(); dialog.openCreateDialog(); }}
+        onRefresh={users.fetchUsers}
+      />
       <UsersPageContent
         users={users.users} loading={users.loading} error={users.error}
         onEdit={handlers.handleEditDialog} onDelete={handlers.handleDeleteUser}
