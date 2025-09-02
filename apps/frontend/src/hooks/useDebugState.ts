@@ -24,22 +24,23 @@ export function useDebugState<T>(
 ): [T, (newValue: T | ((prev: T) => T)) => void] {
   const { name, componentName = 'Unknown', logAllChanges = false, logOnlyChanged = true, compareFunction } = options;
   
-  // If debug is disabled, just use regular useState
   const shouldDebug = config.debug.enabled && config.debug.consoleEnabled;
   const [value, setValueInternal] = useState<T>(initialValue);
   
-  if (!shouldDebug) {
-    return [value, setValueInternal];
-  }
-  
+  // Always call hooks - React requirement
   const prevValueRef = useRef<T>(initialValue);
   const { logStats } = useDebugStateLogger({
     componentName,
     name,
     initialValue,
     logAllChanges,
-    disabled: false
+    disabled: !shouldDebug
   });
+
+  // Early return after all hooks are called
+  if (!shouldDebug) {
+    return [value, setValueInternal];
+  }
 
   // Use refs to keep stable references
   const logOnlyChangedRef = useRef(logOnlyChanged);

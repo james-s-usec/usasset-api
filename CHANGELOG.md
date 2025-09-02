@@ -5,7 +5,12 @@ All notable changes to the USAsset project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2025-09-02
+
+**🚀 DEPLOYED TO AZURE**
+- Frontend: https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io/
+- Backend: https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/
+- Build Version: 6936680
 
 ### Fixed
 - **Infinite Re-render Issue**: Fixed infinite re-render loop in project member management
