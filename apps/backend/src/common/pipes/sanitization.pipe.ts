@@ -10,29 +10,42 @@ import { PipeTransform, Injectable } from '@nestjs/common';
 @Injectable()
 export class SanitizationPipe implements PipeTransform {
   public transform(value: unknown): unknown {
-    // Handle string values
     if (typeof value === 'string') {
-      // Basic sanitization: trim and remove angle brackets
-      return value.trim().replace(/[<>]/g, '');
+      return this.sanitizeString(value);
     }
 
-    // Handle objects recursively
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      const sanitized: Record<string, unknown> = {};
-      for (const key in value) {
-        if (Object.prototype.hasOwnProperty.call(value, key)) {
-          sanitized[key] = this.transform((value as Record<string, unknown>)[key]);
-        }
-      }
-      return sanitized;
+    if (this.isPlainObject(value)) {
+      return this.sanitizeObject(value as Record<string, unknown>);
     }
 
-    // Handle arrays
     if (Array.isArray(value)) {
-      return value.map(item => this.transform(item));
+      return this.sanitizeArray(value);
     }
 
-    // Return other types unchanged
     return value;
+  }
+
+  private sanitizeString(value: string): string {
+    return value.trim().replace(/[<>]/g, '');
+  }
+
+  private isPlainObject(value: unknown): boolean {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  private sanitizeObject(
+    obj: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const sanitized: Record<string, unknown> = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        sanitized[key] = this.transform(obj[key]);
+      }
+    }
+    return sanitized;
+  }
+
+  private sanitizeArray(arr: unknown[]): unknown[] {
+    return arr.map((item) => this.transform(item));
   }
 }

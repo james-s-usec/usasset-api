@@ -25,6 +25,8 @@ interface UseUsersPageHandlersProps {
   logCustom: (message: string, data?: unknown) => void;
   startTiming: (name: string) => string | undefined;
   endTiming: (mark?: string, name?: string) => void;
+  showSuccess?: (message: string) => void;
+  showError?: (message: string) => void;
 }
 
 interface UseUsersPageHandlersReturn {
@@ -51,43 +53,65 @@ const useHandlersSetup = (props: UseUsersPageHandlersProps): {
   return { logSubmitStart, handleUpdate, handleCreate, dialogHandlers };
 };
 
-const useSubmitHandler = (
-  props: UseUsersPageHandlersProps,
-  handlers: ReturnType<typeof useHandlersSetup>
-): (() => Promise<void>) => {
-  const { editingUser, closeDialog, logCustom, startTiming, endTiming } = props;
+const createUserHandlers = (
+  handleUpdate: ReturnType<typeof createUpdateHandler>, 
+  handleCreate: ReturnType<typeof createCreateHandler>, 
+  showSuccess?: (message: string) => void
+): {
+  handleUpdateUser: (user: UserData, mark?: string) => Promise<void>;
+  handleCreateUser: (mark?: string) => Promise<void>;
+} => ({
+  handleUpdateUser: async (user: UserData, mark?: string): Promise<void> => {
+    await handleUpdate(user, mark);
+    showSuccess?.(`User "${user.name || user.email}" updated successfully`);
+  },
+  handleCreateUser: async (mark?: string): Promise<void> => {
+    await handleCreate(mark);
+    showSuccess?.('User created successfully');
+  }
+});
+
+const useSubmitHandler = (props: UseUsersPageHandlersProps, handlers: ReturnType<typeof useHandlersSetup>): (() => Promise<void>) => {
+  const { editingUser, closeDialog, logCustom, startTiming, endTiming, showSuccess, showError } = props;
   const { logSubmitStart, handleUpdate, handleCreate } = handlers;
+  const { handleUpdateUser, handleCreateUser } = createUserHandlers(handleUpdate, handleCreate, showSuccess);
   
   return useCallback(async (): Promise<void> => {
     const operation = editingUser ? 'update' : 'create';
     const mark = startTiming(`${operation}-user`);
-    
     logSubmitStart(operation, editingUser?.id);
 
     try {
       if (editingUser) {
-        await handleUpdate(editingUser, mark);
+        await handleUpdateUser(editingUser, mark);
       } else {
-        await handleCreate(mark);
+        await handleCreateUser(mark);
       }
       closeDialog();
     } catch (error) {
       logCustom(`Failed to ${operation} user`, { error });
+      showError?.(`Failed to ${operation} user`);
       endTiming(mark, `${operation}-user-error`);
     }
-  }, [editingUser, closeDialog, logCustom, startTiming, endTiming, handleCreate, handleUpdate, logSubmitStart]);
+  }, [editingUser, closeDialog, logCustom, startTiming, endTiming, showError, handleUpdateUser, handleCreateUser, logSubmitStart]);
 };
 
 export function useUsersPageHandlers(props: UseUsersPageHandlersProps): UseUsersPageHandlersReturn {
-  const { deleteUser, logEvent, logCustom, startTiming, endTiming } = props;
+  const { deleteUser, logEvent, logCustom, startTiming, endTiming, showSuccess, showError } = props;
   
   const handlers = useHandlersSetup(props);
   const handleSubmit = useSubmitHandler(props, handlers);
 
   const handleDeleteUser = useCallback(async (user: UserData): Promise<void> => {
     const deleteHandler = createDeleteHandler(deleteUser, { logEvent, logCustom, startTiming, endTiming });
-    return await deleteHandler(user);
-  }, [deleteUser, logEvent, logCustom, startTiming, endTiming]);
+    try {
+      await deleteHandler(user);
+      showSuccess?.(`User "${user.name || user.email}" deleted successfully`);
+    } catch (error) {
+      showError?.('Failed to delete user');
+      throw error; // Re-throw to maintain existing error handling
+    }
+  }, [deleteUser, logEvent, logCustom, startTiming, endTiming, showSuccess, showError]);
 
   return {
     handleSubmit,

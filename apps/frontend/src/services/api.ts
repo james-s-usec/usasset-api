@@ -53,6 +53,11 @@ class ApiService {
         throw new Error(`API Error: ${response.status} ${response.statusText}`)
       }
 
+      // Handle 204 No Content responses (e.g., successful deletions)
+      if (response.status === 204) {
+        return {} as T
+      }
+
       return response.json()
     } catch (error) {
       clearTimeout(timeoutId)

@@ -10,8 +10,16 @@ import { ResponseTransformInterceptor } from './common/interceptors/response-tra
 function configureCors(
   app: Awaited<ReturnType<typeof NestFactory.create>>,
 ): void {
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5175',
+      ];
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
   });
 }

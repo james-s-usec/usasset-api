@@ -9,15 +9,18 @@ import { useUsers } from '../hooks/useUsers';
 import { useUserDialog } from '../hooks/useUserDialog';
 import { useDebugComponent } from '../hooks/useDebugComponent';
 import { useUsersPageHandlers } from '../hooks/useUsersPageHandlers';
+import { useNotifications } from '../hooks/useNotifications';
 import { UsersPageHeader } from '../components/UsersPageHeader';
 import { UsersPageContent } from '../components/UsersPageContent';
 import { UserDialog } from '../components/UserDialog';
+import { NotificationSnackbar } from '../components/NotificationSnackbar';
 
 export function UsersPage(): React.ReactElement {
   const debug = useDebugComponent({ name: 'UsersPage', trackRenders: true, trackPerformance: true });
   const users = useUsers();
   const dialog = useUserDialog();
-  const handlers = useUsersPageHandlers({ ...dialog, ...users, ...debug, deleteUser: users.deleteUser });
+  const notifications = useNotifications();
+  const handlers = useUsersPageHandlers({ ...dialog, ...users, ...debug, ...notifications, deleteUser: users.deleteUser });
 
   return (
     <Box sx={{ p: 4 }}>
@@ -32,6 +35,10 @@ export function UsersPage(): React.ReactElement {
         formData={dialog.formData} onClose={handlers.handleCloseDialog}
         onSubmit={handlers.handleSubmit} onFormChange={dialog.updateFormData}
         isValid={dialog.isFormValid}
+      />
+      <NotificationSnackbar
+        notifications={notifications.notifications}
+        onClose={notifications.hideNotification}
       />
     </Box>
   );
