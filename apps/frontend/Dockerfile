@@ -1,8 +1,12 @@
 FROM node:20-alpine as build
 
-# Accept build argument for API URL
+# Accept build arguments
 ARG VITE_API_URL=http://localhost:3000
+ARG VITE_APP_VERSION=dev
+ARG VITE_BUILD_TIME=unknown
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
+ENV VITE_BUILD_TIME=$VITE_BUILD_TIME
 
 WORKDIR /app
 COPY package*.json ./

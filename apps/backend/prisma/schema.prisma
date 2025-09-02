@@ -27,6 +27,10 @@ model User {
   deleted_at DateTime?
   deleted_by String?
   
+  // Relations
+  owned_projects Project[]
+  project_memberships ProjectMember[]
+  
   @@index([email])
   @@index([role])
   @@index([created_at])
@@ -61,4 +65,59 @@ enum LogLevel {
   WARN
   ERROR
   FATAL
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(DRAFT)
+  owner_id    String
+  is_deleted  Boolean       @default(false)
+  created_at  DateTime      @default(now())
+  created_by  String?
+  updated_at  DateTime      @updatedAt
+  updated_by  String?
+  deleted_at  DateTime?
+  deleted_by  String?
+  
+  // Relations
+  owner       User          @relation(fields: [owner_id], references: [id])
+  members     ProjectMember[]
+  
+  @@index([owner_id])
+  @@index([status])
+  @@index([created_at])
+  @@index([is_deleted])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id         String      @id @default(uuid())
+  project_id String
+  user_id    String
+  role       ProjectRole @default(MEMBER)
+  joined_at  DateTime    @default(now())
+  
+  // Relations
+  project    Project     @relation(fields: [project_id], references: [id])
+  user       User        @relation(fields: [user_id], references: [id])
+  
+  @@unique([project_id, user_id])
+  @@index([user_id])
+  @@map("project_members")
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
 }

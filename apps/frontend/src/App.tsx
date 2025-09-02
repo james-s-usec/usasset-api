@@ -66,16 +66,22 @@ const HomePage = (): React.ReactElement => {
 const AppContent = (): React.ReactElement => {
   const { messages, clearMessages, copyAllDebugInfo, clearDatabaseLogs } = useDebug()
   const { settings } = useSettings()
+  
+  // Get build version from environment or use 'dev' as fallback
+  const version = import.meta.env.VITE_APP_VERSION || 'dev'
+  const buildTime = import.meta.env.VITE_BUILD_TIME || new Date().toISOString()
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <NavigationBar />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/debug" element={<DebugPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Routes>
+      <Box sx={{ flexGrow: 1 }}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/debug" element={<DebugPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Routes>
+      </Box>
       {settings.debugConsole && (
         <FloatingDebugConsole 
           messages={messages}
@@ -84,6 +90,20 @@ const AppContent = (): React.ReactElement => {
           onClearDatabase={clearDatabaseLogs}
         />
       )}
+      {/* Version Footer - Always Visible */}
+      <Box 
+        component="footer" 
+        sx={{ 
+          backgroundColor: '#f5f5f5', 
+          borderTop: '1px solid #ddd', 
+          p: 1, 
+          textAlign: 'center',
+          fontSize: '0.875rem',
+          color: '#666'
+        }}
+      >
+        Version: {version} | Built: {buildTime}
+      </Box>
     </Box>
   )
 }

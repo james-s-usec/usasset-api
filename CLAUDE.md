@@ -77,12 +77,8 @@ npm run typecheck                             # TypeScript validation (all works
 ./bin/usasset status                          # Show process PID and status
 ./bin/usasset stop                           # Graceful shutdown (SIGTERM)
 
-# Deployment & Verification (use v2 for production)
-./utilities/deployment/update-azure-v2.sh     # Deploy to Azure (hardened)
-./utilities/deployment/verify-deployment-v2.sh # Verify deployment (8 checks)
-# Legacy scripts (deprecated - kept for compatibility only):
-# ./utilities/deployment/update-azure.sh      
-# ./utilities/deployment/verify-deployment.sh
+# 🚀 DEPLOYMENT - See docs/DEPLOYMENT_SOP.md
+# DO NOT use scripts - they timeout. Build locally, push to ACR, deploy.
 
 # Database
 docker-compose up -d                          # Start local PostgreSQL
@@ -114,54 +110,17 @@ cd apps/frontend && npm run dev
 - Backend API: http://localhost:3000
 - Health Check: http://localhost:3000/health
 
-### Deployment & Verification
+### Deployment 
 
-#### Quick Deploy Commands
-```bash
-# Deploy to Azure (from project root)
-cd utilities/deployment
-./update-azure-v2.sh     # Hardened script with validation
-                        # Option 1: Backend only
-                        # Option 2: Frontend only  
-                        # Option 3: Both (recommended for features)
-                        # Option 4: Restart without rebuild
-                        # Option 5: Validate environment only
+**📌 See `/docs/DEPLOYMENT_SOP.md` for the ONLY working deployment method**
 
-# CRITICAL: Always verify after deployment
-./verify-deployment-v2.sh # Runs 8 health checks with performance monitoring
-```
+Quick summary:
+1. Build Docker images locally
+2. Push to Azure Container Registry  
+3. Deploy with `az containerapp update`
+4. Verify with health endpoint
 
-#### Verification Process
-The `verify-deployment-v2.sh` script performs these checks:
-1. **Backend Health** - API responds at /health endpoint
-2. **Database Connection** - Verifies PostgreSQL connectivity
-3. **Version Match** - Confirms deployed commit matches git HEAD
-4. **CORS Configuration** - Tests frontend-backend communication
-5. **Frontend Accessibility** - Validates UI is accessible
-6. **Container Revisions** - Checks Azure Container App status
-7. **Log Correlation** - Links to deployment logs for debugging
-
-#### Logging Structure
-All operations log to `.logs/` directory with timestamps:
-- `azure-update_YYYYMMDD_HHMMSS.log` - Deployment logs
-- `verify-deployment_YYYYMMDD_HHMMSS.log` - Verification results
-- Test/build logs also saved here for CI/CD tracking
-
-#### Troubleshooting Deployment Issues
-```bash
-# If deployment times out (normal - continues in background)
-az containerapp revision list -n usasset-backend -g useng-usasset-api-rg --query "[0].name" -o tsv
-
-# Check container logs
-az containerapp logs show -n usasset-backend -g useng-usasset-api-rg --tail 50
-az containerapp logs show -n usasset-frontend -g useng-usasset-api-rg --tail 50
-
-# Verify images in registry
-az acr repository show-tags --name usassetacryf2eqktewmxp2 --repository backend --orderby time_desc --top 5
-
-# Force restart if needed
-./update-azure.sh  # Choose option 4
-```
+DO NOT use the deployment scripts - they have timeout issues.
 
 ## Environment Configuration Summary
 Backend is configured for seamless local development and Azure production deployment:
