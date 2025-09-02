@@ -12,6 +12,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 import { LogsModule } from './logs/logs.module';
+import { ProjectModule } from './features/projects/project.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { LogsModule } from './logs/logs.module';
     UserModule,
     HealthModule,
     LogsModule,
+    ProjectModule,
   ],
   controllers: [AppController],
   providers: [AppService, GlobalExceptionFilter, ResponseTransformInterceptor],

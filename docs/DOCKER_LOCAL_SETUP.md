@@ -211,5 +211,5 @@ docker-compose up --build
 
 ## Next Steps
 - Run tests: `docker-compose exec backend npm test`
-- Deploy to Azure: Use `utilities/deployment/update-azure.sh`
+- Deploy to Azure: Follow `/docs/DEPLOYMENT_SOP.md`
 - Monitor: Check logs with `docker-compose logs -f`

@@ -16,16 +16,22 @@
 
 # USAsset Infrastructure
 
+⚠️ **BICEP TEMPLATES DEPRECATED** - Use `/docs/DEPLOYMENT_SOP.md` instead
+
 ## Overview
-Azure Bicep templates for deploying USAsset API infrastructure and applications to Azure Container Apps.
+~~Azure Bicep templates for deploying USAsset API infrastructure and applications to Azure Container Apps.~~
+
+**Current Approach:** Manual Azure resource management with deployment via SOP.
 
 ## Project Structure
 ```
 infra/
-├── infrastructure.bicep     # Core infrastructure (ACR, DB, Key Vault, Container Environment)
-├── complete-deploy.bicep    # Complete application deployment (Backend + Frontend)
-├── simple-deploy.bicep      # Simplified deployment template  
-├── database-only.bicep      # Database-only deployment
+├── deprecated/              # ⚠️ DEPRECATED Bicep templates (DO NOT USE)
+│   ├── infrastructure.bicep
+│   ├── complete-deploy.bicep
+│   ├── simple-deploy.bicep
+│   ├── database-only.bicep
+│   └── README.md           # Why these are deprecated
 └── CLAUDE.md               # This documentation
 ```
 
@@ -158,7 +164,7 @@ az deployment group show --resource-group useng-usasset-api-rg --name <deploymen
 ```
 
 ### Update Container Apps
-**Prefer using deployment script**: `utilities/deployment/update-azure.sh`
+**Use the Standard Operating Procedure**: `/docs/DEPLOYMENT_SOP.md`
 
 Manual updates:
 ```bash
@@ -230,14 +236,14 @@ az containerapp logs show --name usasset-frontend --resource-group useng-usasset
 ### Recovery Procedures
 1. **Infrastructure Recovery**: Re-run `infrastructure.bicep`
 2. **Application Recovery**: Re-run `complete-deploy.bicep`  
-3. **Quick Recovery**: Use `utilities/deployment/update-azure.sh`
+3. **Quick Recovery**: Follow `/docs/DEPLOYMENT_SOP.md`
 
-## Deployment Script Integration
-The Bicep templates work with `utilities/deployment/update-azure.sh`:
-- Script builds and pushes container images to ACR
-- Script uses `az containerapp update` to deploy new images
-- Script handles environment variable configuration
-- Script provides options for backend-only, frontend-only, or full deployment
+## Deployment Integration
+The Bicep templates work with the deployment SOP at `/docs/DEPLOYMENT_SOP.md`:
+- SOP provides step-by-step Docker build process
+- SOP handles ACR push and `az containerapp update` 
+- SOP includes environment variable configuration
+- SOP provides options for backend-only, frontend-only, or full deployment
 
 ## Prerequisites
 - Azure CLI installed and authenticated

@@ -3,15 +3,15 @@
   
   Purpose: Primary documentation and navigation hub for USAsset monorepo
   Audience: Developers, DevOps engineers, project maintainers
-  Last Updated: 2025-08-28
-  Version: 2.0
+  Last Updated: 2025-09-02
+  Version: 2.1
   
   Quick Navigation:
   - Development Setup: See "Quick Start" section below
   - Backend API: ./apps/backend/CLAUDE.md
   - Frontend App: ./apps/frontend/CLAUDE.md  
   - Infrastructure: ./infra/CLAUDE.md
-  - Deployment: ./docs/DEPLOYMENT_SCRIPT_GUIDE.md
+  - Deployment: ./docs/DEPLOYMENT_SOP.md
 -->
 
 # USAsset Project
@@ -59,6 +59,7 @@ USAsset3/
 - 📗 **[Frontend Documentation](./apps/frontend/CLAUDE.md)** - React app, Vite config, API integration
 - ⚡ **[CLI Documentation](./apps/cli/CLAUDE.md)** - CLI tool for backend management, zero coupling
 - 🏗️ **[Infrastructure Documentation](./infra/CLAUDE.md)** - Azure Bicep templates, deployment guide
+- 🚀 **[Deployment SOP](./docs/DEPLOYMENT_SOP.md)** - THE ONLY deployment guide (step-by-step, troubleshooting)
 - 📋 **[CLI Usage Guide](./docs/CLI_USAGE_GUIDE.md)** - Complete CLI commands and workflow reference
 - 🦆 **[Debugging Guide](./docs/DEBUGGING_GUIDE.md)** - Rubber duck debugging, troubleshooting commands
 - 📚 **[Pragmatic Principles](./docs/PRAGMATIC_PRINCIPLES.md)** - Pragmatic Programmer principles applied
@@ -77,8 +78,8 @@ npm run typecheck                             # TypeScript validation (all works
 ./bin/usasset status                          # Show process PID and status
 ./bin/usasset stop                           # Graceful shutdown (SIGTERM)
 
-# 🚀 DEPLOYMENT - See docs/DEPLOYMENT_SOP.md
-# DO NOT use scripts - they timeout. Build locally, push to ACR, deploy.
+# 🚀 DEPLOYMENT - See docs/DEPLOYMENT_SOP.md (THE ONLY GUIDE)
+# Build locally, push to ACR, deploy. Step-by-step instructions included.
 
 # Database
 docker-compose up -d                          # Start local PostgreSQL
@@ -250,7 +251,7 @@ Common mistakes to avoid:
 | Version mismatch warning | Deploy after committing: `git commit -am "message" && git push` |
 | CORS errors | Backend auto-configured, if persists check CORS_ORIGIN env var |
 | Database connection failed | Check Key Vault: `az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string` |
-| Frontend not updating | Force restart: `./update-azure.sh` then option 4 |
+| Frontend not updating | Follow DEPLOYMENT_SOP.md - rebuild and deploy frontend |
 
 ## Miscellaneous Notes
 multiple MCP servers configured. - review the files here: "\\wsl.localhost\Ubuntu\home\swansonj\.config\claude\mcp" if having issues. 

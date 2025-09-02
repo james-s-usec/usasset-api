@@ -57,3 +57,5 @@ export class DebugLogger {
     }
   }
 }
+
+export const DebugService = DebugLogger;
