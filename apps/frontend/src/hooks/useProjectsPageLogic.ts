@@ -62,16 +62,6 @@ function useProjectDeleteHandler(
   }, [handleDeleteProject, projectsLength]);
 }
 
-/**
- * Create pagination change handler
- */
-function createPaginationHandler(
-  fetchProjects: (params: { page: number; limit: number }) => Promise<void>
-): (page: number, pageSize: number) => void {
-  return (page: number, pageSize: number) => {
-    void fetchProjects({ page, limit: pageSize });
-  };
-}
 
 /**
  * Composite hook that orchestrates all Projects page logic
@@ -81,7 +71,9 @@ export function useProjectsPageLogic(): ProjectsPageLogicReturn {
   const { projects, loading, error, total, fetchProjects, createProject, updateProject, deleteProject } = useProjects();
   const dialogs = useProjectDialogs();
   
-  const onPaginationChange = useCallback(createPaginationHandler(fetchProjects), [fetchProjects]);
+  const onPaginationChange = useCallback((page: number, pageSize: number) => {
+    void fetchProjects({ page, limit: pageSize });
+  }, [fetchProjects]);
   const pagination = useProjectPagination({ onPaginationChange });
 
   const onDeleteSuccess = useCallback((_: Project, wasLastItem: boolean) => {

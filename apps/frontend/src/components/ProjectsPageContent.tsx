@@ -43,17 +43,8 @@ const LoadingState: React.FC = () => (
  * Max 30 lines per function rule satisfied
  */
 export const ProjectsPageContent: React.FC<ProjectsPageContentProps> = ({
-  loading,
-  error,
-  projects,
-  total,
-  page,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
-  onEdit,
-  onDelete,
-  onManageMembers,
+  loading, error, projects, total, page, pageSize,
+  onPageChange, onPageSizeChange, onEdit, onDelete, onManageMembers,
 }) => {
   if (error) {
     return <ErrorState error={error} />;

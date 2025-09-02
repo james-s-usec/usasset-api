@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { Project } from '../types/project.types';
 
 interface ProjectDialogsState {
@@ -16,52 +16,39 @@ interface ProjectDialogsState {
   closeMembersDialog: () => void;
 }
 
+type DialogState = { open: boolean; project: Project | null };
+
+/**
+ * Create dialog action handlers
+ */
+function createDialogHandlers(
+  setDialog: React.Dispatch<React.SetStateAction<DialogState>>
+): { open: (project: Project | null) => void; close: () => void } {
+  const open = (project: Project | null): void => setDialog({ open: true, project });
+  const close = (): void => setDialog(prev => ({ ...prev, open: false }));
+  return { open, close };
+}
+
 /**
  * Hook to manage project dialog states
  * Follows the complexity budget: focused on dialog state management only
  */
 export function useProjectDialogs(): ProjectDialogsState {
-  // Consolidated state for project dialog
-  const [projectDialog, setProjectDialog] = useState<{
-    open: boolean;
-    project: Project | null;
-  }>({ open: false, project: null });
+  const [projectDialog, setProjectDialog] = useState<DialogState>({ open: false, project: null });
+  const [membersDialog, setMembersDialog] = useState<DialogState>({ open: false, project: null });
 
-  // Consolidated state for members dialog
-  const [membersDialog, setMembersDialog] = useState<{
-    open: boolean;
-    project: Project | null;
-  }>({ open: false, project: null });
-
-  const openCreateDialog = useCallback(() => {
-    setProjectDialog({ open: true, project: null });
-  }, []);
-
-  const openEditDialog = useCallback((project: Project) => {
-    setProjectDialog({ open: true, project });
-  }, []);
-
-  const closeProjectDialog = useCallback(() => {
-    setProjectDialog(prev => ({ ...prev, open: false }));
-  }, []);
-
-  const openMembersDialog = useCallback((project: Project) => {
-    setMembersDialog({ open: true, project });
-  }, []);
-
-  const closeMembersDialog = useCallback(() => {
-    setMembersDialog(prev => ({ ...prev, open: false }));
-  }, []);
+  const projectHandlers = useMemo(() => createDialogHandlers(setProjectDialog), []);
+  const membersHandlers = useMemo(() => createDialogHandlers(setMembersDialog), []);
 
   return {
     dialogOpen: projectDialog.open,
     selectedProject: projectDialog.project,
     membersDialogOpen: membersDialog.open,
     membersProject: membersDialog.project,
-    openCreateDialog,
-    openEditDialog,
-    closeProjectDialog,
-    openMembersDialog,
-    closeMembersDialog,
+    openCreateDialog: useCallback(() => projectHandlers.open(null), [projectHandlers]),
+    openEditDialog: useCallback((project: Project) => projectHandlers.open(project), [projectHandlers]),
+    closeProjectDialog: useCallback(() => projectHandlers.close(), [projectHandlers]),
+    openMembersDialog: useCallback((project: Project) => membersHandlers.open(project), [membersHandlers]),
+    closeMembersDialog: useCallback(() => membersHandlers.close(), [membersHandlers]),
   };
 }
