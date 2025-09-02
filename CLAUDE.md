@@ -80,7 +80,7 @@ npm run typecheck                             # TypeScript validation (all works
 # Deployment & Verification (use v2 for production)
 ./utilities/deployment/update-azure-v2.sh     # Deploy to Azure (hardened)
 ./utilities/deployment/verify-deployment-v2.sh # Verify deployment (8 checks)
-# Legacy scripts (deprecated, use v2 above):
+# Legacy scripts (deprecated - kept for compatibility only):
 # ./utilities/deployment/update-azure.sh      
 # ./utilities/deployment/verify-deployment.sh
 

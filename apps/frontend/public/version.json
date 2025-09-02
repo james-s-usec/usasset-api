@@ -1,0 +1,8 @@
+{
+  "version": "2.1.0-toast-notifications",
+  "buildTime": "20250902_161345",
+  "gitCommit": "f95c715",
+  "environment": "development",
+  "features": ["toast-notifications", "cors-fix", "api-204-fix", "debugging-infrastructure"],
+  "deploymentId": "toast-notif-20250902"
+}

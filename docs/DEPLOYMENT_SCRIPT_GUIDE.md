@@ -1,58 +1,82 @@
-# Azure Deployment Script Usage Guide
+# Azure Deployment Script Usage Guide (v2)
+
+⚡ **Using Production-Hardened v2 Script**
 
 ## Quick Start
 
 ### Deploy Backend Only
 ```bash
-./utilities/deployment/update-azure.sh
+./utilities/deployment/update-azure-v2.sh
 # Select option 1
 ```
 
 ### Deploy Frontend Only
 ```bash
-./utilities/deployment/update-azure.sh
+./utilities/deployment/update-azure-v2.sh
 # Select option 2
 ```
 
-### Deploy Both Applications
+### Deploy Both Applications (Recommended)
 ```bash
-./utilities/deployment/update-azure.sh
+./utilities/deployment/update-azure-v2.sh
 # Select option 3
 ```
 
 ### Restart Without Rebuild
 ```bash
-./utilities/deployment/update-azure.sh
+./utilities/deployment/update-azure-v2.sh
 # Select option 4
 ```
 
-## What The Script Does
+### Validate Environment Only
+```bash
+./utilities/deployment/update-azure-v2.sh
+# Select option 5
+```
+
+## What The Script Does (v2 Improvements)
+
+### V2 Script Benefits
+- ✅ **Fail-fast error handling** - Crashes early with clear messages
+- ✅ **Defensive programming** - Validates prerequisites before deployment
+- ✅ **Health checks** - Waits for services to be ready after deployment
+- ✅ **Modular design** - Uses shared library for maintainability
+- ✅ **Comprehensive logging** - Detailed logs for debugging
+- ✅ **Version tracking** - Git commit + build time tracking
 
 ### Option 1: Backend Only
-1. **Builds Docker image** with Git commit tag
-2. **Sets environment variables**:
+1. **Validates prerequisites** (Azure CLI, git, resources)
+2. **Gets git info** (commit, branch, build time)
+3. **Builds Docker image** with version tracking
+4. **Sets environment variables**:
    - `APP_VERSION` - Git commit hash
-   - `BUILD_TIME` - Current timestamp
+   - `BUILD_TIME` - Current timestamp  
    - `CORS_ORIGIN` - Frontend URL for CORS
-3. **Deploys to Container Apps** with new image
-4. **Logs everything** to `.logs/` directory
+5. **Deploys to Container Apps** with health checks
+6. **Waits for health** - Ensures backend is ready
 
-### Option 2: Frontend Only
-1. **Builds Docker image** with:
-   - `VITE_API_URL` build arg (baked into bundle)
-   - Git commit tag
-2. **Deploys to Container Apps** with new image
-3. **Note**: May need manual restart to see changes
+### Option 2: Frontend Only  
+1. **Validates prerequisites**
+2. **Builds Docker image** with `VITE_API_URL` build arg
+3. **Deploys to Container Apps** 
+4. **Waits for accessibility** - Ensures frontend is ready
 
-### Option 3: Both Applications
-1. **Builds both images in parallel** for speed
-2. **Deploys both** with proper environment variables
-3. **Ensures frontend-backend communication**
+### Option 3: Both Applications (Recommended)
+1. **Full stack deployment** with dependency management
+2. **Deploys backend first** then frontend
+3. **Ensures communication** between services
+4. **Complete health validation**
 
 ### Option 4: Restart Only
 1. **No rebuild** - uses existing images
 2. **Restarts containers** to apply config changes
-3. **Faster** but doesn't include code changes
+3. **Quick option** for environment variable changes
+
+### Option 5: Validate Environment
+1. **Checks all prerequisites** without deploying
+2. **Validates Azure resources** exist
+3. **Tests connectivity** to services
+4. **Useful for troubleshooting**
 
 ## Important Environment Variables
 

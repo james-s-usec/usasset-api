@@ -165,7 +165,14 @@ curl -X POST $URL/logs \
 
 ## Deployment Process
 
-### Step-by-Step Deployment
+### Recommended: Use v2 Deployment Script
+```bash
+# From utilities/deployment directory
+./update-azure-v2.sh
+# Select option 3 for both applications (recommended)
+```
+
+### Manual Deployment (Advanced Users)
 1. **Pre-flight checks**
    ```bash
    # Verify local build works
@@ -195,10 +202,11 @@ curl -X POST $URL/logs \
 
 4. **Verify deployment**
    ```bash
-   # Check logs
-   az containerapp logs show -n $APP -g $RG --tail 20
+   # Use v2 verification script (recommended)
+   ./verify-deployment-v2.sh
    
-   # Test endpoints
+   # Or manual verification
+   az containerapp logs show -n $APP -g $RG --tail 20
    curl https://YOUR_URL/version
    ```
 
