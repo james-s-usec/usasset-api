@@ -1,15 +1,13 @@
-import { useState, useCallback } from 'react';
-import { projectApi } from '../services/project-api';
+import { useDebugEffect } from './useDebugEffect';
+import { useProjectsState } from './useProjectsState';
+import { useProjectsList } from './useProjectsList';
+import { useProjectsCRUD } from './useProjectsCRUD';
 import type { 
   Project, 
   CreateProjectDto, 
   UpdateProjectDto,
   ProjectSearchParams 
 } from '../types/project.types';
-import { useDebugState } from './useDebugState';
-import { useDebugEffect } from './useDebugEffect';
-import { DebugService } from '../services/debug-logger';
-import type { ApiError } from '../types/error.types';
 
 interface UseProjectsReturn {
   projects: Project[];
@@ -24,104 +22,34 @@ interface UseProjectsReturn {
 }
 
 export function useProjects(): UseProjectsReturn {
-  const [projects, setProjects] = useDebugState<Project[]>([], { name: 'projects', componentName: 'useProjects' });
-  const [loading, setLoading] = useDebugState(false, { name: 'loading', componentName: 'useProjects' });
-  const [error, setError] = useDebugState<string | null>(null, { name: 'error', componentName: 'useProjects' });
-  const [total, setTotal] = useDebugState(0, { name: 'total', componentName: 'useProjects' });
-  const [lastParams, setLastParams] = useState<ProjectSearchParams | undefined>();
+  const state = useProjectsState();
+  const list = useProjectsList({
+    setProjects: state.setProjects,
+    setLoading: state.setLoading,
+    setError: state.setError,
+    setTotal: state.setTotal,
+    setLastParams: state.setLastParams,
+    lastParams: state.lastParams
+  });
+  const crud = useProjectsCRUD({
+    setProjects: state.setProjects,
+    setError: state.setError,
+    setTotal: state.setTotal,
+    fetchProjects: list.fetchProjects,
+    lastParams: state.lastParams
+  });
 
-  const fetchProjects = useCallback(async (params?: ProjectSearchParams) => {
-    try {
-      setLoading(true);
-      setError(null);
-      setLastParams(params);
-      
-      const response = await projectApi.getProjects(params);
-      setProjects(response.data);
-      setTotal(response.total);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch projects';
-      setError(errorMessage);
-      DebugService.logError('Failed to fetch projects', err as ApiError);
-    } finally {
-      setLoading(false);
-    }
-  }, [setProjects, setLoading, setError, setTotal]);
-
-  const createProject = useCallback(async (data: CreateProjectDto): Promise<Project | undefined> => {
-    try {
-      setError(null);
-      const newProject = await projectApi.createProject(data);
-      
-      // Refresh the list to include the new project
-      await fetchProjects(lastParams);
-      
-      return newProject;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create project';
-      setError(errorMessage);
-      DebugService.logError('Failed to create project', err as ApiError);
-      return undefined;
-    }
-  }, [fetchProjects, lastParams, setError]);
-
-  const updateProject = useCallback(async (id: string, data: UpdateProjectDto): Promise<Project | undefined> => {
-    try {
-      setError(null);
-      const updatedProject = await projectApi.updateProject(id, data);
-      
-      // Update the project in the local state
-      setProjects(prev => prev.map(p => p.id === id ? updatedProject : p));
-      
-      return updatedProject;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update project';
-      setError(errorMessage);
-      DebugService.logError('Failed to update project', err as ApiError);
-      return undefined;
-    }
-  }, [setProjects, setError]);
-
-  const deleteProject = useCallback(async (id: string): Promise<boolean> => {
-    try {
-      setError(null);
-      await projectApi.deleteProject(id);
-      
-      // Remove the project from local state
-      setProjects(prev => prev.filter(p => p.id !== id));
-      setTotal(prev => prev - 1);
-      
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to delete project';
-      setError(errorMessage);
-      DebugService.logError('Failed to delete project', err as ApiError);
-      return false;
-    }
-  }, [setProjects, setTotal, setError]);
-
-  const refreshProjects = useCallback(async () => {
-    await fetchProjects(lastParams);
-  }, [fetchProjects, lastParams]);
-
-  // Initial fetch
   useDebugEffect(
-    () => {
-      void fetchProjects({ page: 1, limit: 10 });
-    },
+    () => void list.fetchProjects({ page: 1, limit: 10 }),
     [],
     { name: 'initialFetch', componentName: 'useProjects' }
   );
 
   return {
-    projects,
-    loading,
-    error,
-    total,
-    fetchProjects,
-    createProject,
-    updateProject,
-    deleteProject,
-    refreshProjects,
+    projects: state.projects, loading: state.loading,
+    error: state.error, total: state.total,
+    fetchProjects: list.fetchProjects, refreshProjects: list.refreshProjects,
+    createProject: crud.createProject, updateProject: crud.updateProject,
+    deleteProject: crud.deleteProject
   };
 }

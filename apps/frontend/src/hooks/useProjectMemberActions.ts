@@ -3,21 +3,68 @@ import type { Project, ProjectMember } from '../types/project.types';
 import { ProjectRole } from '../types/project.types';
 import { useProjectMembers } from './useProjectMembers';
 import { useUsers } from './useUsers';
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-}
+import type { UserData } from '../types/user';
 
 interface UseProjectMemberActionsReturn {
   members: ProjectMember[];
   loading: boolean;
   error: string | null;
-  availableUsers: User[];
+  availableUsers: UserData[];
   handleAddMember: (userId: string, role: ProjectRole) => Promise<void>;
   handleUpdateRole: (memberId: string, role: ProjectRole) => Promise<void>;
   handleRemoveMember: (memberId: string) => Promise<void>;
 }
+
+// Helper function to create add member handler
+const createAddMemberHandler = (
+  project: Project | null,
+  assignUser: (projectId: string, data: { user_id: string; role: ProjectRole }) => Promise<ProjectMember | undefined>
+) => {
+  return async (userId: string, role: ProjectRole): Promise<void> => {
+    if (!project) return;
+    await assignUser(project.id, { user_id: userId, role });
+  };
+};
+
+// Helper function to create update role handler
+const createUpdateRoleHandler = (
+  project: Project | null,
+  members: ProjectMember[],
+  updateMemberRole: (projectId: string, userId: string, role: ProjectRole) => Promise<boolean>
+) => {
+  return async (memberId: string, role: ProjectRole): Promise<void> => {
+    if (!project) return;
+    const member = members.find(m => m.id === memberId);
+    if (member) {
+      await updateMemberRole(project.id, member.user.id, role);
+    }
+  };
+};
+
+// Helper function to create remove member handler
+const createRemoveMemberHandler = (
+  project: Project | null,
+  members: ProjectMember[],
+  removeMember: (projectId: string, userId: string) => Promise<boolean>
+) => {
+  return async (memberId: string): Promise<void> => {
+    if (!project) return;
+    const member = members.find(m => m.id === memberId);
+    if (member && member.role !== ProjectRole.OWNER) {
+      const userName = member.user.name || member.user.email;
+      if (window.confirm(`Remove ${userName} from the project?`)) {
+        await removeMember(project.id, member.user.id);
+      }
+    }
+  };
+};
+
+// Helper function to filter available users
+const filterAvailableUsers = (users: UserData[], members: ProjectMember[]): UserData[] => {
+  return users.filter(
+    (user) => !members.some(member => member.user.id === user.id)
+  );
+};
 
 export const useProjectMemberActions = (open: boolean, project: Project | null): UseProjectMemberActionsReturn => {
   const { 
@@ -39,40 +86,13 @@ export const useProjectMemberActions = (open: boolean, project: Project | null):
     }
   }, [open, project, fetchMembers, fetchUsers]);
 
-  const handleAddMember = async (userId: string, role: ProjectRole): Promise<void> => {
-    if (!project) return;
-    await assignUser(project.id, { user_id: userId, role });
-  };
-
-  const handleUpdateRole = async (memberId: string, role: ProjectRole): Promise<void> => {
-    if (!project) return;
-    const member = members.find(m => m.id === memberId);
-    if (member) {
-      await updateMemberRole(project.id, member.user.id, role);
-    }
-  };
-
-  const handleRemoveMember = async (memberId: string): Promise<void> => {
-    if (!project) return;
-    const member = members.find(m => m.id === memberId);
-    if (member && member.role !== ProjectRole.OWNER) {
-      if (window.confirm(`Remove ${member.user.name || member.user.email} from the project?`)) {
-        await removeMember(project.id, member.user.id);
-      }
-    }
-  };
-
-  const availableUsers = users.filter(
-    (user) => !members.some(member => member.user.id === user.id)
-  );
-
   return {
     members,
     loading,
     error,
-    availableUsers,
-    handleAddMember,
-    handleUpdateRole,
-    handleRemoveMember,
+    availableUsers: filterAvailableUsers(users, members),
+    handleAddMember: createAddMemberHandler(project, assignUser),
+    handleUpdateRole: createUpdateRoleHandler(project, members, updateMemberRole),
+    handleRemoveMember: createRemoveMemberHandler(project, members, removeMember),
   };
 };

@@ -17,20 +17,95 @@ interface UseProjectFormSubmitProps {
   onClose: () => void;
 }
 
-export const useProjectFormSubmit = ({
-  setSaving,
-  setError,
-  onSave,
-  onClose,
-}: UseProjectFormSubmitProps): UseProjectFormSubmitReturn => {
-  const validateForm = (formData: ProjectFormData): boolean => {
-    if (!formData.name.trim()) {
-      setError('Project name is required');
-      return false;
-    }
-    return true;
-  };
+// Helper function to create update data
+const createUpdateData = (formData: ProjectFormData): UpdateProjectDto => ({
+  name: formData.name,
+  description: formData.description || undefined,
+  status: formData.status,
+});
 
+// Helper function to create new project data
+const createProjectData = (
+  formData: ProjectFormData,
+  currentUserId: string
+): CreateProjectDto => ({
+  name: formData.name,
+  description: formData.description || undefined,
+  status: formData.status,
+  owner_id: currentUserId,
+});
+
+// Helper function to prepare save data based on project existence
+const prepareSaveData = (
+  formData: ProjectFormData,
+  project: Project | null,
+  currentUserId: string
+): CreateProjectDto | UpdateProjectDto => {
+  if (project) {
+    return createUpdateData(formData);
+  }
+  return createProjectData(formData, currentUserId);
+};
+
+// Helper function to handle save operation
+const performSave = async (
+  saveData: CreateProjectDto | UpdateProjectDto,
+  onSave: (data: CreateProjectDto | UpdateProjectDto) => Promise<void>,
+  onClose: () => void
+): Promise<void> => {
+  await onSave(saveData);
+  onClose();
+};
+
+// Context object for save operation
+interface SaveContext {
+  formData: ProjectFormData;
+  project: Project | null;
+  currentUserId: string;
+  callbacks: UseProjectFormSubmitProps;
+}
+
+// Helper function to handle error
+const handleSaveError = (
+  err: unknown,
+  setError: (error: string | null) => void
+): void => {
+  setError(err instanceof Error ? err.message : 'Failed to save project');
+};
+
+// Helper function to execute save with state management
+const executeSave = async (context: SaveContext): Promise<void> => {
+  const { formData, project, currentUserId, callbacks } = context;
+  const { setSaving, setError, onSave, onClose } = callbacks;
+  
+  setSaving(true);
+  setError(null);
+
+  try {
+    const saveData = prepareSaveData(formData, project, currentUserId);
+    await performSave(saveData, onSave, onClose);
+  } catch (err) {
+    handleSaveError(err, setError);
+  } finally {
+    setSaving(false);
+  }
+};
+
+// Helper function to validate form data
+const validateFormData = (
+  formData: ProjectFormData,
+  setError: (error: string | null) => void
+): boolean => {
+  if (!formData.name.trim()) {
+    setError('Project name is required');
+    return false;
+  }
+  return true;
+};
+
+export const useProjectFormSubmit = (
+  props: UseProjectFormSubmitProps
+): UseProjectFormSubmitReturn => {
   const handleSubmit = async (
     e: React.FormEvent,
     formData: ProjectFormData,
@@ -39,36 +114,16 @@ export const useProjectFormSubmit = ({
   ): Promise<void> => {
     e.preventDefault();
     
-    if (!validateForm(formData)) {
+    if (!validateFormData(formData, props.setError)) {
       return;
     }
 
-    setSaving(true);
-    setError(null);
-
-    try {
-      if (project) {
-        const updateData: UpdateProjectDto = {
-          name: formData.name,
-          description: formData.description || undefined,
-          status: formData.status,
-        };
-        await onSave(updateData);
-      } else {
-        const createData: CreateProjectDto = {
-          name: formData.name,
-          description: formData.description || undefined,
-          status: formData.status,
-          owner_id: currentUserId,
-        };
-        await onSave(createData);
-      }
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save project');
-    } finally {
-      setSaving(false);
-    }
+    await executeSave({
+      formData,
+      project,
+      currentUserId,
+      callbacks: props,
+    });
   };
 
   return { handleSubmit };
