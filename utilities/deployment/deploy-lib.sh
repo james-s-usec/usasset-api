@@ -212,6 +212,42 @@ deploy_container_app() {
     
     log_info "Deploying $app_name with image tag $image_tag..."
     
+    # Check if revision already exists
+    local revision_name="${app_name}--deploy-${image_tag}"
+    local existing_revision=$(az containerapp revision list \
+        --name "$app_name" \
+        --resource-group "$RG_NAME" \
+        --query "[?name=='$revision_name'].name" -o tsv 2>/dev/null)
+    
+    if [[ -n "$existing_revision" ]]; then
+        log_info "Revision $revision_name already exists, checking if it's the active revision..."
+        
+        # Check if it's already active
+        local is_active=$(az containerapp revision list \
+            --name "$app_name" \
+            --resource-group "$RG_NAME" \
+            --query "[?name=='$revision_name' && properties.active==\`true\`].name" -o tsv 2>/dev/null)
+        
+        if [[ -n "$is_active" ]]; then
+            log_success "$app_name already running revision $revision_name"
+            return 0
+        else
+            # Activate the existing revision
+            log_info "Activating existing revision $revision_name..."
+            if az containerapp revision activate \
+                --name "$app_name" \
+                --resource-group "$RG_NAME" \
+                --revision "$revision_name" >> "$LOG_FILE" 2>&1; then
+                log_success "$app_name revision $revision_name activated"
+                return 0
+            else
+                log_error "Failed to activate revision $revision_name"
+                return 1
+            fi
+        fi
+    fi
+    
+    # Deploy new revision
     local deploy_cmd="az containerapp update"
     deploy_cmd="$deploy_cmd --name $app_name"
     deploy_cmd="$deploy_cmd --resource-group $RG_NAME"
@@ -233,6 +269,51 @@ deploy_container_app() {
         log_error "Failed to deploy $app_name"
         return 1
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Cleanup Functions
+# -----------------------------------------------------------------------------
+cleanup_old_revisions() {
+    local app_name=$1
+    local keep_count=${2:-3}  # Keep last 3 revisions by default
+    
+    log_info "Cleaning up old revisions for $app_name (keeping last $keep_count)..."
+    
+    # Get all revisions sorted by creation time
+    local revisions=$(az containerapp revision list \
+        --name "$app_name" \
+        --resource-group "$RG_NAME" \
+        --query "sort_by([].{name:name, created:properties.createdTime, active:properties.active}, &created)" \
+        -o json)
+    
+    # Count total revisions
+    local total_count=$(echo "$revisions" | jq 'length')
+    
+    if [[ $total_count -le $keep_count ]]; then
+        log_info "Only $total_count revisions exist, no cleanup needed"
+        return 0
+    fi
+    
+    # Get revisions to deactivate (skip the latest ones and active ones)
+    local to_remove=$(echo "$revisions" | jq -r ".[:-${keep_count}] | .[] | select(.active==false) | .name")
+    
+    if [[ -z "$to_remove" ]]; then
+        log_info "No inactive revisions to remove"
+        return 0
+    fi
+    
+    # Deactivate old revisions
+    for revision in $to_remove; do
+        log_info "Deactivating revision: $revision"
+        az containerapp revision deactivate \
+            --name "$app_name" \
+            --resource-group "$RG_NAME" \
+            --revision "$revision" >> "$LOG_FILE" 2>&1 || true
+    done
+    
+    log_success "Cleanup completed for $app_name"
+    return 0
 }
 
 # -----------------------------------------------------------------------------

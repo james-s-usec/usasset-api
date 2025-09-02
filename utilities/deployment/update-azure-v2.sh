@@ -48,6 +48,9 @@ deploy_backend() {
         return 1
     fi
     
+    # Cleanup old revisions
+    cleanup_old_revisions "usasset-backend" 3
+    
     log_success "Backend deployment completed successfully"
     return 0
 }
@@ -79,6 +82,9 @@ deploy_frontend() {
         log_error "Frontend health check failed"
         return 1
     fi
+    
+    # Cleanup old revisions
+    cleanup_old_revisions "usasset-frontend" 3
     
     log_success "Frontend deployment completed successfully"
     return 0
