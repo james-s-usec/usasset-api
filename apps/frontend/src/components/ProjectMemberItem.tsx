@@ -19,6 +19,18 @@ export const ProjectMemberItem: React.FC<ProjectMemberItemProps> = ({
   onUpdateRole,
   onRemoveMember,
 }) => {
+  // Handle case where user data is not populated
+  if (!member.user) {
+    return (
+      <ListItem divider>
+        <ListItemText
+          primary="Unknown User"
+          secondary="User data not available"
+        />
+      </ListItem>
+    );
+  }
+
   return (
     <ListItem divider>
       <ListItemText

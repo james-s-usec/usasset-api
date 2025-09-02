@@ -100,7 +100,7 @@ class ConfigService {
   private getDevelopmentOverrides(base: AppConfig): Partial<AppConfig> {
     return {
       api: { ...base.api, timeout: 60000 },
-      debug: { ...base.debug, enabled: true }
+      debug: { ...base.debug, enabled: false, consoleEnabled: false }
     }
   }
 

@@ -22,7 +22,8 @@ export class CreateProjectDto {
   @IsOptional()
   public status?: ProjectStatus;
 
-  @ApiProperty({ description: 'Project owner ID' })
+  @ApiProperty({ description: 'Project owner ID', required: false })
   @IsUUID()
-  public owner_id!: string;
+  @IsOptional()
+  public owner_id?: string;
 }

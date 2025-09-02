@@ -261,3 +261,39 @@ multiple MCP servers configured. - review the files here: "\\wsl.localhost\Ubunt
 - New memories should be added as bullet points under appropriate sections
 - If no suitable section exists, create a new section to categorize the memory
 - Always append new information, never replace existing content
+
+## STOP BEING AN IDIOT RULES
+
+1. **NO NEW FILES OR SCRIPTS**
+   - If something can be done with existing tools, USE THEM
+   - Don't create test scripts - just run the test
+   - Don't create seed scripts - just run the SQL
+   - Don't create helper scripts - just run the command
+
+2. **THINK BEFORE ACTING**
+   - Ask: "Can I do this with what already exists?"
+   - Ask: "Is this solving a real problem or creating busy work?"
+   - Ask: "Would a human developer create a new file for this?"
+
+3. **WHEN DEBUGGING**
+   - First: Check what's actually in the database
+   - Second: Run the actual failing command and read the error
+   - Third: Fix ONLY the specific error, nothing else
+   - Never: Create "comprehensive solutions" for simple problems
+
+4. **BE DIRECT**
+   - User says "test the API" → Run curl command
+   - User says "add test data" → Run SQL insert
+   - User says "fix the error" → Fix that specific error only
+   - Don't interpret "fix" as "redesign everything"
+
+5. **EXISTING TOOLS FIRST**
+   - Have a CLI? Use it
+   - Have curl? Use it
+   - Have SQL access? Use it
+   - Don't wrap existing tools in new scripts
+
+6. **IF UNSURE, ASK**
+   - "Do you want me to create a new script or just run the command?"
+   - "Should I fix just this error or refactor the whole thing?"
+   - Default to doing LESS, not MORE

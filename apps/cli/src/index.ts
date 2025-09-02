@@ -321,4 +321,16 @@ dbCommand
     }
   });
 
+dbCommand
+  .command("query <sql>")
+  .description("Execute a SQL query")
+  .action(async (sql: string) => {
+    const command = CommandFactory.createCommand("db:query");
+    if (command) {
+      await command.execute([sql]);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
 program.parse();

@@ -16,9 +16,11 @@ export class ProjectCommandService {
       description: dto.description ?? null,
       status: dto.status ?? 'DRAFT',
       is_deleted: false,
-      owner: {
-        connect: { id: dto.owner_id },
-      },
+      owner: dto.owner_id
+        ? {
+            connect: { id: dto.owner_id },
+          }
+        : undefined,
     });
 
     return this.toSafeDto(project);

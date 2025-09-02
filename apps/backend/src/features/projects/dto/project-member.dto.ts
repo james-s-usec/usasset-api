@@ -1,20 +1,33 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Expose, Type } from 'class-transformer';
 import { ProjectRole } from '@prisma/client';
+
+class UserInfoDto {
+  @Expose()
+  public id!: string;
+
+  @Expose()
+  public email!: string;
+
+  @Expose()
+  public name!: string | null;
+}
 
 export class ProjectMemberDto {
   @ApiProperty()
+  @Expose()
   public id!: string;
 
   @ApiProperty({ description: 'User information' })
-  public user!: {
-    id: string;
-    email: string;
-    name: string | null;
-  };
+  @Expose()
+  @Type(() => UserInfoDto)
+  public user!: UserInfoDto;
 
   @ApiProperty({ enum: ProjectRole })
+  @Expose()
   public role!: ProjectRole;
 
   @ApiProperty()
+  @Expose()
   public joined_at!: Date;
 }

@@ -37,8 +37,7 @@ class DebugUtil {
     // Check both VITE_DEBUG and VITE_DEBUG_ENABLED for flexibility
     this.isEnabled = 
       import.meta.env.VITE_DEBUG === 'true' || 
-      import.meta.env.VITE_DEBUG_ENABLED === 'true' ||
-      import.meta.env.MODE === 'development';
+      import.meta.env.VITE_DEBUG_ENABLED === 'true';
 
     // Parse enabled categories from environment
     const categoriesEnv = import.meta.env.VITE_DEBUG_CATEGORIES || '';

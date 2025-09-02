@@ -14,6 +14,7 @@ import { ApiDocsCommand } from "./api-docs.command.js";
 import { DbStatusCommand } from "./db-status.command.js";
 import { DbTablesCommand } from "./db-tables.command.js";
 import { DbMigrationsCommand } from "./db-migrations.command.js";
+import { DbQueryCommand } from "./db-query.command.js";
 
 export class CommandFactory {
   private static commands = new Map<string, () => BaseCommand>([
@@ -32,6 +33,7 @@ export class CommandFactory {
     ["db:status", (): BaseCommand => new DbStatusCommand()],
     ["db:tables", (): BaseCommand => new DbTablesCommand()],
     ["db:migrations", (): BaseCommand => new DbMigrationsCommand()],
+    ["db:query", (): BaseCommand => new DbQueryCommand()],
   ]);
 
   public static createCommand(commandKey: string): BaseCommand | undefined {

@@ -35,7 +35,7 @@ const createUpdateRoleHandler = (
   return async (memberId: string, role: ProjectRole): Promise<void> => {
     if (!project) return;
     const member = members.find(m => m.id === memberId);
-    if (member) {
+    if (member && member.user) {
       await updateMemberRole(project.id, member.user.id, role);
     }
   };
@@ -50,7 +50,7 @@ const createRemoveMemberHandler = (
   return async (memberId: string): Promise<void> => {
     if (!project) return;
     const member = members.find(m => m.id === memberId);
-    if (member && member.role !== ProjectRole.OWNER) {
+    if (member && member.user && member.role !== ProjectRole.OWNER) {
       const userName = member.user.name || member.user.email;
       if (window.confirm(`Remove ${userName} from the project?`)) {
         await removeMember(project.id, member.user.id);
@@ -62,7 +62,7 @@ const createRemoveMemberHandler = (
 // Helper function to filter available users
 const filterAvailableUsers = (users: UserData[], members: ProjectMember[]): UserData[] => {
   return users.filter(
-    (user) => !members.some(member => member.user.id === user.id)
+    (user) => !members.some(member => member.user && member.user.id === user.id)
   );
 };
 

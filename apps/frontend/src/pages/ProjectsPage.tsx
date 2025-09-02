@@ -7,7 +7,8 @@ import { ProjectDialog } from '../components/ProjectDialog';
 import { ProjectMembersDialog } from '../components/ProjectMembersDialog';
 
 // Mock current user ID - in a real app, this would come from auth context
-const CURRENT_USER_ID = 'current-user-id';
+// Using a valid UUID format as placeholder until auth is implemented
+const CURRENT_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 /**
  * ProjectsPage component
