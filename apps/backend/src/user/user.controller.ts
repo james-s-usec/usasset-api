@@ -11,7 +11,6 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   ValidationPipe,
-  NotFoundException,
   Req,
 } from '@nestjs/common';
 import {
@@ -23,7 +22,6 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { User } from '@prisma/client';
 import { UserQueryService } from './services/user-query.service';
 import { UserCommandService } from './services/user-command.service';
 import { UserBulkService } from './services/user-bulk.service';
@@ -36,6 +34,10 @@ import { BulkDeleteUserDto } from './dto/bulk-delete-user.dto';
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE } from '../common/constants';
 import { DatabaseLoggerService } from '../common/services/database-logger.service';
 import { CORRELATION_ID_KEY } from '../common/middleware/correlation-id.middleware';
+import { SanitizationPipe } from '../common/pipes/sanitization.pipe';
+import { UserNotFoundException } from '../common/exceptions/user.exceptions';
+import { SafeUserDto } from './dto/safe-user.dto';
+import { plainToInstance } from 'class-transformer';
 
 @ApiTags('users')
 @Controller('api/users')
@@ -54,21 +56,25 @@ export class UserController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   public async findAll(
     @Query(ValidationPipe) pagination: PaginationDto,
-  ): Promise<{ users: User[]; pagination: Record<string, number> }> {
+  ): Promise<{ users: SafeUserDto[]; pagination: Record<string, number> }> {
     const { page = DEFAULT_PAGE, limit = DEFAULT_PAGE_SIZE } = pagination;
-    const skip = (page - 1) * limit;
 
-    const users = await this.userQueryService.findMany();
-    const totalUsers = users.length;
-    const paginatedUsers = users.slice(skip, skip + limit);
+    const { users, total } = await this.userQueryService.findManyPaginated(
+      page,
+      limit,
+    );
+
+    const safeUsers = plainToInstance(SafeUserDto, users, {
+      excludeExtraneousValues: true,
+    });
 
     return {
-      users: paginatedUsers,
+      users: safeUsers,
       pagination: {
         page,
         limit,
-        total: totalUsers,
-        totalPages: Math.ceil(totalUsers / limit),
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
@@ -76,16 +82,28 @@ export class UserController {
   @Post('bulk')
   @HttpCode(HttpStatus.CREATED)
   public async bulkCreate(
-    @Body(ValidationPipe) bulkCreateUserDto: BulkCreateUserDto,
-  ): Promise<User[]> {
-    return this.userBulkService.bulkCreate(bulkCreateUserDto.users);
+    @Body(SanitizationPipe, ValidationPipe)
+    bulkCreateUserDto: BulkCreateUserDto,
+  ): Promise<SafeUserDto[]> {
+    const users = await this.userBulkService.bulkCreate(
+      bulkCreateUserDto.users,
+    );
+    return plainToInstance(SafeUserDto, users, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Patch('bulk')
   public async bulkUpdate(
-    @Body(ValidationPipe) bulkUpdateUserDto: BulkUpdateUserDto,
-  ): Promise<User[]> {
-    return this.userBulkService.bulkUpdate(bulkUpdateUserDto.updates);
+    @Body(SanitizationPipe, ValidationPipe)
+    bulkUpdateUserDto: BulkUpdateUserDto,
+  ): Promise<SafeUserDto[]> {
+    const users = await this.userBulkService.bulkUpdate(
+      bulkUpdateUserDto.updates,
+    );
+    return plainToInstance(SafeUserDto, users, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Delete('bulk')
@@ -124,12 +142,16 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'User found' })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  public async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<User> {
+  public async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<SafeUserDto> {
     const user = await this.userQueryService.findById(id);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new UserNotFoundException(id);
     }
-    return user;
+    return plainToInstance(SafeUserDto, user, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Post()
@@ -139,17 +161,23 @@ export class UserController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiBody({ type: CreateUserDto })
   public async create(
-    @Body(ValidationPipe) createUserDto: CreateUserDto,
-  ): Promise<User> {
-    return this.userCommandService.create(createUserDto);
+    @Body(SanitizationPipe, ValidationPipe) createUserDto: CreateUserDto,
+  ): Promise<SafeUserDto> {
+    const user = await this.userCommandService.create(createUserDto);
+    return plainToInstance(SafeUserDto, user, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Patch(':id')
   public async update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(ValidationPipe) updateUserDto: UpdateUserDto,
-  ): Promise<User> {
-    return this.userCommandService.update(id, updateUserDto);
+    @Body(SanitizationPipe, ValidationPipe) updateUserDto: UpdateUserDto,
+  ): Promise<SafeUserDto> {
+    const user = await this.userCommandService.update(id, updateUserDto);
+    return plainToInstance(SafeUserDto, user, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Delete(':id')

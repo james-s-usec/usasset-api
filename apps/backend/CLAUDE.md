@@ -475,3 +475,166 @@ npm run build                       # Rebuild application
 ```
 
 This guide ensures consistent database evolution following the project's clean architecture principles while maintaining type safety and deployment automation.
+
+## 🎯 User Feature MVP Blueprint (YAGNI Implementation Guide)
+
+### Purpose
+The User feature serves as a **production-ready reference implementation** for all future features. It demonstrates the bare minimum patterns needed for production without over-engineering.
+
+### YAGNI Principles Applied
+- ✅ **You Aren't Gonna Need It** - Only implement what's required for production
+- ✅ **Minimal Viable Patterns** - Essential security and error handling only
+- ✅ **Reference Implementation** - Copy these patterns for new features
+
+### Core Production Patterns (Bare Minimum)
+
+#### 1. Input Sanitization Pattern
+```typescript
+// File: src/common/pipes/sanitization.pipe.ts
+@Injectable()
+export class SanitizationPipe implements PipeTransform {
+  transform(value: any): any {
+    if (typeof value === 'string') {
+      return value.trim().replace(/[<>]/g, ''); // Basic XSS protection
+    }
+    return value;
+  }
+}
+
+// Usage in controllers:
+@Post()
+async create(@Body(SanitizationPipe, ValidationPipe) dto: CreateUserDto) {}
+```
+
+#### 2. Database Pagination Pattern
+```typescript
+// File: src/user/services/user-query.service.ts
+async findManyPaginated(page: number, limit: number) {
+  const skip = (page - 1) * limit;
+  return this.prisma.user.findMany({
+    skip,
+    take: limit,
+    where: { is_deleted: false },
+    orderBy: { created_at: 'desc' }
+  });
+}
+```
+
+#### 3. Standardized Error Pattern
+```typescript
+// File: src/common/exceptions/user.exceptions.ts
+export class UserNotFoundException extends NotFoundException {
+  constructor(id: string) {
+    super(`User with ID ${id} not found`);
+  }
+}
+
+// Usage:
+if (!user) throw new UserNotFoundException(id);
+```
+
+#### 4. Sensitive Data Filter Pattern
+```typescript
+// File: src/user/dto/safe-user.dto.ts
+export class SafeUserDto {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  created_at: Date;
+  // Excludes: updated_by, deleted_by, etc.
+}
+
+// Usage in services:
+return plainToInstance(SafeUserDto, user, { excludeExtraneousValues: true });
+```
+
+### Implementation Checklist (Copy for New Features)
+
+#### Phase 1: Core Security (Required)
+- [ ] Add sanitization pipe to all POST/PATCH endpoints
+- [ ] Create specific exception classes for domain errors
+- [ ] Implement safe DTO responses (exclude sensitive fields)
+- [ ] Add database-level pagination (never load all records)
+
+#### Phase 2: Search & Filter (If Needed)
+- [ ] Add search by indexed fields only
+- [ ] Use database WHERE clauses, not in-memory filtering
+- [ ] Add sorting by indexed fields
+
+#### Phase 3: Enhanced Error Handling (If Complex)
+- [ ] Custom exception filter for domain-specific errors
+- [ ] Structured error responses with correlation IDs
+
+### File Structure Template
+```
+src/feature-name/
+├── controllers/
+│   └── feature.controller.ts     # HTTP only, use pipes
+├── services/
+│   ├── feature-query.service.ts  # Read operations with pagination
+│   └── feature-command.service.ts # Write operations
+├── dto/
+│   ├── create-feature.dto.ts     # Input validation
+│   ├── safe-feature.dto.ts       # Output sanitization
+│   └── feature-search.dto.ts     # Search parameters
+├── exceptions/
+│   └── feature.exceptions.ts     # Domain-specific errors
+└── feature.module.ts
+```
+
+### What NOT to Implement (YAGNI)
+- ❌ Authentication (separate infrastructure concern)
+- ❌ Rate limiting (nginx/infrastructure)
+- ❌ Caching (add when performance issues proven)
+- ❌ Complex authorization (start with role enum)
+- ❌ Audit logging (add when compliance required)
+
+### Documentation Rule
+Every new feature MUST:
+1. Copy these patterns exactly
+2. Add feature-specific exceptions to this list
+3. Update the checklist with lessons learned
+4. Keep it minimal - resist feature creep
+
+### Lessons Learned from User Feature Implementation
+
+#### Key Patterns That Work Well
+1. **Sanitization Pipe**
+   - Place pipes in order: `@Body(SanitizationPipe, ValidationPipe)`
+   - Keep sanitization simple - just trim and remove angle brackets
+   - TypeScript: Use `unknown` type instead of `any` for pipe parameters
+
+2. **Database Pagination**
+   - Always use Prisma's `skip/take` at database level
+   - Run count query in parallel with data query using `Promise.all`
+   - Add `orderBy` for consistent pagination results
+   - Include `where: { is_deleted: false }` by default
+
+3. **Exception Handling**
+   - One exception class per file (ESLint rule)
+   - Always add `public` modifier to constructors
+   - Import specific exceptions, not base classes in controllers
+   - Replace generic exceptions with domain-specific ones
+
+4. **Safe Response DTOs**
+   - Use `!` for DTO properties to satisfy TypeScript strict mode
+   - Use `plainToInstance` with `excludeExtraneousValues: true`
+   - Transform to DTOs in controller, not service (separation of concerns)
+   - Always document excluded fields in comments
+
+#### Common ESLint/TypeScript Gotchas
+- `max-classes-per-file`: Split exception classes into separate files
+- `@typescript-eslint/explicit-member-accessibility`: Add `public` to all methods
+- `@typescript-eslint/no-explicit-any`: Use `unknown` instead
+- `@typescript-eslint/no-unused-vars`: Remove unused parameters or imports immediately
+- DTO properties need `!` suffix for TypeScript strict initialization
+
+#### Implementation Order That Works
+1. Create files first (pipes, exceptions, DTOs)
+2. Update imports in controller
+3. Apply changes methodically (one endpoint at a time)
+4. Run `npm run ci` frequently to catch issues early
+5. Fix lint errors before moving to next task
+
+This blueprint ensures consistency while following "you aren't gonna need it" principles.

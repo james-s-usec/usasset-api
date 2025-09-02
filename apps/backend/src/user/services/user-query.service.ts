@@ -14,4 +14,24 @@ export class UserQueryService {
   public async findMany(where?: UserWhereInput): Promise<User[]> {
     return this.userRepository.findMany({ where });
   }
+
+  public async findManyPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{ users: User[]; total: number }> {
+    const skip = (page - 1) * limit;
+
+    // Get users with proper database pagination
+    const [users, total] = await Promise.all([
+      this.userRepository.findMany({
+        skip,
+        take: limit,
+        where: { is_deleted: false },
+        orderBy: { created_at: 'desc' },
+      }),
+      this.userRepository.count({ is_deleted: false }),
+    ]);
+
+    return { users, total };
+  }
 }
