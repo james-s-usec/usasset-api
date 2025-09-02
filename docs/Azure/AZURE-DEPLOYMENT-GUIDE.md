@@ -1,338 +1,219 @@
-# Azure Container Apps Deployment Guide
+# Azure Container Apps Deployment Guide - UPDATED
 
-## Table of Contents
-1. [Pre-Deployment Checklist](#pre-deployment-checklist)
-2. [Common Issues & Solutions](#common-issues--solutions)
-3. [Essential Azure CLI Commands](#essential-azure-cli-commands)
-4. [Deployment Process](#deployment-process)
-5. [Debugging Container Issues](#debugging-container-issues)
-6. [Database Connection Issues](#database-connection-issues)
-7. [Emergency Recovery](#emergency-recovery)
+## ⚠️ CRITICAL DISCOVERY (Sep 2, 2025)
+**The Dockerfile.production has ALWAYS been broken!**
+- Wrong path: `CMD ["node", "dist/src/main.js"]` 
+- Correct path: `CMD ["node", "dist/main.js"]`
+- NestJS builds to `dist/main.js`, NOT `dist/src/main.js`
+- This bug existed since Aug 28, 2025 when file was created
 
-## Pre-Deployment Checklist
+## VERIFIED WORKING DEPLOYMENT PROCESS
 
-### Before You Deploy - MUST CHECK
-- [ ] **DATABASE_URL has URL-encoded password** (special chars like `/`, `=`, `@` must be encoded)
-- [ ] **docker-entrypoint.sh can parse DATABASE_URL** (no separate DB_HOST needed)
-- [ ] **All required files in git** (check `.gitignore` and `.dockerignore`)
-- [ ] **Dockerfile uses correct user/group** (UID/GID 1001, not 1000)
-- [ ] **Key Vault secrets exist and are correct**
-- [ ] **Environment variables match what app expects**
-
-## Common Issues & Solutions
-
-### Issue 1: Container Stuck on "postgres hostname not found"
-**Symptoms:**
-```
-getaddrinfo for host "postgres" port 5432: Name does not resolve
-```
-
-**Root Cause:** docker-entrypoint.sh expects DB_HOST but Azure only provides DATABASE_URL
-
-**Solution:**
+### Method 1: Build Locally, Push to ACR (MOST RELIABLE)
 ```bash
-# Fix docker-entrypoint.sh to parse DATABASE_URL:
-if [ -n "$DATABASE_URL" ]; then
-  DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):\([0-9]*\)/.*|\1|p')
-  DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*@[^:]*:\([0-9]*\)/.*|\1|p')
-fi
-```
+# 1. Fix the Dockerfile.production first!
+# Ensure CMD is: CMD ["node", "dist/main.js"]
 
-### Issue 2: Prisma Error P1013 - Invalid Database URL
-**Symptoms:**
-```
-P1013: The provided database string is invalid. invalid port number in database URL
-```
+# 2. Build locally to verify it works
+cd /home/james/projects/usasset-api
+docker build -f apps/backend/Dockerfile.production -t backend-test:local . --progress=plain
 
-**Root Cause:** Password contains special characters that aren't URL-encoded
+# 3. Test the image locally
+docker run --rm --entrypoint sh backend-test:local -c "ls -la dist/main.js"
+# Should show: -rw-r--r-- 1 nodejs nodejs 4197 ... dist/main.js
 
-**Solution:**
-```bash
-# URL-encode the password
-PASSWORD="your/password/with=special"
-ENCODED_PASSWORD=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$PASSWORD', safe=''))")
+# 4. Login to ACR
+az acr login --name usassetacryf2eqktewmxp2
 
-# Update DATABASE_URL
-DATABASE_URL="postgresql://dbadmin:${ENCODED_PASSWORD}@host:5432/database?sslmode=require"
-
-# Update Key Vault
-az keyvault secret set --vault-name YOUR_VAULT --name database-connection-string --value "$DATABASE_URL"
-
-# Update Container App
-az containerapp secret set -n YOUR_APP -g YOUR_RG --secrets "database-url=$DATABASE_URL"
-```
-
-### Issue 3: New Code Not Deploying
-**Symptoms:**
-- Built new image but container runs old code
-- `/version` endpoint returns 404 or old version
-
-**Root Cause:** `az containerapp revision restart` doesn't pull new images
-
-**Solution:**
-```bash
-# WRONG - this just restarts existing container
-az containerapp revision restart -n app-name -g rg-name --revision revision-name
-
-# RIGHT - this deploys new image
+# 5. Tag and push
 GIT_COMMIT=$(git rev-parse --short HEAD)
+docker tag backend-test:local usassetacryf2eqktewmxp2.azurecr.io/backend:$GIT_COMMIT
+docker push usassetacryf2eqktewmxp2.azurecr.io/backend:$GIT_COMMIT
+
+# 6. Deploy to Container Apps
 az containerapp update \
-  --name app-name \
-  --resource-group rg-name \
-  --image registry.azurecr.io/backend:$GIT_COMMIT \
-  --revision-suffix "deploy-$GIT_COMMIT"
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --image usassetacryf2eqktewmxp2.azurecr.io/backend:$GIT_COMMIT \
+  --set-env-vars APP_VERSION=$GIT_COMMIT BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S) \
+  --revision-suffix deploy-$GIT_COMMIT
 ```
 
-### Issue 4: Missing Files in Docker Build
-**Symptoms:**
-```
-Cannot find module './logs/logs.module'
-```
-
-**Root Cause:** `.gitignore` or `.dockerignore` excluding needed files
-
-**Solution:**
+### Method 2: ACR Build (ONLY IF DOCKERFILE IS FIXED)
 ```bash
-# Check .gitignore - be specific!
-# BAD: logs (matches src/logs)
-# GOOD: /logs (only root logs folder)
+# ⚠️ WARNING: This takes 3-5 minutes and may timeout in scripts!
+# Also REQUIRES the Dockerfile.production to be fixed first
 
-# Check .dockerignore
-# BAD: **/logs (excludes ALL logs dirs)
-# GOOD: logs/ (only root logs)
-```
-
-## Essential Azure CLI Commands
-
-### Build & Deploy
-```bash
-# Set variables
-RG="useng-usasset-api-rg"
-APP="usasset-backend"
-ACR="usassetacryf2eqktewmxp2"
 GIT_COMMIT=$(git rev-parse --short HEAD)
+BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S)
 
-# Build image in ACR (from monorepo root!)
-az acr build --registry $ACR \
-  --image backend:latest \
+# Build in ACR (from project root!)
+az acr build --registry usassetacryf2eqktewmxp2 \
   --image backend:$GIT_COMMIT \
-  --file ./apps/backend/Dockerfile.production \
+  --file apps/backend/Dockerfile.production \
+  --build-arg GIT_COMMIT=$GIT_COMMIT \
+  --build-arg BUILD_TIME=$BUILD_TIME \
   .
 
-# Deploy new image
+# Deploy
 az containerapp update \
-  --name $APP \
-  --resource-group $RG \
-  --image $ACR.azurecr.io/backend:$GIT_COMMIT \
-  --revision-suffix "deploy-$GIT_COMMIT" \
-  --set-env-vars APP_VERSION=$GIT_COMMIT BUILD_TIME=$(date -Iseconds)
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --image usassetacryf2eqktewmxp2.azurecr.io/backend:$GIT_COMMIT \
+  --set-env-vars APP_VERSION=$GIT_COMMIT BUILD_TIME=$BUILD_TIME \
+  --revision-suffix deploy-$GIT_COMMIT
 ```
 
-### Debugging Commands
+## VERIFICATION - ALWAYS DO THIS!
+
+### Quick Health Check
 ```bash
-# Check logs (last 50 lines)
-az containerapp logs show -n $APP -g $RG --tail 50
+# Wait 30 seconds for container to start
+sleep 30
 
-# List revisions
-az containerapp revision list -n $APP -g $RG \
-  --query "[0:5].{Name:name, Created:properties.createdTime, Active:properties.active}" \
-  -o table
+# Check health endpoint
+curl -s https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/health | jq
 
-# Check environment variables
-az containerapp show -n $APP -g $RG \
-  --query "properties.template.containers[0].env[]" -o json
-
-# Check secrets (names only, not values)
-az containerapp secret list -n $APP -g $RG --query "[].name" -o tsv
-
-# Get Key Vault secret
-az keyvault secret show --vault-name YOUR_VAULT --name secret-name --query "value" -o tsv
+# MUST show:
+# - "status": "ok"
+# - "appVersion": "<your-git-commit>"  # If missing, env vars not set
+# - "uptime": <low number>             # If high, you're hitting OLD container!
 ```
 
-### Testing Endpoints
+### Full Verification Script
 ```bash
-URL="https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io"
-
-# Test all endpoints
-curl $URL/                    # Root
-curl $URL/version             # Version info
-curl $URL/health              # Health check
-curl $URL/health/db           # Database health
-curl -X POST $URL/logs \
-  -H "Content-Type: application/json" \
-  -d '{"level": "INFO", "message": "Test log"}'
+cd utilities/deployment
+./verify-deployment-v2.sh
 ```
 
-## Deployment Process
+## GUARD RAILS - Things That WILL Break Your Deployment
 
-### Recommended: Use v2 Deployment Script
+### 1. Dockerfile Path Issue
+**PROBLEM**: `dist/src/main.js` doesn't exist
+**SYMPTOM**: Container crashes with "Cannot find module"
+**FIX**: Change to `CMD ["node", "dist/main.js"]` in Dockerfile.production
+
+### 2. Revision Already Exists
+**PROBLEM**: Trying to deploy same git commit twice
+**SYMPTOM**: "revision with suffix deploy-XXX already exists"
+**FIX**: Either:
+- Use timestamp suffix: `deploy-$GIT_COMMIT-$(date +%s)`
+- Or activate existing revision: `az containerapp revision activate`
+
+### 3. ACR Build Timeout
+**PROBLEM**: Build takes >2 minutes, script times out
+**SYMPTOM**: "Command timed out after 2m"
+**FIX**: Build locally and push (Method 1 above)
+
+### 4. Old Container Still Running
+**PROBLEM**: Azure keeps old working revision active
+**SYMPTOM**: Health endpoint shows high uptime (>300 seconds)
+**FIX**: Check which revision has traffic:
 ```bash
-# From utilities/deployment directory
-./update-azure-v2.sh
-# Select option 3 for both applications (recommended)
+az containerapp revision list -n usasset-backend -g useng-usasset-api-rg \
+  --query "[].{Name:name, Active:properties.active, Traffic:properties.trafficWeight}" -o table
 ```
 
-### Manual Deployment (Advanced Users)
-1. **Pre-flight checks**
-   ```bash
-   # Verify local build works
-   npm run ci
-   
-   # Check Dockerfile builds
-   docker build -f apps/backend/Dockerfile.production -t test .
-   ```
+## FRONTEND DEPLOYMENT
 
-2. **Build in ACR**
-   ```bash
-   GIT_COMMIT=$(git rev-parse --short HEAD)
-   az acr build --registry $ACR \
-     --image backend:$GIT_COMMIT \
-     --file ./apps/backend/Dockerfile.production \
-     .
-   ```
-
-3. **Deploy to Container Apps**
-   ```bash
-   az containerapp update \
-     --name $APP \
-     --resource-group $RG \
-     --image $ACR.azurecr.io/backend:$GIT_COMMIT \
-     --revision-suffix "deploy-$GIT_COMMIT"
-   ```
-
-4. **Verify deployment**
-   ```bash
-   # Use v2 verification script (recommended)
-   ./verify-deployment-v2.sh
-   
-   # Or manual verification
-   az containerapp logs show -n $APP -g $RG --tail 20
-   curl https://YOUR_URL/version
-   ```
-
-## Debugging Container Issues
-
-### Container Won't Start
 ```bash
-# 1. Check recent logs
-az containerapp logs show -n $APP -g $RG --tail 100
+# Frontend uses regular Dockerfile (not .production)
+GIT_COMMIT=$(git rev-parse --short HEAD)
 
-# 2. Check if database is reachable
-az containerapp logs show -n $APP -g $RG --tail 100 | grep -i database
+# Build locally first
+docker build -f apps/frontend/Dockerfile -t frontend-test:local apps/frontend/
 
-# 3. Check environment variables
-az containerapp show -n $APP -g $RG \
-  --query "properties.template.containers[0].env[].name" -o tsv
+# Push to ACR
+docker tag frontend-test:local usassetacryf2eqktewmxp2.azurecr.io/frontend:$GIT_COMMIT
+docker push usassetacryf2eqktewmxp2.azurecr.io/frontend:$GIT_COMMIT
 
-# 4. Verify secrets are set
-az containerapp secret list -n $APP -g $RG
+# Deploy
+az containerapp update \
+  --name usasset-frontend \
+  --resource-group useng-usasset-api-rg \
+  --image usassetacryf2eqktewmxp2.azurecr.io/frontend:$GIT_COMMIT \
+  --revision-suffix deploy-$GIT_COMMIT
 ```
 
-### Database Connection Debugging
+## DEBUGGING COMMANDS
+
+### Check What's Actually Running
 ```bash
-# 1. Get DATABASE_URL from Key Vault
-DATABASE_URL=$(az keyvault secret show \
-  --vault-name YOUR_VAULT \
-  --name database-connection-string \
-  --query "value" -o tsv)
+# Backend version check
+curl -s https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/health | jq '.data.appVersion'
 
-# 2. Parse and test connection
-DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):\([0-9]*\)/.*|\1|p')
-DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*@[^:]*:\([0-9]*\)/.*|\1|p')
+# Check container logs
+az containerapp logs show -n usasset-backend -g useng-usasset-api-rg --tail 50
 
-# 3. Test DNS resolution
-nslookup $DB_HOST
-
-# 4. Test port connectivity
-nc -zv $DB_HOST $DB_PORT
+# Check which revision is active
+az containerapp revision list -n usasset-backend -g useng-usasset-api-rg \
+  --query "[?properties.active==\`true\`]" -o table
 ```
 
-## Emergency Recovery
-
-### Rollback to Previous Version
+### Check ACR Images
 ```bash
-# List recent revisions
-az containerapp revision list -n $APP -g $RG --query "[0:5].name" -o tsv
+# List available images
+az acr repository show-tags --name usassetacryf2eqktewmxp2 --repository backend --orderby time_desc --top 5
 
-# Activate previous revision
-az containerapp revision activate -n $APP -g $RG --revision PREVIOUS_REVISION_NAME
+# Check build history
+az acr task list-runs --registry usassetacryf2eqktewmxp2 --top 5 -o table
 ```
 
-### Force Restart
+## CLEANUP OLD REVISIONS
+
 ```bash
-# Restart current revision
-CURRENT_REVISION=$(az containerapp show -n $APP -g $RG --query "properties.latestRevisionName" -o tsv)
-az containerapp revision restart -n $APP -g $RG --revision $CURRENT_REVISION
+# List all revisions
+az containerapp revision list -n usasset-backend -g useng-usasset-api-rg -o table
+
+# Deactivate old revision
+az containerapp revision deactivate -n usasset-backend -g useng-usasset-api-rg \
+  --revision <old-revision-name>
 ```
 
-### Update Secrets Without Rebuilding
+## ENVIRONMENT VARIABLES REQUIRED
+
+Backend needs these set during deployment:
+- `APP_VERSION` - Git commit hash
+- `BUILD_TIME` - Build timestamp
+- `CORS_ORIGIN` - Frontend URL (auto-set)
+- `DATABASE_URL` - From Key Vault (auto-set)
+
+## RESOURCE REFERENCE
+- **Resource Group**: useng-usasset-api-rg
+- **Backend App**: usasset-backend
+- **Frontend App**: usasset-frontend
+- **ACR**: usassetacryf2eqktewmxp2
+- **Backend URL**: https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io
+- **Frontend URL**: https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io
+
+## DEPRECATED APPROACHES
+
+### ❌ DON'T Use revision restart
 ```bash
-# Update secret directly
-az containerapp secret set -n $APP -g $RG --secrets "secret-name=new-value"
-
-# Restart to apply
-az containerapp revision restart -n $APP -g $RG \
-  --revision $(az containerapp show -n $APP -g $RG --query "properties.latestRevisionName" -o tsv)
+# This does NOT pull new images!
+az containerapp revision restart  # WRONG - just restarts existing container
 ```
 
-## Managed Identity Setup (for Key Vault)
-```bash
-# Enable managed identity
-IDENTITY="/subscriptions/YOUR_SUB/resourceGroups/$RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/YOUR_IDENTITY"
-az containerapp identity assign -n $APP -g $RG --user-assigned $IDENTITY
+### ❌ DON'T Trust script timeouts for ACR builds
+ACR builds take 3-5 minutes. Script timeouts don't stop the build, they just stop waiting.
 
-# Grant Key Vault access
-az keyvault set-policy --name YOUR_VAULT \
-  --object-id $(az identity show -n YOUR_IDENTITY -g $RG --query principalId -o tsv) \
-  --secret-permissions get list
+### ❌ DON'T Use update-azure.sh without checking
+The deployment scripts have hardcoded timeouts that are too short. Build locally instead.
 
-# Use Key Vault reference in secrets
-az containerapp secret set -n $APP -g $RG \
-  --secrets database-url=keyvaultref:https://YOUR_VAULT.vault.azure.net/secrets/database-connection-string,identityref:$IDENTITY
-```
+## COMMIT CHECKLIST BEFORE DEPLOYMENT
 
-## Key Files to Check
+- [ ] Fixed Dockerfile.production CMD path
+- [ ] Committed all changes
+- [ ] Ran `npm run ci` successfully
+- [ ] Built Docker image locally to test
+- [ ] Have git commit hash ready
 
-### docker-entrypoint.sh
-- Must parse DATABASE_URL if DB_HOST not provided
-- Must handle Azure's environment (no separate DB_HOST)
+## IF SOMETHING GOES WRONG
 
-### .dockerignore
-- Don't exclude source code directories
-- Be specific: `logs/` not `**/logs`
+1. **Check logs**: `az containerapp logs show -n usasset-backend -g useng-usasset-api-rg --tail 100`
+2. **Check health**: `curl https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/health`
+3. **Check uptime**: If >300 seconds, you're on old container
+4. **Rollback**: `az containerapp revision activate -n usasset-backend -g useng-usasset-api-rg --revision <previous-working>`
 
-### .gitignore
-- Use `/logs` not `logs` to avoid matching src/logs
-- Ensure all source code is committed
-
-### Dockerfile.production
-- Use UID/GID 1001 (not 1000 - already taken in Alpine)
-- Include proper error handling in entrypoint
-
-## Resource Naming Convention
-```
-Resource Group: useng-usasset-api-rg
-Container App: usasset-backend
-ACR: usassetacryf2eqktewmxp2
-Key Vault: usasset-kv-yf2eqktewmxp2
-Database: usasset-db-yf2eqktewmxp2-v2
-Identity: usasset-identity-yf2eqktewmxp2
-Environment: usasset-env-yf2eqktewmxp2
-```
-
-## Testing Checklist After Deployment
-- [ ] Root endpoint returns data with correlationId
-- [ ] /version shows correct git commit
-- [ ] /health returns ok status
-- [ ] /health/db shows connected
-- [ ] POST to /logs creates log entry
-- [ ] Check Azure logs for any errors
-- [ ] Verify database migrations applied
-- [ ] Test from frontend (if applicable)
-
-## Still Having Issues?
-1. Save full logs: `az containerapp logs show -n $APP -g $RG --tail 500 > debug.log`
-2. Check ACR build logs: `az acr task list-runs --registry $ACR --top 5 -o table`
-3. Verify image exists: `az acr repository show-tags --name $ACR --repository backend --top 5`
-4. Check Container App events in Azure Portal
-5. Review this guide again - the answer is probably here!
+---
+*Last Updated: Sep 2, 2025 - After discovering and fixing the dist/src/main.js bug*
