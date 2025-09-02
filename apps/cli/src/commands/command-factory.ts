@@ -11,6 +11,9 @@ import { LogsListCommand } from "./logs-list.command.js";
 import { LogsErrorsCommand } from "./logs-errors.command.js";
 import { LogsTraceCommand } from "./logs-trace.command.js";
 import { ApiDocsCommand } from "./api-docs.command.js";
+import { DbStatusCommand } from "./db-status.command.js";
+import { DbTablesCommand } from "./db-tables.command.js";
+import { DbMigrationsCommand } from "./db-migrations.command.js";
 
 export class CommandFactory {
   private static commands = new Map<string, () => BaseCommand>([
@@ -26,6 +29,9 @@ export class CommandFactory {
     ["logs:errors", (): BaseCommand => new LogsErrorsCommand()],
     ["logs:trace", (): BaseCommand => new LogsTraceCommand()],
     ["api-docs", (): BaseCommand => new ApiDocsCommand()],
+    ["db:status", (): BaseCommand => new DbStatusCommand()],
+    ["db:tables", (): BaseCommand => new DbTablesCommand()],
+    ["db:migrations", (): BaseCommand => new DbMigrationsCommand()],
   ]);
 
   public static createCommand(commandKey: string): BaseCommand | undefined {

@@ -64,7 +64,7 @@ export class ApiDocsCommand extends BaseCommand {
           this.displayDetailed(spec);
           break;
         case "json":
-          console.log(JSON.stringify(spec, null, 2));
+          console.log(JSON.stringify(spec, null, JSON_INDENT_SPACES));
           break;
         default:
           this.logger.error(`❌ Unknown format: ${format}`);
@@ -132,7 +132,7 @@ export class ApiDocsCommand extends BaseCommand {
     });
   }
 
-  private displayMethodDetails(details: any): void {
+  private displayMethodDetails(details: OpenAPIMethod): void {
     if (details.summary) {
       console.log(`   Summary: ${details.summary}`);
     }
@@ -145,7 +145,7 @@ export class ApiDocsCommand extends BaseCommand {
     this.displayResponses(details.responses);
   }
 
-  private displayParameters(parameters?: Array<any>): void {
+  private displayParameters(parameters?: Array<OpenAPIParameter>): void {
     if (!parameters || parameters.length === 0) return;
 
     console.log(`\n   📥 Parameters:`);
@@ -158,23 +158,21 @@ export class ApiDocsCommand extends BaseCommand {
     });
   }
 
-  private displayRequestBody(requestBody?: any): void {
+  private displayRequestBody(requestBody?: OpenAPIRequestBody): void {
     if (!requestBody?.content) return;
 
     console.log(`\n   📤 Request Body:`);
-    Object.entries(requestBody.content).forEach(
-      ([mediaType, content]: [string, any]) => {
-        console.log(`      Content-Type: ${mediaType}`);
-        if (content.schema) {
-          const schemaStr = JSON.stringify(
-            content.schema,
-            null,
-            JSON_INDENT_SPACES,
-          );
-          console.log(`      Schema: ${schemaStr.replace(/\n/g, "\n      ")}`);
-        }
-      },
-    );
+    Object.entries(requestBody.content).forEach(([mediaType, content]) => {
+      console.log(`      Content-Type: ${mediaType}`);
+      if (content.schema) {
+        const schemaStr = JSON.stringify(
+          content.schema,
+          null,
+          JSON_INDENT_SPACES,
+        );
+        console.log(`      Schema: ${schemaStr.replace(/\n/g, "\n      ")}`);
+      }
+    });
   }
 
   private displayResponses(responses?: Record<string, unknown>): void {

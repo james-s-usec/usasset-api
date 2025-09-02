@@ -280,4 +280,45 @@ program
     }
   });
 
+// Database commands
+const dbCommand = program
+  .command("db")
+  .description("Database inspection and management");
+
+dbCommand
+  .command("status")
+  .description("Show database connection and overall status")
+  .action(async () => {
+    const command = CommandFactory.createCommand("db:status");
+    if (command) {
+      await command.execute([]);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+dbCommand
+  .command("tables")
+  .description("List all database tables")
+  .action(async () => {
+    const command = CommandFactory.createCommand("db:tables");
+    if (command) {
+      await command.execute([]);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
+dbCommand
+  .command("migrations")
+  .description("Show recent database migrations")
+  .action(async () => {
+    const command = CommandFactory.createCommand("db:migrations");
+    if (command) {
+      await command.execute([]);
+    } else {
+      logger.error("❌ Command not found");
+    }
+  });
+
 program.parse();

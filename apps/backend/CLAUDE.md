@@ -285,3 +285,193 @@ LOG_TO_FILE=true npm run start:dev
 NODE_ENV=production npm run start:prod
 # Will fail with clear message if required vars missing
 ```
+
+## 🗄️ Database Schema Extension Guide
+
+### Overview
+USAsset uses **Prisma ORM** with PostgreSQL for database management. The schema is defined in `prisma/schema.prisma` with automatic TypeScript generation.
+
+### Current Schema Structure
+```
+User model:
+- id (UUID, primary key)
+- email (unique, indexed)
+- name (optional)
+- role (USER | ADMIN | SUPER_ADMIN)
+- Audit fields: created_at, updated_at, is_deleted, etc.
+
+LogEntry model:
+- id (UUID, primary key)
+- timestamp, level, correlation_id (indexed)
+- message, metadata (JSON)
+```
+
+### Adding New Tables/Models
+
+#### 1. Define Schema
+Edit `apps/backend/prisma/schema.prisma`:
+```prisma
+model Asset {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  owner_id    String
+  category    AssetCategory
+  is_deleted  Boolean    @default(false)
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  
+  // Relations
+  owner       User       @relation(fields: [owner_id], references: [id])
+  
+  // Indexes for performance
+  @@index([category])
+  @@index([owner_id])
+  @@index([created_at])
+  @@index([is_deleted])
+  @@map("assets")
+}
+
+enum AssetCategory {
+  HARDWARE
+  SOFTWARE
+  LICENSE
+  FACILITY
+}
+```
+
+#### 2. Generate Migration
+```bash
+cd apps/backend
+npx prisma migrate dev --name add_assets_table
+# This creates: prisma/migrations/TIMESTAMP_add_assets_table/migration.sql
+```
+
+#### 3. Update TypeScript Types
+```bash
+npx prisma generate  # Regenerates Prisma client types
+```
+
+#### 4. Create DTOs and Controllers
+```bash
+# Generate NestJS boilerplate
+npx nest g module asset
+npx nest g controller asset
+npx nest g service asset
+
+# Create DTOs in src/asset/dto/
+# - create-asset.dto.ts
+# - update-asset.dto.ts
+# - asset-response.dto.ts
+```
+
+#### 5. Add Swagger Documentation
+```typescript
+// In asset.controller.ts
+@ApiTags('assets')
+@Controller('api/assets')
+export class AssetController {
+  @Get()
+  @ApiOperation({ summary: 'Get all assets with pagination' })
+  @ApiResponse({ status: 200, description: 'Assets retrieved successfully' })
+  async findAll() { }
+}
+```
+
+### Migration Commands Reference
+```bash
+# Development workflow
+npx prisma migrate dev                    # Create and apply migration
+npx prisma migrate dev --name feature    # Named migration
+npx prisma db push                        # Push without migration (dev only)
+
+# Production deployment
+npx prisma migrate deploy                 # Apply pending migrations
+npx prisma migrate status                 # Check migration status
+
+# Database management
+npx prisma db seed                        # Run seed data
+npx prisma migrate reset                  # Reset database (dev only)
+npx prisma studio                         # Open database GUI
+```
+
+### CLI Database Commands
+The CLI provides database inspection commands:
+```bash
+./bin/usasset db:status      # Health check, migration count, table stats
+./bin/usasset db:tables      # List all database tables
+./bin/usasset db:migrations  # Show recent migrations
+```
+
+### Best Practices for Schema Extensions
+
+#### 1. Always Use Migrations
+- Never modify database directly in production
+- Always generate migrations with descriptive names
+- Test migrations on staging before production
+
+#### 2. Indexing Strategy
+```prisma
+// Always index:
+@@index([foreign_key_fields])  # Foreign keys
+@@index([query_filter_fields])  # WHERE clause fields
+@@index([sort_fields])          # ORDER BY fields
+@@index([is_deleted])           # Soft delete flag
+```
+
+#### 3. Audit Trail Pattern
+```prisma
+model YourModel {
+  // ... your fields
+  
+  // Audit trail (copy from User model)
+  is_deleted Boolean  @default(false)
+  created_at DateTime @default(now())
+  created_by String?
+  updated_at DateTime @updatedAt
+  updated_by String?
+  deleted_at DateTime?
+  deleted_by String?
+}
+```
+
+#### 4. Naming Conventions
+- Models: PascalCase singular (`User`, `Asset`, `LogEntry`)
+- Fields: snake_case (`created_at`, `owner_id`)
+- Tables: snake_case plural (`@@map("users")`, `@@map("assets")`)
+- Enums: SCREAMING_SNAKE_CASE values (`USER`, `ADMIN`)
+
+### Deployment Integration
+Schema changes are automatically deployed via:
+```bash
+# Azure deployment (from scripts/azure-deploy.sh)
+npx prisma migrate deploy  # Apply pending migrations
+npm run start:prod         # Start application
+
+# Docker deployment (from docker-entrypoint.sh)  
+npx prisma migrate deploy  # Apply pending migrations in container
+```
+
+### Troubleshooting Common Issues
+
+#### Migration Conflicts
+```bash
+# If migration conflicts occur:
+npx prisma migrate resolve --applied MIGRATION_NAME  # Mark as applied
+npx prisma migrate resolve --rolled-back MIGRATION_NAME  # Mark as rolled back
+```
+
+#### Schema Drift
+```bash
+npx prisma db pull          # Pull current DB schema
+npx prisma migrate diff     # Compare schema vs migrations
+```
+
+#### Type Generation Issues
+```bash
+npx prisma generate --force-update  # Force regenerate types
+rm -rf node_modules/.prisma         # Clear Prisma cache
+npm run build                       # Rebuild application
+```
+
+This guide ensures consistent database evolution following the project's clean architecture principles while maintaining type safety and deployment automation.
