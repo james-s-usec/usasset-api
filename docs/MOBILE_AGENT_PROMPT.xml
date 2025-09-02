@@ -1,0 +1,486 @@
+<AGENT_PROMPT>
+  <GOAL>
+    Build a new, mobile-friendly React Native app (Expo + TypeScript) under apps/mobile that integrates with the existing NestJS backend. Keep it modular, simple, and aligned with PRAGMATIC principles. NO AUTH for v1.
+  </GOAL>
+
+  <CONTEXT>
+    <IMPORTANT>**MUST** keep mobile separate from existing apps (backend, frontend, cli).</IMPORTANT>
+    Backend: NestJS on http://localhost:3000 (DEFAULT) with Swagger UI at /api-docs and OpenAPI JSON at /api-json.
+    Health endpoints: /health, /health/live, /health/ready, /health/db.
+    Users endpoints: /api/users (GET with page, limit), /api/users/:id (GET), /api/users (POST). Bulk endpoints exist but are OPTIONAL for v1.
+    Root commands: `npm run dev` (backend+frontend), `npm run db:migrate|db:seed|db:reset`, `npm run test:e2e` (backend). You MAY add a mobile workspace and scripts.
+    Principles: follow docs/PRAGMATIC_PRINCIPLES.md. Emphasize YAGNI, small modules, clear boundaries, and simple debugging.
+  </CONTEXT>
+
+  <AZURE_BACKEND>
+    <IMPORTANT>PRODUCTION runs on Azure (Container Apps or App Service) with secrets from **AZURE KEY VAULT** via env vars.</IMPORTANT>
+    <MUST>Required env vars in production:</MUST>
+    - NODE_ENV=production (set in Azure)
+    - DATABASE_URL = Postgres connection string from Key Vault (e.g., secret ref)
+    - JWT_SECRET = from Key Vault (REQUIRED by backend validation, even if mobile v1 does not use auth)
+    - CORS_ORIGIN = comma-separated origins for any WEB clients (not required for React Native app)
+    Reference: docs/Azure/AZURE-DEPLOYMENT-GUIDE.md and backend logs mention Key Vault injection. Prisma uses DATABASE_URL; migrations deploy via `prisma migrate deploy` on startup.
+    <NOTE>For device testing, the mobile app MUST target the public Azure URL (https://api.yourdomain/). For local devices, use your LAN IP (NOT localhost).</NOTE>
+  </AZURE_BACKEND>
+
+  <SCOPE>
+    <MUST>Implement a minimal mobile app: Home/Health, Settings (API URL), Users List, User Detail, Create User.</MUST>
+    <MUST>Use TypeScript, React Navigation, and Axios.</MUST>
+    <MUST>Use OpenAPI JSON to generate Types where possible; otherwise provide thin local interfaces.</MUST>
+    <MUST NO_AUTH="true">No auth, no persistence beyond in-app config for v1.</MUST>
+  </SCOPE>
+
+  <ARCHITECTURE>
+    Create new workspace apps/mobile with Expo (TypeScript). Example structure:
+    apps/mobile/
+      package.json (name: "mobile", private, scripts: dev, android, ios, test, typecheck)
+      tsconfig.json
+      babel.config.js
+      src/
+        app.tsx
+        navigation/
+          index.tsx (React Navigation stack)
+        screens/
+          HomeScreen.tsx
+          SettingsScreen.tsx
+          UsersListScreen.tsx
+          UserDetailScreen.tsx
+          CreateUserScreen.tsx
+        components/
+          Button.tsx, TextField.tsx, ListItem.tsx, EmptyState.tsx, ErrorState.tsx
+        api/
+          client.ts (Axios base + interceptors)
+          users.ts (users API wrapper)
+          types.generated.ts (from OpenAPI) OR types.local.ts (fallback)
+        config/env.ts (API_BASE_URL with default http://localhost:3000 and in-app override)
+        lib/pagination.ts
+    Update root package.json workspaces to include "apps/mobile".
+  </ARCHITECTURE>
+
+  <EXPO_TECH_STACK>
+    <CHOICE>
+      <MUST>Use Expo Go (Managed Workflow) as the baseline during v1.</MUST>
+      - Pros: fastest iteration, zero native builds, QR-run on devices.
+      - Cons: cannot add custom native modules not in Expo SDK. If needed later, switch to an Expo Development Client (EAS) without leaving Managed; or eject to Bare as last resort.
+    </CHOICE>
+    <WHY_FITS>
+      Current v1 needs only network requests, navigation, and simple UI. No custom native modules required. Therefore Expo Go is sufficient and simplest.
+    </WHY_FITS>
+    <DEPENDENCIES>
+      expo, react-native, react, @react-navigation/native, @react-navigation/native-stack, react-native-screens, react-native-safe-area-context, react-native-gesture-handler, axios, expo-constants.
+    </DEPENDENCIES>
+    <NETWORKING>
+      <MUST>Use LAN base URL for local dev: http://YOUR-LAN-IP:3000.</MUST>
+      In Expo CLI, select "LAN". If LAN not possible, use <IMPORTANT>expo start --tunnel</IMPORTANT> and set API_BASE_URL to the tunneled URL. For Azure, use the public HTTPS API URL.
+    </NETWORKING>
+    <SETUP_STEPS>
+      - Initialize Expo managed app under apps/mobile (TypeScript template).
+      - Add scripts: { "dev": "expo start", "android": "expo run:android", "ios": "expo run:ios" }.
+      - Configure TypeScript strict mode and ESLint as per LINT_CONFIG_HINTS.
+      - Keep API_BASE_URL in an in-app Settings screen (no persistent storage for v1). Optionally infer default from expo-constants (deviceHost).
+    </SETUP_STEPS>
+    <WHEN_TO_UPGRADE>
+      - Need custom native module (not in Expo SDK) → create an Expo Development Client via EAS (no full eject).
+      - Need deep native integrations or unsupported APIs → consider Bare workflow.
+    </WHEN_TO_UPGRADE>
+    <NOTES>
+      Expo Go logging appears in Metro/Expo DevTools. Use console.debug sparingly; wire POST /logs for structured reports when needed.
+    </NOTES>
+  </EXPO_TECH_STACK>
+
+  <PAGES>
+    <PAGE id="HomeScreen">
+      Shows basic links and health indicators. Fetch GET /health and display status with **SUCCESS/FAIL** badges.
+    </PAGE>
+    <PAGE id="SettingsScreen">
+      Input to set API_BASE_URL; validate with GET /health/ready; persist in-memory for v1 (no storage). Show device IP hint and Azure URL example.
+    </PAGE>
+    <PAGE id="UsersListScreen">
+      Fetch GET /api/users?page=1&limit=20 and render list of users (name/email). Paginate using next/prev. Show EmptyState when no users.
+    </PAGE>
+    <PAGE id="UserDetailScreen">
+      Fetch GET /api/users/:id; show id, name, email, role, timestamps.
+    </PAGE>
+    <PAGE id="CreateUserScreen">
+      Simple form (email, name?, role) -> POST /api/users. On success, navigate to detail and toast.
+    </PAGE>
+  </PAGES>
+
+  <TYPESCRIPT_INTERFACES>
+    <IMPORTANT>Prefer generated types from OpenAPI (MUST support fallback).</IMPORTANT>
+    Fallback examples (align with current backend DTOs):
+    interface User { id: string; email: string; name: string | null; role: 'ADMIN' | 'USER' | string; created_at: string; updated_at: string }
+    interface Pagination { page: number; limit: number; total: number; totalPages: number }
+    interface UsersResponse { users: User[]; pagination: Pagination }
+    interface CreateUserInput { email: string; name?: string | null; role: string }
+  </TYPESCRIPT_INTERFACES>
+
+  <API_CLIENT>
+    <MUST>Expose a minimal typed client.</MUST>
+    client.ts: create Axios instance with baseURL from config/env.ts. Add basic request/response logging in dev.
+    users.ts: functions getUsers(page, limit) -> Promise<UsersResponse>; getUser(id) -> Promise<User>; createUser(input) -> Promise<User>.
+    <OPTIONAL>Generate types via OpenAPI: fetch http://localhost:3000/api-json and run openapi-typescript to produce api/types.generated.ts; wire a thin wrapper around it.</OPTIONAL>
+    <IMPORTANT>For Azure PROD base URL, use an env or settings value like https://api.example.com. For local device testing, use http://LAN_IP:3000.</IMPORTANT>
+  </API_CLIENT>
+
+  <COMMANDS>
+    Root: add workspace and scripts.
+    - Update package.json: add "apps/mobile" to workspaces.
+    - In apps/mobile/package.json add scripts: { "dev": "expo start", "android": "expo run:android", "ios": "expo run:ios", "test": "jest", "typecheck": "tsc --noEmit" }.
+    - Run local on Expo Go: `npm run dev --workspace=mobile`, select LAN or Tunnel, then set API_BASE_URL accordingly in app Settings.
+  </COMMANDS>
+
+  <VERIFICATION>
+    <MUST>Verify backend is up: open http://localhost:3000/api-docs and GET /health.</MUST>
+    In the app: set API URL in Settings to http://localhost:3000 and tap "Check readiness" (expects OK).
+    Open Users list: expect non-empty if seeded; otherwise create a user and confirm it appears in list.
+    Cross-check via Swagger UI calling the same endpoints or via CLI logs (.logs/).
+    <AZURE>
+      Use the Azure backend URL. Confirm /health and /health/db return OK. If DB is not ready, check Key Vault secrets and DATABASE_URL configuration per docs/Azure/AZURE-DEPLOYMENT-GUIDE.md.
+    </AZURE>
+  </VERIFICATION>
+
+  <DEBUGGING>
+    Use Expo devtools; enable network inspect to watch requests.
+    If mobile requests fail:
+      - For web builds only: check CORS origins in apps/backend/src/main.ts allow your dev host.
+      - Check backend logs and 
+        GET /health/db for database connectivity.
+      - Verify API_BASE_URL matches device access (use LAN IP, NOT localhost, on real device).
+    Add temporary console.debug in api/client.ts; remove before PR.
+  </DEBUGGING>
+
+  <QUALITY_GATES>
+    <MUST>Pass lint and typecheck at root and mobile workspace.</MUST>
+    Add lightweight tests: users API wrapper mock test, simple render smoke tests for screens.
+    Keep bundle size small; avoid heavy deps.
+  </QUALITY_GATES>
+
+  <DELIVERABLES>
+    - apps/mobile with code, scripts, and README.md (quickstart + troubleshooting).
+    - Minimal screenshots/gifs in PR for Users flow and Health check.
+    - Generated or local TS types aligned with backend DTOs.
+    - Root package.json updated to include mobile workspace; CI lint/typecheck steps include mobile.
+  </DELIVERABLES>
+
+  <OUT_OF_SCOPE>
+    Auth, offline sync, push notifications, deep linking, advanced theming.
+  </OUT_OF_SCOPE>
+
+  <START_HERE>
+    1) Scaffold apps/mobile (Expo TS), add workspace.
+    2) Implement config/env.ts with DEFAULT API URL and runtime override.
+    3) Implement api/client.ts and users.ts.
+    4) Build navigation and screens (Home/Health -> Settings -> Users -> Detail/Create).
+    5) Wire OpenAPI types OR fallback interfaces.
+    6) Add basic tests, run lint/typecheck.
+    7) Manual verification per VERIFICATION (local and Azure).
+  </START_HERE>
+
+  <EXAMPLES>
+    <IMPORTANT>Endpoints</IMPORTANT>
+    - Health: GET /health, /health/ready, /health/live, /health/db
+    - Users: GET /api/users?page&limit, GET /api/users/:id, POST /api/users
+    - Logs: GET /logs?page&limit, GET /logs?level=INFO, GET /logs?correlationId=abc, POST /logs, DELETE /logs
+    Source of truth for DB tables: apps/backend/prisma/schema.prisma (models: users, log_entries).
+
+    <README_SAMPLE>
+      # Mobile (Sample Scaffold)
+
+      This is a minimal sample scaffold to illustrate structure, API usage, and types for a future Expo + React Native app. It is not runnable yet; use it as reference for the agent that will generate the full app.
+
+      - API base: http://localhost:3000 (Azure prod: https://api.example.com)
+      - Endpoints: /health, /api/users, /logs
+      - Prisma schema (tables): apps/backend/prisma/schema.prisma
+
+      Suggested next step: scaffold an Expo app here and wire these examples.
+    </README_SAMPLE>
+
+    <TYPES_SAMPLE language="ts">
+      // apps/mobile/src/api/types.local.ts
+      export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN'
+      export interface User {
+        id: string
+        email: string
+        name: string | null
+        role: UserRole
+        created_at: string
+        updated_at: string
+      }
+      export interface Pagination { page: number; limit: number; total: number; totalPages: number }
+      export interface UsersResponse { users: User[]; pagination: Pagination }
+      export interface CreateUserInput { email: string; name?: string | null; role: UserRole }
+      export interface LogEntry { id: string; level: string; message: string; correlation_id: string; timestamp: string; created_at: string; metadata?: unknown }
+    </TYPES_SAMPLE>
+
+    <CLIENT_SAMPLE language="ts">
+      // apps/mobile/src/api/client.ts
+      import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+
+      export type ApiError = {
+        status?: number;
+        message: string;
+        details?: unknown;
+      };
+
+      export type Result<T, E = ApiError> =
+        | { readonly ok: true; readonly value: T }
+        | { readonly ok: false; readonly error: E };
+
+      export const API_BASE_URL: string = __DEV__ ? 'http://localhost:3000' : 'https://api.example.com';
+
+      export const api = axios.create({ baseURL: API_BASE_URL, timeout: 10000 });
+
+      api.interceptors.response.use(
+        (r) => r,
+        (e: AxiosError) => {
+          if (typeof __DEV__ !== 'undefined' && __DEV__) {
+            // eslint-disable-next-line no-console
+            console.debug('API error', e?.response?.data ?? e.message);
+          }
+          return Promise.reject(e);
+        }
+      );
+
+      export async function request<T>(config: AxiosRequestConfig): Promise<Result<T>> {
+        try {
+          const res = await api.request<T>(config);
+          return { ok: true as const, value: res.data };
+        } catch (err) {
+          const e = err as AxiosError;
+          const error: ApiError = {
+            status: e.response?.status,
+            message: (e.response?.data as any)?.message ?? e.message,
+            details: e.response?.data,
+          };
+          return { ok: false as const, error };
+        }
+      }
+    </CLIENT_SAMPLE>
+
+    <USERS_API_SAMPLE language="ts">
+      // apps/mobile/src/api/users.ts
+      import { request } from './client';
+      import type { UsersResponse, User, CreateUserInput } from './types.local';
+
+      export async function getUsers(
+        page: number = 1,
+        limit: number = 20
+      ) {
+        return request<UsersResponse>({ url: '/api/users', method: 'GET', params: { page, limit } });
+      }
+
+      export async function getUser(id: string) {
+        return request<User>({ url: `/api/users/${id}`, method: 'GET' });
+      }
+
+      export async function createUser(input: CreateUserInput) {
+        return request<User>({ url: '/api/users', method: 'POST', data: input });
+      }
+    </USERS_API_SAMPLE>
+
+    <HEALTH_API_SAMPLE language="ts">
+      // apps/mobile/src/api/health.ts
+      import { request } from './client';
+
+      export type Health = { readonly status: string } & Record<string, unknown>;
+
+      export function checkHealth() {
+        return request<Health>({ url: '/health', method: 'GET' });
+      }
+
+      export function checkReadiness() {
+        return request<Health>({ url: '/health/ready', method: 'GET' });
+      }
+    </HEALTH_API_SAMPLE>
+
+    <LOGS_API_SAMPLE language="ts">
+      // apps/mobile/src/api/logs.ts
+      import { request } from './client';
+      import type { LogEntry } from './types.local';
+
+      export type LogsResponse = {
+        readonly logs: ReadonlyArray<LogEntry>;
+        readonly pagination?: { readonly page: number; readonly limit: number; readonly total: number; readonly totalPages: number };
+      };
+
+      export function getLogs(page = 1, limit = 50) {
+        return request<LogsResponse>({ url: '/logs', method: 'GET', params: { page, limit } });
+      }
+
+      export function postLog(level: 'debug' | 'info' | 'warn' | 'error', message: string, metadata?: Record<string, unknown>) {
+        return request<{ success: boolean }>({ url: '/logs', method: 'POST', data: { level, message, metadata, timestamp: new Date().toISOString(), source: 'mobile' } });
+      }
+    </LOGS_API_SAMPLE>
+
+    <HOOKS_SAMPLE language="ts">
+      // apps/mobile/src/hooks/useUsers.ts
+      import * as React from 'react';
+      import { getUsers } from '../api/users';
+      import type { UsersResponse } from '../api/types.local';
+
+      type State =
+        | { readonly status: 'idle' }
+        | { readonly status: 'loading' }
+        | { readonly status: 'success'; readonly data: UsersResponse }
+        | { readonly status: 'error'; readonly error: string };
+
+      export function useUsers(initialPage: number = 1) {
+        const [page, setPage] = React.useState<number>(initialPage);
+        const [state, setState] = React.useState<State>({ status: 'idle' });
+
+        React.useEffect(() => {
+          let cancelled = false;
+          setState({ status: 'loading' });
+          void (async () => {
+            const res = await getUsers(page, 20);
+            if (cancelled) return;
+            if (res.ok) setState({ status: 'success', data: res.value });
+            else setState({ status: 'error', error: res.error.message });
+          })();
+          return () => {
+            cancelled = true;
+          };
+        }, [page]);
+
+        return { page, setPage, state };
+      }
+    </HOOKS_SAMPLE>
+
+    <NAVIGATION_SAMPLE language="ts">
+      // apps/mobile/src/navigation/index.tsx
+      import { NavigationContainer } from '@react-navigation/native';
+      import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
+      import HomeScreen from '../screens/HomeScreen';
+      import UsersListScreen from '../screens/UsersListScreen';
+      import UserDetailScreen from '../screens/UserDetailScreen';
+
+      export type RootStackParamList = {
+        Home: undefined;
+        Users: { readonly initialPage?: number } | undefined;
+        UserDetail: { readonly id: string };
+      };
+
+      const Stack = createNativeStackNavigator<RootStackParamList>();
+
+      export type UsersProps = NativeStackScreenProps<RootStackParamList, 'Users'>;
+      export type UserDetailProps = NativeStackScreenProps<RootStackParamList, 'UserDetail'>;
+
+      export default function AppNavigator() {
+        return (
+          <NavigationContainer>
+            <Stack.Navigator>
+              <Stack.Screen name="Home" component={HomeScreen} />
+              <Stack.Screen name="Users" component={UsersListScreen} />
+              <Stack.Screen name="UserDetail" component={UserDetailScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        );
+      }
+    </NAVIGATION_SAMPLE>
+
+    <SCREEN_STRICT_SAMPLE language="tsx">
+      // apps/mobile/src/screens/UsersListScreen.tsx (strict)
+      import * as React from 'react';
+      import { View, Text, FlatList, ActivityIndicator, Button } from 'react-native';
+      import { useUsers } from '../hooks/useUsers';
+
+      export default function UsersListScreen(): JSX.Element {
+        const { state, page, setPage } = useUsers(1);
+
+        if (state.status === 'loading' || state.status === 'idle') {
+          return <ActivityIndicator />;
+        }
+        if (state.status === 'error') {
+          return (
+            <View style={{ padding: 16 }}>
+              <Text>Failed to load users: {state.error}</Text>
+              <Button title="Retry" onPress={() => setPage(1)} />
+            </View>
+          );
+        }
+
+        const { users, pagination } = state.data;
+        return (
+          <View style={{ flex: 1 }}>
+            <FlatList
+              data={users}
+              keyExtractor={(u) => u.id}
+              renderItem={({ item }) => (
+                <View style={{ padding: 12, borderBottomWidth: 1, borderColor: '#eee' }}>
+                  <Text style={{ fontWeight: '600' }}>{item.name ?? 'Unnamed'}</Text>
+                  <Text>{item.email}</Text>
+                </View>
+              )}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12 }}>
+              <Button title="Prev" onPress={() => setPage(Math.max(1, page - 1))} />
+              <Text>
+                Page {pagination.page} / {pagination.totalPages}
+              </Text>
+              <Button title="Next" onPress={() => setPage(Math.min(pagination.totalPages, page + 1))} />
+            </View>
+          </View>
+        );
+      }
+    </SCREEN_STRICT_SAMPLE>
+
+    <TEST_SAMPLE language="ts">
+      // apps/mobile/src/screens/__tests__/UsersListScreen.test.tsx
+      import * as React from 'react';
+      import { render, screen } from '@testing-library/react-native';
+      import UsersListScreen from '../UsersListScreen';
+
+      // Example smoke test; real tests should mock API hooks
+      it('renders loading state', () => {
+        render(<UsersListScreen />);
+        expect(screen.getByRole('progressbar')).toBeTruthy();
+      });
+    </TEST_SAMPLE>
+
+    <LINT_CONFIG_HINTS>
+      <MUST>Enable TypeScript strict mode and ESLint rules consistent with repo:</MUST>
+      - tsconfig: "strict": true, "noUncheckedIndexedAccess": true, "noImplicitOverride": true.
+      - ESLint: typescript-eslint plugin; no implicit any; no floating promises (use void where intentional); prefer const and readonly types.
+      - Prettier: match repo defaults (semicolons, 2 spaces).
+    </LINT_CONFIG_HINTS>
+
+    <SCREEN_SAMPLE language="tsx">
+      // apps/mobile/src/screens/UsersListScreen.tsx
+      import React from 'react'
+      import { View, Text, FlatList, ActivityIndicator, Button } from 'react-native'
+      import { getUsers } from '../api/users'
+      export default function UsersListScreen() {
+        const [loading, setLoading] = React.useState(true)
+        const [page, setPage] = React.useState(1)
+        const [data, setData] = React.useState<{ users: any[]; pagination: any } | null>(null)
+        const load = React.useCallback(async (p = 1) => { setLoading(true); try { setData(await getUsers(p, 20)) } finally { setLoading(false) } }, [])
+        React.useEffect(() => { void load(page) }, [page])
+        if (loading && !data) return <ActivityIndicator />
+        if (!data || data.users.length === 0) return <View><Text>No users found</Text><Button title="Reload" onPress={() => load(1)} /></View>
+        return (
+          <View>
+            <FlatList data={data.users} keyExtractor={(u) => u.id} renderItem={({ item }) => (
+              <View style={{ padding: 12, borderBottomWidth: 1 }}>
+                <Text>{item.name || 'Unnamed'}</Text>
+                <Text>{item.email}</Text>
+              </View>
+            )} />
+            <View style={{ flexDirection:'row', justifyContent:'space-between', padding: 12 }}>
+              <Button title="Prev" onPress={() => setPage(Math.max(1, page - 1))} />
+              <Text>Page {data.pagination.page} / {data.pagination.totalPages}</Text>
+              <Button title="Next" onPress={() => setPage(Math.min(data.pagination.totalPages, page + 1))} />
+            </View>
+          </View>
+        )
+      }
+    </SCREEN_SAMPLE>
+
+    <WHERE_TO_FIND>
+      - Prisma models (tables): apps/backend/prisma/schema.prisma (User -> users, LogEntry -> log_entries)
+      - Users API: apps/backend/src/user/user.controller.ts
+      - Health endpoints: apps/backend/src/health/health.controller.ts
+      - Logs API: apps/backend/src/logs/logs.controller.ts
+    </WHERE_TO_FIND>
+  </EXAMPLES>
+</AGENT_PROMPT>

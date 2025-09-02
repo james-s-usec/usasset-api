@@ -19,6 +19,8 @@ export class HealthService {
       uptime: this.getUptime(),
       environment: this.configService.get<string>('NODE_ENV', 'development'),
       version: this.getVersion(),
+      appVersion: this.configService.get<string>('APP_VERSION', 'unknown'),
+      buildTime: this.configService.get<string>('BUILD_TIME', 'unknown'),
     };
   }
 
