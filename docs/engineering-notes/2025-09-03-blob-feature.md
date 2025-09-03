@@ -71,13 +71,40 @@
 
 ## Learning Notes
 - TIL: Azure Blob Storage connection strings contain AccountName and AccountKey that can be parsed for SAS generation #learned
-- Tool discovered: `rg` (ripgrep) is much better than `cat` + `grep` for searching logs
+- Tool discovered: `rg` (ripgrep) is much better than `cat` + `grep` for searching logs  
 - Pattern identified: Extract dialog components to reduce component size and improve reusability
+- **CORS deep understanding**: Browser `fetch()` to external domains triggers CORS, but `<img src="">` doesn't #learned
+- **TypeScript stream handling**: Azure Blob `readableStreamBody` can be `undefined`, requires null checking #learned
+- **Response format consistency**: Backend has global response wrapper - all endpoints return `{success, data}` format #learned
+
+### 16:30 - CSV Preview Feature Implementation #solution #learned
+**What**: Completed full CSV preview functionality with secure content fetching
+**Why**: Users needed to preview CSV files without downloading (continuation from morning TODOs)
+**How**: 
+  - Backend: Added `/api/files/:id/content` endpoint to fetch file content server-side
+  - Frontend: Created CSV parser utility with 100-row limit
+  - Added CSVPreviewDialog component with MUI Table (simple HTML table, not DataGrid per user request)
+  - Updated FileTableRow to show preview button for CSV files
+  - Fixed CORS issues by proxying through backend API
+**Result**: Full CSV preview working - displays first 100 rows in clean table format
+**Learned**: 
+  - CORS only affects browser-to-server requests, not server-to-server
+  - Backend global response wrapper requires frontend handling: `{success: true, data: {content: "..."}}`
+  - Simple MUI Table is better than complex DataGrid for basic preview
+
+### 16:45 - CORS Issue Deep Dive #problem #solution
+**Issue**: Frontend couldn't fetch CSV content - CORS errors accessing Azure Blob Storage directly
+**Debugging**: 
+  1. Confirmed image preview works (uses SAS URLs in `<img>` tags)
+  2. CSV preview fails (uses `fetch()` to blob URL)  
+  3. Tested both approaches - JavaScript `fetch()` triggers CORS, `<img>` doesn't
+**Solution**: Created backend proxy endpoint that fetches content server-side and returns to frontend
+**Prevention**: Always proxy external service calls through backend API for security and CORS compliance
 
 ## Tomorrow's Priority
-1. Add PDF preview capability (using embedded viewer or PDF.js)
-2. Add CSV preview with data table (first 100 rows)
-3. Add XLSX preview with sheet navigation
+1. Add PDF preview capability (using embedded viewer or PDF.js) 
+2. Add XLSX preview with sheet navigation
+3. Test CSV preview with larger files and edge cases
 
 ## Technical Details for Next Session
 
@@ -118,6 +145,10 @@ npm run typecheck --workspace=backend
 # Better log searching (learned today!)
 rg "error" .logs/backend-lint.log | tail -5
 tail -20 .logs/backend-lint.log  # Instead of cat
+
+# API testing (CSV preview)
+curl http://localhost:3000/api/files/eaae7698-e9e1-4df9-8d2b-533a08942764/content
+curl http://localhost:3000/api/files  # List files to get IDs
 ```
 
 ## Notes
@@ -125,3 +156,6 @@ tail -20 .logs/backend-lint.log  # Instead of cat
 - Blob storage sync worked perfectly - added 2 orphaned files
 - All backend functions now under 30 lines (clean architecture!)
 - Image preview feature complete with security and proper UI
+- **CSV preview now fully working** - shows first 100 rows in clean table format
+- Preview buttons show for both images and CSV files automatically
+- Backend API pattern: all file operations go through `/api/files/` endpoints for security
