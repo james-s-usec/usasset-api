@@ -14,6 +14,7 @@ import {
 import type { FileData } from './types';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
 import { CSVPreviewDialog } from './CSVPreviewDialog';
+import { PDFPreviewDialog } from './PDFPreviewDialog';
 
 interface FileTableRowProps {
   file: FileData;
@@ -21,6 +22,14 @@ interface FileTableRowProps {
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
   getFileContent?: (fileId: string) => Promise<string>;
+  getPdfInfo?: (fileId: string) => Promise<{
+    pageCount: number;
+    title?: string;
+    author?: string;
+    dimensions: { width: number; height: number };
+    maxZoom: number;
+    tileSize: number;
+  }>;
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -39,6 +48,7 @@ const getMimeTypeColor = (mimetype: string): 'primary' | 'secondary' | 'success'
   if (mimetype.includes('csv')) return 'success';
   if (mimetype.includes('excel') || mimetype.includes('spreadsheet')) return 'primary';
   if (mimetype.includes('image')) return 'secondary';
+  if (mimetype === 'application/pdf') return 'primary';
   return 'warning';
 };
 
@@ -83,10 +93,11 @@ const FileActions: React.FC<{
 }> = ({ file, onDownload, onDelete, onPreview }) => {
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
+  const isPDF = file.mimetype === 'application/pdf';
   
   return (
     <>
-      {(isImage || isCSV) && onPreview && <PreviewButton onPreview={onPreview} />}
+      {(isImage || isCSV || isPDF) && onPreview && <PreviewButton onPreview={onPreview} />}
       <DownloadButton onDownload={onDownload} />
       <DeleteButton onDelete={onDelete} />
     </>
@@ -122,11 +133,14 @@ const usePreviewLogic = (file: FileData, onPreview?: (fileId: string) => Promise
   setPreviewOpen: (open: boolean) => void;
   csvPreviewOpen: boolean;
   setCsvPreviewOpen: (open: boolean) => void;
+  pdfPreviewOpen: boolean;
+  setPdfPreviewOpen: (open: boolean) => void;
 } => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [csvPreviewOpen, setCsvPreviewOpen] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
   const handlePreview = onPreview 
     ? createPreviewHandler(file, onPreview, { setLoading, setPreviewUrl, setPreviewOpen })
@@ -140,6 +154,8 @@ const usePreviewLogic = (file: FileData, onPreview?: (fileId: string) => Promise
     setPreviewOpen,
     csvPreviewOpen,
     setCsvPreviewOpen,
+    pdfPreviewOpen,
+    setPdfPreviewOpen,
   };
 };
 
@@ -178,11 +194,15 @@ const FileRowContent: React.FC<{
 const createPreviewClickHandler = (
   isCSV: boolean,
   isImage: boolean,
+  isPDF: boolean,
   setCsvPreviewOpen: (open: boolean) => void,
+  setPdfPreviewOpen: (open: boolean) => void,
   handlePreview: () => Promise<void>
 ): (() => Promise<void>) => async (): Promise<void> => {
   if (isCSV) {
     setCsvPreviewOpen(true);
+  } else if (isPDF) {
+    setPdfPreviewOpen(true);
   } else if (isImage) {
     await handlePreview();
   }
@@ -191,13 +211,14 @@ const createPreviewClickHandler = (
 const createDefaultGetFileContent = (): ((fileId: string) => Promise<string>) => 
   (): Promise<string> => Promise.reject(new Error('getFileContent not provided'));
 
-export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, onDelete, onPreview, getFileContent }) => {
-  const { previewOpen, previewUrl, loading, handlePreview, setPreviewOpen, csvPreviewOpen, setCsvPreviewOpen } = usePreviewLogic(file, onPreview);
+export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, onDelete, onPreview, getFileContent, getPdfInfo }) => {
+  const { previewOpen, previewUrl, loading, handlePreview, setPreviewOpen, csvPreviewOpen, setCsvPreviewOpen, pdfPreviewOpen, setPdfPreviewOpen } = usePreviewLogic(file, onPreview);
   
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
+  const isPDF = file.mimetype === 'application/pdf';
   
-  const handlePreviewClick = createPreviewClickHandler(isCSV, isImage, setCsvPreviewOpen, handlePreview);
+  const handlePreviewClick = createPreviewClickHandler(isCSV, isImage, isPDF, setCsvPreviewOpen, setPdfPreviewOpen, handlePreview);
 
   return (
     <>
@@ -222,6 +243,15 @@ export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, on
         fileName={file.original_name}
         fileId={file.id}
         getFileContent={getFileContent || createDefaultGetFileContent()}
+      />
+      
+      <PDFPreviewDialog
+        open={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        fileId={file.id}
+        fileName={file.original_name}
+        loading={false}
+        getPdfInfo={getPdfInfo}
       />
     </>
   );

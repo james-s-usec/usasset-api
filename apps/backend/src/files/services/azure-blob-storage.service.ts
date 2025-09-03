@@ -105,7 +105,7 @@ export class AzureBlobStorageService {
     }
   }
 
-  public async upload(file: MulterFile): Promise<File> {
+  public async upload(file: MulterFile, folderId?: string): Promise<File> {
     this.validateFileSize(file);
 
     const isImage = file.mimetype.startsWith('image/');
@@ -132,6 +132,7 @@ export class AzureBlobStorageService {
         blob_url: blockBlobClient.url,
         container_name: this.containerName,
         blob_name: blobName,
+        folder_id: folderId || null,
       },
     });
 
@@ -172,27 +173,55 @@ export class AzureBlobStorageService {
     files: File[];
     pagination: { page: number; limit: number; total: number };
   }> {
-    const skip = (page - 1) * limit;
+    const skip = this.calculateSkip(page, limit);
+    const [files, total] = await this.fetchFilesAndCount(skip, limit);
+    const pagination = this.buildPaginationResponse(page, limit, total);
 
-    const [files, total] = await Promise.all([
+    return {
+      files,
+      pagination,
+    };
+  }
+
+  private calculateSkip(page: number, limit: number): number {
+    return (page - 1) * limit;
+  }
+
+  private async fetchFilesAndCount(
+    skip: number,
+    limit: number,
+  ): Promise<[File[], number]> {
+    return Promise.all([
       this.prisma.file.findMany({
         where: { is_deleted: false },
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
+        include: {
+          folder: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+        },
       }),
       this.prisma.file.count({
         where: { is_deleted: false },
       }),
     ]);
+  }
 
+  private buildPaginationResponse(
+    page: number,
+    limit: number,
+    total: number,
+  ): { page: number; limit: number; total: number } {
     return {
-      files,
-      pagination: {
-        page,
-        limit,
-        total,
-      },
+      page,
+      limit,
+      total,
     };
   }
 

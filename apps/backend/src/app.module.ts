@@ -15,6 +15,7 @@ import { LogsModule } from './logs/logs.module';
 import { ProjectModule } from './features/projects/project.module';
 import { FilesModule } from './files/files.module';
 import { AssetModule } from './asset/asset.module';
+import { FolderModule } from './folder/folder.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AssetModule } from './asset/asset.module';
     ProjectModule,
     FilesModule,
     AssetModule,
+    FolderModule,
   ],
   controllers: [AppController],
   providers: [AppService, GlobalExceptionFilter, ResponseTransformInterceptor],

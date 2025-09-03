@@ -22,6 +22,14 @@ interface MainContentProps {
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview: (fileId: string) => Promise<string>;
   getFileContent: (fileId: string) => Promise<string>;
+  getPdfInfo: (fileId: string) => Promise<{
+    pageCount: number;
+    title?: string;
+    author?: string;
+    dimensions: { width: number; height: number };
+    maxZoom: number;
+    tileSize: number;
+  }>;
   onRefresh: () => Promise<void>;
   onErrorClose: () => void;
 }
@@ -35,6 +43,7 @@ const MainContent: React.FC<MainContentProps> = ({
   onDelete,
   onPreview,
   getFileContent,
+  getPdfInfo,
   onRefresh,
   onErrorClose
 }) => (
@@ -50,6 +59,7 @@ const MainContent: React.FC<MainContentProps> = ({
       onDelete={onDelete}
       onPreview={onPreview}
       getFileContent={getFileContent}
+      getPdfInfo={getPdfInfo}
       onRefresh={onRefresh}
     />
   </Box>
@@ -75,6 +85,7 @@ export const FileManagement: React.FC = () => {
       onDelete={state.handleDelete}
       onPreview={state.handlePreview}
       getFileContent={state.getFileContent}
+      getPdfInfo={state.getPdfInfo}
       onRefresh={state.loadFiles}
       onErrorClose={() => state.setError(null)}
     />

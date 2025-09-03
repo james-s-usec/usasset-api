@@ -7,6 +7,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -15,7 +16,9 @@ import {
   ApiResponse,
   ApiConsumes,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { AzureBlobStorageService } from '../services/azure-blob-storage.service';
+import { PdfProcessingService } from '../services/pdf-processing.service';
 import { FileResponseDto } from '../dto/file-response.dto';
 import { MulterFile } from '../interfaces/file.interface';
 
@@ -24,6 +27,7 @@ import { MulterFile } from '../interfaces/file.interface';
 export class FilesController {
   public constructor(
     private readonly storageService: AzureBlobStorageService,
+    private readonly pdfService: PdfProcessingService,
   ) {}
 
   @Get()
@@ -56,8 +60,9 @@ export class FilesController {
   @UseInterceptors(FileInterceptor('file'))
   public async uploadFile(
     @UploadedFile() file: MulterFile,
+    @Query('folder_id') folderId?: string,
   ): Promise<FileResponseDto> {
-    const uploadedFile = await this.storageService.upload(file);
+    const uploadedFile = await this.storageService.upload(file, folderId);
     return this.mapToResponseDto(uploadedFile);
   }
 
@@ -68,6 +73,11 @@ export class FilesController {
     mimetype: string;
     size: number;
     created_at: Date;
+    folder?: {
+      id: string;
+      name: string;
+      color: string | null;
+    } | null;
   }): FileResponseDto {
     return {
       id: file.id,
@@ -76,6 +86,7 @@ export class FilesController {
       mimetype: file.mimetype,
       size: file.size,
       created_at: file.created_at,
+      folder: file.folder || undefined,
     };
   }
 
@@ -128,6 +139,62 @@ export class FilesController {
   ): Promise<{ message: string }> {
     await this.storageService.delete(id);
     return { message: 'File deleted successfully' };
+  }
+
+  @Get(':id/pdf-info')
+  @ApiOperation({ summary: 'Get PDF metadata (page count, dimensions, etc.)' })
+  @ApiResponse({ status: 200, description: 'PDF metadata retrieved' })
+  public async getPdfInfo(@Param('id') id: string): Promise<{
+    pageCount: number;
+    title?: string;
+    author?: string;
+    dimensions: { width: number; height: number };
+    maxZoom: number;
+    tileSize: number;
+  }> {
+    return await this.pdfService.getPdfInfo(id);
+  }
+
+  @Get(':id/pdf-tiles/:page/:z/:x/:y.png')
+  @ApiOperation({ summary: 'Get PDF tile as PNG image' })
+  @ApiResponse({ status: 200, description: 'PDF tile image' })
+  public async getPdfTile(
+    @Param('id') id: string,
+    @Param() tileParams: { page: string; z: string; x: string; y: string },
+    @Res() res: Response,
+  ): Promise<void> {
+    const tileCoordinates = this.parseTileCoordinates(tileParams);
+    const tileBuffer = await this.pdfService.getPdfTile(
+      id,
+      tileCoordinates.page,
+      tileCoordinates.z,
+      tileCoordinates.x,
+      tileCoordinates.y,
+    );
+
+    this.setTileResponseHeaders(res);
+    res.send(tileBuffer);
+  }
+
+  private parseTileCoordinates(params: {
+    page: string;
+    z: string;
+    x: string;
+    y: string;
+  }): { page: number; z: number; x: number; y: number } {
+    return {
+      page: parseInt(params.page, 10),
+      z: parseInt(params.z, 10),
+      x: parseInt(params.x, 10),
+      y: parseInt(params.y, 10),
+    };
+  }
+
+  private setTileResponseHeaders(res: Response): void {
+    res.set({
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=3600',
+    });
   }
 
   @Post('sync')

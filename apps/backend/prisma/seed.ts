@@ -42,6 +42,34 @@ async function main() {
   });
 
   console.log('✅ Seeded users:', { admin, superAdmin, user });
+
+  // Create default folders
+  const defaultFolders = [
+    { name: 'Calculations', description: 'Engineering calculations and analysis', color: '#2196F3' },
+    { name: 'Controls', description: 'Control systems and automation', color: '#FF9800' },
+    { name: 'Cost Estimates', description: 'Project cost estimates and budgets', color: '#4CAF50' },
+    { name: 'Drawings', description: 'Technical drawings and schematics', color: '#9C27B0' },
+    { name: 'Field', description: 'Field reports and documentation', color: '#607D8B' },
+    { name: 'For Encore', description: 'Documents for Encore review', color: '#E91E63' },
+    { name: 'Issues Log', description: 'Issue tracking and resolution', color: '#F44336' },
+    { name: 'Photos', description: 'Project photos and images', color: '#00BCD4' },
+    { name: 'Submittals', description: 'Contractor submittals and approvals', color: '#8BC34A' },
+  ];
+
+  const createdFolders = [];
+  for (const folderData of defaultFolders) {
+    const folder = await prisma.folder.upsert({
+      where: { name: folderData.name },
+      update: {},
+      create: {
+        ...folderData,
+        is_default: true, // Mark as system folder
+      },
+    });
+    createdFolders.push(folder);
+  }
+
+  console.log('✅ Seeded folders:', createdFolders.map(f => f.name).join(', '));
   console.log('🌱 Database seeding completed!');
 }
 

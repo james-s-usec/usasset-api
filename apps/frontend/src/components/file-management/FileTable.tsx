@@ -33,6 +33,14 @@ interface FileTableProps {
   onRefresh: () => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
   getFileContent?: (fileId: string) => Promise<string>;
+  getPdfInfo?: (fileId: string) => Promise<{
+    pageCount: number;
+    title?: string;
+    author?: string;
+    dimensions: { width: number; height: number };
+    maxZoom: number;
+    tileSize: number;
+  }>;
 }
 
 const EmptyRow: React.FC = () => (
@@ -56,7 +64,7 @@ const FileSummary: React.FC<{ count: number; onRefresh: () => Promise<void> }> =
   </Box>
 );
 
-const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: string) => Promise<void>; onDelete: (fileId: string, fileName: string) => Promise<void>; onPreview?: (fileId: string) => Promise<string>; getFileContent?: (fileId: string) => Promise<string> }> = ({ files, onDownload, onDelete, onPreview, getFileContent }) => (
+const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: string) => Promise<void>; onDelete: (fileId: string, fileName: string) => Promise<void>; onPreview?: (fileId: string) => Promise<string>; getFileContent?: (fileId: string) => Promise<string>; getPdfInfo?: (fileId: string) => Promise<{ pageCount: number; title?: string; author?: string; dimensions: { width: number; height: number }; maxZoom: number; tileSize: number }> }> = ({ files, onDownload, onDelete, onPreview, getFileContent, getPdfInfo }) => (
   <TableContainer component={Paper}>
     <Table>
       <FileTableHeader />
@@ -72,6 +80,7 @@ const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: strin
               onDelete={onDelete}
               onPreview={onPreview}
               getFileContent={getFileContent}
+              getPdfInfo={getPdfInfo}
             />
           ))
         )}
@@ -87,6 +96,7 @@ export const FileTable: React.FC<FileTableProps> = ({
   onRefresh,
   onPreview,
   getFileContent,
+  getPdfInfo,
 }) => (
   <>
     <FileTableContent 
@@ -95,6 +105,7 @@ export const FileTable: React.FC<FileTableProps> = ({
       onDelete={onDelete}
       onPreview={onPreview}
       getFileContent={getFileContent}
+      getPdfInfo={getPdfInfo}
     />
     <FileSummary count={files.length} onRefresh={onRefresh} />
   </>

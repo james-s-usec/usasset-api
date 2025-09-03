@@ -94,6 +94,37 @@ const getFileContent = async (fileId: string): Promise<string> => {
   throw new Error('Invalid response format');
 };
 
+interface PDFInfo {
+  pageCount: number;
+  title?: string;
+  author?: string;
+  dimensions: { width: number; height: number };
+  maxZoom: number;
+  tileSize: number;
+}
+
+const getPdfInfo = async (fileId: string): Promise<PDFInfo> => {
+  const response = await fetch(`${API_BASE}/api/files/${fileId}/pdf-info`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to load PDF info');
+  }
+  
+  const result = await response.json();
+  
+  // Handle global response wrapper format: { success: true, data: { ... } }
+  if (result.success && result.data) {
+    return result.data;
+  }
+  
+  // Handle direct format (current backend returns this)
+  if (result.pageCount !== undefined) {
+    return result;
+  }
+  
+  throw new Error('Invalid PDF info response format');
+};
+
 const deleteFile = async (fileId: string): Promise<void> => {
   const response = await fetch(`${API_BASE}/api/files/${fileId}`, {
     method: 'DELETE',
@@ -112,6 +143,7 @@ interface UseFileOperationsReturn {
   performDelete: (fileId: string, fileName: string) => Promise<void>;
   handlePreview: (fileId: string) => Promise<string>;
   getFileContent: (fileId: string) => Promise<string>;
+  getPdfInfo: (fileId: string) => Promise<PDFInfo>;
 }
 
 const useDownloadHandler = (setError: (error: string | null) => void): ((fileId: string) => Promise<void>) =>
@@ -162,5 +194,6 @@ export const useFileOperations = (
     performDelete,
     handlePreview,
     getFileContent,
+    getPdfInfo,
   };
 };

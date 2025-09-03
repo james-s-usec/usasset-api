@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class FileResponseDto {
   @ApiProperty({ description: 'File unique identifier' })
@@ -18,4 +18,11 @@ export class FileResponseDto {
 
   @ApiProperty({ description: 'Upload timestamp' })
   public created_at!: Date;
+
+  @ApiPropertyOptional({ description: 'Folder information' })
+  public folder?: {
+    id: string;
+    name: string;
+    color: string | null;
+  };
 }

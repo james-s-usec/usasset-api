@@ -13,6 +13,14 @@ interface UseFileManagementReturn {
   handleDelete: (fileId: string, fileName: string) => Promise<void>;
   handlePreview: (fileId: string) => Promise<string>;
   getFileContent: (fileId: string) => Promise<string>;
+  getPdfInfo: (fileId: string) => Promise<{
+    pageCount: number;
+    title?: string;
+    author?: string;
+    dimensions: { width: number; height: number };
+    maxZoom: number;
+    tileSize: number;
+  }>;
   setError: (error: string | null) => void;
 }
 
@@ -80,7 +88,7 @@ export const useFileManagement = (): UseFileManagementReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { fetchFiles, uploadFile, handleDownload, performDelete, handlePreview, getFileContent } = useFileOperations(setError);
+  const { fetchFiles, uploadFile, handleDownload, performDelete, handlePreview, getFileContent, getPdfInfo } = useFileOperations(setError);
 
   const loadFiles = useCallback(
     (): Promise<void> => loadFilesImpl(fetchFiles, setFiles, setError, setLoading),
@@ -97,5 +105,5 @@ export const useFileManagement = (): UseFileManagementReturn => {
     [performDelete, loadFiles]
   );
 
-  return { files, loading, error, uploading, loadFiles, handleFileUpload, handleDownload, handleDelete, handlePreview, getFileContent, setError };
+  return { files, loading, error, uploading, loadFiles, handleFileUpload, handleDownload, handleDelete, handlePreview, getFileContent, getPdfInfo, setError };
 };

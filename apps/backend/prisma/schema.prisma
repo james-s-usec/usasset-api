@@ -122,6 +122,24 @@ enum ProjectRole {
   VIEWER
 }
 
+model Folder {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  color       String?   // For UI theming
+  is_default  Boolean  @default(false) // System folders can't be deleted
+  is_deleted  Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  
+  // Relations
+  files       File[]
+  
+  @@index([name])
+  @@index([is_deleted])
+  @@map("folders")
+}
+
 model File {
   id            String   @id @default(uuid())
   filename      String
@@ -131,6 +149,7 @@ model File {
   blob_url      String
   container_name String
   blob_name     String
+  folder_id     String?  // Optional - files can be unorganized
   is_deleted    Boolean  @default(false)
   created_at    DateTime @default(now())
   created_by    String?
@@ -139,6 +158,10 @@ model File {
   deleted_at    DateTime?
   deleted_by    String?
   
+  // Relations
+  folder        Folder?  @relation(fields: [folder_id], references: [id])
+  
+  @@index([folder_id])
   @@index([created_at])
   @@index([is_deleted])
   @@map("files")
