@@ -265,4 +265,73 @@ export class FilesController {
   }> {
     return await this.storageService.syncBlobsWithDatabase();
   }
+
+  @Patch('bulk/assign-project')
+  @ApiOperation({
+    summary: 'Bulk assign files to a project',
+    description:
+      'Assign multiple files to a project or remove project assignment',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Files assigned to project successfully',
+  })
+  public async bulkAssignProject(
+    @Body() bulkData: { file_ids: string[]; project_id: string | null },
+  ): Promise<{ message: string; updated_count: number }> {
+    const updatedCount = await this.storageService.bulkAssignProject(
+      bulkData.file_ids,
+      bulkData.project_id,
+    );
+    const action = bulkData.project_id
+      ? 'assigned to project'
+      : 'removed from project';
+    return {
+      message: `${updatedCount} files ${action} successfully`,
+      updated_count: updatedCount,
+    };
+  }
+
+  @Patch('bulk/move-to-folder')
+  @ApiOperation({
+    summary: 'Bulk move files to a folder',
+    description: 'Move multiple files to a folder or to unorganized',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Files moved to folder successfully',
+  })
+  public async bulkMoveToFolder(
+    @Body() bulkData: { file_ids: string[]; folder_id: string | null },
+  ): Promise<{ message: string; updated_count: number }> {
+    const updatedCount = await this.storageService.bulkMoveToFolder(
+      bulkData.file_ids,
+      bulkData.folder_id,
+    );
+    const action = bulkData.folder_id
+      ? 'moved to folder'
+      : 'moved to unorganized';
+    return {
+      message: `${updatedCount} files ${action} successfully`,
+      updated_count: updatedCount,
+    };
+  }
+
+  @Delete('bulk/delete')
+  @ApiOperation({
+    summary: 'Bulk delete files',
+    description: 'Delete multiple files from Azure Blob Storage and database',
+  })
+  @ApiResponse({ status: 200, description: 'Files deleted successfully' })
+  public async bulkDelete(
+    @Body() bulkData: { file_ids: string[] },
+  ): Promise<{ message: string; deleted_count: number }> {
+    const deletedCount = await this.storageService.bulkDelete(
+      bulkData.file_ids,
+    );
+    return {
+      message: `${deletedCount} files deleted successfully`,
+      deleted_count: deletedCount,
+    };
+  }
 }

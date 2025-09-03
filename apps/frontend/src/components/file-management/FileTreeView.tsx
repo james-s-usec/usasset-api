@@ -10,7 +10,6 @@ import {
   ListItemIcon,
   ListItemText,
   ListItemSecondaryAction,
-  Chip,
   Divider,
   Button,
 } from '@mui/material';
@@ -27,8 +26,6 @@ import {
   Download as DownloadIcon,
   Delete as DeleteIcon,
   Visibility as PreviewIcon,
-  DriveFileMove as MoveIcon,
-  Assignment as AssignIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import type { FileData } from './types';
@@ -77,13 +74,6 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-const getMimeTypeColor = (mimetype: string): 'primary' | 'secondary' | 'success' | 'warning' => {
-  if (mimetype.includes('csv')) return 'success';
-  if (mimetype.includes('excel') || mimetype.includes('spreadsheet')) return 'primary';
-  if (mimetype.includes('image')) return 'secondary';
-  if (mimetype === 'application/pdf') return 'primary';
-  return 'warning';
-};
 
 const getFileIcon = (mimetype: string) => {
   if (mimetype === 'application/pdf') return <PdfIcon color="error" />;

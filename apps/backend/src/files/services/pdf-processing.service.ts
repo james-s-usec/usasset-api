@@ -28,13 +28,18 @@ export class PdfProcessingService {
   private readonly MAX_ZOOM = 6;
   private readonly BASE_SCALE = 4; // Render at 4x base resolution to match AkitaBox quality (2550px width)
   private readonly pageCache = new Map<string, Buffer>(); // Cache rendered pages
-  private readonly renderingInProgress = new Map<string, Promise<{ buffer: Buffer; width: number; height: number }>>(); // Prevent duplicate renders
+  private readonly renderingInProgress = new Map<
+    string,
+    Promise<{ buffer: Buffer; width: number; height: number }>
+  >(); // Prevent duplicate renders
 
   public constructor(
     private readonly prisma: PrismaService,
     private readonly blobStorage: AzureBlobStorageService,
   ) {
-    this.logger.log('PDF Processing Service initialized with UnPDF + robust error handling');
+    this.logger.log(
+      'PDF Processing Service initialized with UnPDF + robust error handling',
+    );
   }
 
   public async getPdfInfo(fileId: string): Promise<PDFInfo> {
@@ -145,30 +150,32 @@ export class PdfProcessingService {
     zoom: number,
   ): Promise<{ buffer: Buffer; width: number; height: number }> {
     const cacheKey = `${fileId}_${page}_${zoom}`;
-    
+
     // Check cache first
     if (this.pageCache.has(cacheKey)) {
       this.logger.log(`💾 Cache Hit - Page ${page}, Zoom ${zoom}`);
       const cachedBuffer = this.pageCache.get(cacheKey)!;
-      
+
       // Get actual image dimensions from cached buffer
       const metadata = await sharp(cachedBuffer).metadata();
       return {
         buffer: cachedBuffer,
-        width: metadata.width!,
-        height: metadata.height!,
+        width: metadata.width,
+        height: metadata.height,
       };
     }
 
     // Check if already rendering
     if (this.renderingInProgress.has(cacheKey)) {
-      this.logger.log(`⏳ Waiting for render in progress - Page ${page}, Zoom ${zoom}`);
+      this.logger.log(
+        `⏳ Waiting for render in progress - Page ${page}, Zoom ${zoom}`,
+      );
       return await this.renderingInProgress.get(cacheKey)!;
     }
 
     // Start rendering
     this.logger.log(`🔄 Cache Miss - Rendering page ${page}, zoom ${zoom}`);
-    
+
     const renderPromise = this.doRenderPage(fileId, page, zoom, cacheKey);
     this.renderingInProgress.set(cacheKey, renderPromise);
 
@@ -208,8 +215,8 @@ export class PdfProcessingService {
 
       // Get actual dimensions from rendered image
       const metadata = await sharp(imageBuffer).metadata();
-      const actualWidth = metadata.width!;
-      const actualHeight = metadata.height!;
+      const actualWidth = metadata.width;
+      const actualHeight = metadata.height;
 
       this.pageCache.set(cacheKey, imageBuffer);
 
@@ -224,37 +231,48 @@ export class PdfProcessingService {
       };
     } catch (unpdfError: any) {
       // Handle specific UnPDF errors with proper fallback
-      if (unpdfError.message?.includes('Missing field') || unpdfError.message?.includes('beginGroup')) {
-        this.logger.warn(`UnPDF render failed for page ${page}, error: ${unpdfError.message}`);
-        
+      if (
+        unpdfError.message?.includes('Missing field') ||
+        unpdfError.message?.includes('beginGroup')
+      ) {
+        this.logger.warn(
+          `UnPDF render failed for page ${page}, error: ${unpdfError.message}`,
+        );
+
         // Create a proper error tile with the page number indicated
         const errorBuffer = await sharp({
           create: {
             width: baseWidth,
             height: baseHeight,
             channels: 3,
-            background: { r: 248, g: 249, b: 250 } // Light gray background
-          }
+            background: { r: 248, g: 249, b: 250 }, // Light gray background
+          },
         })
-        .composite([{
-          input: Buffer.from(`<svg width="${baseWidth}" height="${baseHeight}"><text x="50%" y="50%" text-anchor="middle" font-size="24" fill="#666">Page ${page} - Rendering Error</text></svg>`),
-          top: 0,
-          left: 0
-        }])
-        .png()
-        .toBuffer();
-        
+          .composite([
+            {
+              input: Buffer.from(
+                `<svg width="${baseWidth}" height="${baseHeight}"><text x="50%" y="50%" text-anchor="middle" font-size="24" fill="#666">Page ${page} - Rendering Error</text></svg>`,
+              ),
+              top: 0,
+              left: 0,
+            },
+          ])
+          .png()
+          .toBuffer();
+
         this.pageCache.set(cacheKey, errorBuffer);
-        
-        this.logger.log(`🚫 Error Fallback Created - Page ${page}, Zoom ${zoom}`);
-        
+
+        this.logger.log(
+          `🚫 Error Fallback Created - Page ${page}, Zoom ${zoom}`,
+        );
+
         return {
           buffer: errorBuffer,
           width: baseWidth,
           height: baseHeight,
         };
       }
-      
+
       // Re-throw other errors
       throw unpdfError;
     }

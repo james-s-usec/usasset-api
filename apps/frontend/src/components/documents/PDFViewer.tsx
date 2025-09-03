@@ -8,7 +8,6 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel,
   Chip,
   CircularProgress,
 } from '@mui/material';
@@ -21,7 +20,7 @@ import {
   LastPage,
   FitScreen,
 } from '@mui/icons-material';
-import { MapContainer, TileLayer } from 'react-leaflet';
+import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import L, { CRS, LatLngBounds } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { config } from '../../config';
@@ -69,9 +68,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
     }
   };
 
-  const createPDFCRS = (width: number, height: number) => {
+  const createPDFCRS = (_width: number, height: number) => {
     return L.extend({}, CRS.Simple, {
-      transformation: new L.Transformation(1, 0, 1, 0)
+      transformation: new L.Transformation(1, 0, -1, height)
     });
   };
 
@@ -97,6 +96,24 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
     }
   };
 
+  // Component to handle map events and sync zoom state
+  const MapEventHandler: React.FC = () => {
+    const map = useMapEvents({
+      zoomend: () => {
+        setZoom(map.getZoom());
+      }
+    });
+    
+    // Sync zoom when our state changes
+    React.useEffect(() => {
+      if (map.getZoom() !== zoom) {
+        map.setZoom(zoom);
+      }
+    }, [zoom, map]);
+    
+    return null;
+  };
+
 
   if (loading) {
     return (
@@ -115,10 +132,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
     );
   }
 
-  const scale = Math.pow(2, zoom);
-  const mapWidth = pdfInfo.dimensions.width * scale;
-  const mapHeight = pdfInfo.dimensions.height * scale;
-  const bounds = new LatLngBounds([0, 0], [mapHeight, mapWidth]);
+  // Use base PDF dimensions for bounds (not scaled)
+  const baseWidth = pdfInfo.dimensions.width;
+  const baseHeight = pdfInfo.dimensions.height;
+  const bounds = new LatLngBounds([0, 0], [baseHeight, baseWidth]);
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -171,7 +188,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
             </IconButton>
             
             <Chip 
-              label={`${Math.round(scale * 100)}%`} 
+              label={`${Math.round(Math.pow(2, zoom) * 100)}%`} 
               variant="outlined" 
               size="small"
               sx={{ minWidth: 60 }}
@@ -191,16 +208,18 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
       {/* PDF Viewer - Leaflet Map with Tiles */}
       <Box sx={{ flexGrow: 1, position: 'relative' }}>
         <MapContainer
-          crs={createPDFCRS(pdfInfo.dimensions.width, pdfInfo.dimensions.height)}
-          center={[mapHeight / 2, mapWidth / 2]}
-          zoom={zoom}
+          crs={createPDFCRS(baseWidth, baseHeight)}
+          center={[baseHeight / 2, baseWidth / 2]}
+          zoom={0}
           minZoom={0}
           maxZoom={pdfInfo.maxZoom}
           bounds={bounds}
+          maxBounds={bounds}
           style={{ width: '100%', height: '100%' }}
           zoomControl={false}
           attributionControl={false}
         >
+          <MapEventHandler />
           <TileLayer
             url={`${config.api.baseUrl}/api/files/${fileId}/pdf-tiles/${currentPage}/{z}/{x}/{y}.png`}
             bounds={bounds}

@@ -196,6 +196,59 @@ const moveFileToProject = async (fileId: string, projectId: string | null): Prom
   }
 };
 
+const bulkAssignProject = async (fileIds: string[], projectId: string | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/files/bulk/assign-project`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      file_ids: fileIds,
+      project_id: projectId,
+    }),
+  });
+  
+  if (!response.ok) {
+    const result = await response.json();
+    throw new Error(result.error?.message || 'Failed to bulk assign files to project');
+  }
+};
+
+const bulkMoveToFolder = async (fileIds: string[], folderId: string | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/files/bulk/move-to-folder`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      file_ids: fileIds,
+      folder_id: folderId,
+    }),
+  });
+  
+  if (!response.ok) {
+    const result = await response.json();
+    throw new Error(result.error?.message || 'Failed to bulk move files to folder');
+  }
+};
+
+const bulkDeleteFiles = async (fileIds: string[]): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/files/bulk/delete`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      file_ids: fileIds,
+    }),
+  });
+  
+  if (!response.ok) {
+    const result = await response.json();
+    throw new Error(result.error?.message || 'Failed to bulk delete files');
+  }
+};
+
 interface UseFileOperationsReturn {
   fetchFiles: () => Promise<FileData[]>;
   uploadFile: (file: File, folderId?: string, projectId?: string) => Promise<void>;
@@ -208,6 +261,9 @@ interface UseFileOperationsReturn {
   fetchProjects: () => Promise<unknown[]>;
   moveFile: (fileId: string, folderId: string | null) => Promise<void>;
   moveFileToProject: (fileId: string, projectId: string | null) => Promise<void>;
+  handleBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>;
+  handleBulkMoveToFolder: (fileIds: string[], folderId: string | null) => Promise<void>;
+  handleBulkDelete: (fileIds: string[]) => Promise<void>;
 }
 
 const useDownloadHandler = (setError: (error: string | null) => void): ((fileId: string) => Promise<void>) =>
@@ -244,12 +300,53 @@ const usePreviewHandler = (setError: (error: string | null) => void): ((fileId: 
     }
   }, [setError]);
 
+const useBulkAssignProjectHandler = (setError: (error: string | null) => void): ((fileIds: string[], projectId: string | null) => Promise<void>) =>
+  useCallback(async (fileIds: string[], projectId: string | null): Promise<void> => {
+    try {
+      await bulkAssignProject(fileIds, projectId);
+    } catch (error) {
+      console.error('Bulk assign project failed:', error);
+      setError(error instanceof Error ? error.message : 'Failed to assign files to project');
+      throw error;
+    }
+  }, [setError]);
+
+const useBulkMoveToFolderHandler = (setError: (error: string | null) => void): ((fileIds: string[], folderId: string | null) => Promise<void>) =>
+  useCallback(async (fileIds: string[], folderId: string | null): Promise<void> => {
+    try {
+      await bulkMoveToFolder(fileIds, folderId);
+    } catch (error) {
+      console.error('Bulk move to folder failed:', error);
+      setError(error instanceof Error ? error.message : 'Failed to move files to folder');
+      throw error;
+    }
+  }, [setError]);
+
+const useBulkDeleteHandler = (setError: (error: string | null) => void): ((fileIds: string[]) => Promise<void>) =>
+  useCallback(async (fileIds: string[]): Promise<void> => {
+    const shouldDelete = window.confirm(`Are you sure you want to delete ${fileIds.length} file${fileIds.length > 1 ? 's' : ''}? This action cannot be undone.`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await bulkDeleteFiles(fileIds);
+    } catch (error) {
+      console.error('Bulk delete failed:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete files');
+      throw error;
+    }
+  }, [setError]);
+
 export const useFileOperations = (
   setError: (error: string | null) => void
 ): UseFileOperationsReturn => {
   const handleDownload = useDownloadHandler(setError);
   const performDelete = useDeleteHandler(setError);
   const handlePreview = usePreviewHandler(setError);
+  const handleBulkAssignProject = useBulkAssignProjectHandler(setError);
+  const handleBulkMoveToFolder = useBulkMoveToFolderHandler(setError);
+  const handleBulkDelete = useBulkDeleteHandler(setError);
 
   return {
     fetchFiles,
@@ -263,5 +360,8 @@ export const useFileOperations = (
     fetchProjects,
     moveFile,
     moveFileToProject,
+    handleBulkAssignProject,
+    handleBulkMoveToFolder,
+    handleBulkDelete,
   };
 };

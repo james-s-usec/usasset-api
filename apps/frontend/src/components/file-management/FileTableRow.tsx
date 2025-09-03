@@ -15,6 +15,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Checkbox,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -45,6 +46,8 @@ interface Project {
 
 interface FileTableRowProps {
   file: FileData;
+  selected?: boolean;
+  onSelectFile?: (fileId: string) => void;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>;
@@ -261,15 +264,26 @@ const usePreviewLogic = (file: FileData, onPreview?: (fileId: string) => Promise
 
 const FileRowContent: React.FC<{ 
   file: FileData;
+  selected?: boolean;
+  onSelectFile?: (fileId: string) => void;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: () => void;
   onMove?: () => void;
   onAssign?: () => void;
-}> = ({ file, onDownload, onDelete, onPreview, onMove, onAssign }) => (
-  <TableRow hover>
+}> = ({ file, selected, onSelectFile, onDownload, onDelete, onPreview, onMove, onAssign }) => (
+  <TableRow hover selected={selected}>
+    <TableCell padding="checkbox">
+      {onSelectFile && (
+        <Checkbox
+          checked={selected || false}
+          onChange={() => onSelectFile(file.id)}
+          inputProps={{ 'aria-labelledby': `file-name-${file.id}` }}
+        />
+      )}
+    </TableCell>
     <TableCell>
-      <Typography variant="body2" fontWeight="medium">
+      <Typography variant="body2" fontWeight="medium" id={`file-name-${file.id}`}>
         {file.original_name}
       </Typography>
     </TableCell>
@@ -511,7 +525,7 @@ const ProjectMoveDialog: React.FC<{
   );
 };
 
-export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, onDelete, onMoveToFolder, folders, onMoveToProject, projects, onPreview, getFileContent, getPdfInfo }) => {
+export const FileTableRow: React.FC<FileTableRowProps> = ({ file, selected, onSelectFile, onDownload, onDelete, onMoveToFolder, folders, onMoveToProject, projects, onPreview, getFileContent, getPdfInfo }) => {
   const { previewOpen, previewUrl, loading, handlePreview, setPreviewOpen, csvPreviewOpen, setCsvPreviewOpen, pdfPreviewOpen, setPdfPreviewOpen } = usePreviewLogic(file, onPreview);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -546,6 +560,8 @@ export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, on
     <>
       <FileRowContent
         file={file}
+        selected={selected}
+        onSelectFile={onSelectFile}
         onDownload={onDownload}
         onDelete={onDelete}
         onPreview={handlePreviewClick}

@@ -579,4 +579,129 @@ export class AzureBlobStorageService {
       project: updatedFile.project || undefined,
     };
   }
+
+  public async bulkAssignProject(
+    fileIds: string[],
+    projectId: string | null,
+  ): Promise<number> {
+    if (fileIds.length === 0) {
+      return 0;
+    }
+
+    // Validate project exists if project_id is provided
+    if (projectId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId, is_deleted: false },
+      });
+      if (!project) {
+        throw new BadRequestException(`Project with ID ${projectId} not found`);
+      }
+    }
+
+    // Update all files at once
+    const result = await this.prisma.file.updateMany({
+      where: {
+        id: { in: fileIds },
+        is_deleted: false,
+      },
+      data: {
+        project_id: projectId,
+        updated_at: new Date(),
+      },
+    });
+
+    this.logger.log(
+      `Bulk assigned ${result.count} files to project: ${projectId || 'none'}`,
+    );
+
+    return result.count;
+  }
+
+  public async bulkMoveToFolder(
+    fileIds: string[],
+    folderId: string | null,
+  ): Promise<number> {
+    if (fileIds.length === 0) {
+      return 0;
+    }
+
+    // Validate folder exists if folder_id is provided
+    if (folderId) {
+      const folder = await this.prisma.folder.findUnique({
+        where: { id: folderId, is_deleted: false },
+      });
+      if (!folder) {
+        throw new BadRequestException(`Folder with ID ${folderId} not found`);
+      }
+    }
+
+    // Update all files at once
+    const result = await this.prisma.file.updateMany({
+      where: {
+        id: { in: fileIds },
+        is_deleted: false,
+      },
+      data: {
+        folder_id: folderId,
+        updated_at: new Date(),
+      },
+    });
+
+    this.logger.log(
+      `Bulk moved ${result.count} files to folder: ${folderId || 'unorganized'}`,
+    );
+
+    return result.count;
+  }
+
+  public async bulkDelete(fileIds: string[]): Promise<number> {
+    if (fileIds.length === 0) {
+      return 0;
+    }
+
+    // Get all files that need to be deleted
+    const filesToDelete = await this.prisma.file.findMany({
+      where: {
+        id: { in: fileIds },
+        is_deleted: false,
+      },
+      select: { id: true, blob_name: true },
+    });
+
+    if (filesToDelete.length === 0) {
+      return 0;
+    }
+
+    // Delete blobs from Azure Storage
+    let blobDeleteErrors = 0;
+    for (const file of filesToDelete) {
+      try {
+        const blockBlobClient = this.containerClient.getBlockBlobClient(
+          file.blob_name,
+        );
+        await blockBlobClient.deleteIfExists();
+        this.logger.log(`Deleted blob: ${file.blob_name}`);
+      } catch (error) {
+        this.logger.error(`Failed to delete blob ${file.blob_name}: ${error}`);
+        blobDeleteErrors++;
+      }
+    }
+
+    // Mark files as deleted in database
+    const result = await this.prisma.file.updateMany({
+      where: {
+        id: { in: filesToDelete.map((f) => f.id) },
+      },
+      data: {
+        is_deleted: true,
+        deleted_at: new Date(),
+      },
+    });
+
+    this.logger.log(
+      `Bulk deleted ${result.count} files (${blobDeleteErrors} blob deletion errors)`,
+    );
+
+    return result.count;
+  }
 }

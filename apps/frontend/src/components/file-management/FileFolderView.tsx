@@ -14,7 +14,6 @@ import {
   Chip,
   Avatar,
   Button,
-  Divider,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -231,7 +230,7 @@ export const FileFolderView: React.FC<FileFolderViewProps> = ({
 
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(new Set(['unorganized']));
 
-  const handlePanelChange = (panelId: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+  const handlePanelChange = (panelId: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
     const newExpanded = new Set(expandedPanels);
     if (isExpanded) {
       newExpanded.add(panelId);

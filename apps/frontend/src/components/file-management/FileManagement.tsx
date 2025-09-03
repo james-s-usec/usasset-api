@@ -148,6 +148,9 @@ const MainContent: React.FC<MainContentProps> = ({
         getFileContent={getFileContent}
         getPdfInfo={getPdfInfo}
         onRefresh={onRefresh}
+        onBulkAssignProject={state.handleBulkAssignProject}
+        onBulkMoveToFolder={state.handleBulkMoveToFolder}
+        onBulkDelete={state.handleBulkDelete}
       />
     ) : viewMode === 'tree' ? (
       <FileTreeView

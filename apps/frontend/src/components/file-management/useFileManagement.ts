@@ -42,6 +42,9 @@ interface UseFileManagementReturn {
   fetchFolders: () => Promise<Folder[]>;
   fetchProjects: () => Promise<Project[]>;
   setError: (error: string | null) => void;
+  handleBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>;
+  handleBulkMoveToFolder: (fileIds: string[], folderId: string | null) => Promise<void>;
+  handleBulkDelete: (fileIds: string[]) => Promise<void>;
 }
 
 // Helpers to keep the hook small and readable
@@ -111,7 +114,7 @@ export const useFileManagement = (): UseFileManagementReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { fetchFiles, uploadFile, handleDownload, performDelete, handlePreview, getFileContent, getPdfInfo, fetchFolders, fetchProjects, moveFile, moveFileToProject } = useFileOperations(setError);
+  const { fetchFiles, uploadFile, handleDownload, performDelete, handlePreview, getFileContent, getPdfInfo, fetchFolders, fetchProjects, moveFile, moveFileToProject, handleBulkAssignProject, handleBulkMoveToFolder, handleBulkDelete } = useFileOperations(setError);
 
   const loadFolders = useCallback(async (): Promise<void> => {
     try {
@@ -159,6 +162,30 @@ export const useFileManagement = (): UseFileManagementReturn => {
     [moveFileToProject, loadFiles]
   );
 
+  const handleBulkAssignProjectWithRefresh = useCallback(
+    async (fileIds: string[], projectId: string | null): Promise<void> => {
+      await handleBulkAssignProject(fileIds, projectId);
+      await loadFiles();
+    },
+    [handleBulkAssignProject, loadFiles]
+  );
+
+  const handleBulkMoveToFolderWithRefresh = useCallback(
+    async (fileIds: string[], folderId: string | null): Promise<void> => {
+      await handleBulkMoveToFolder(fileIds, folderId);
+      await loadFiles();
+    },
+    [handleBulkMoveToFolder, loadFiles]
+  );
+
+  const handleBulkDeleteWithRefresh = useCallback(
+    async (fileIds: string[]): Promise<void> => {
+      await handleBulkDelete(fileIds);
+      await loadFiles();
+    },
+    [handleBulkDelete, loadFiles]
+  );
+
   const fetchFoldersTyped = useCallback(async (): Promise<Folder[]> => {
     const result = await fetchFolders();
     return result as Folder[];
@@ -186,6 +213,9 @@ export const useFileManagement = (): UseFileManagementReturn => {
     getPdfInfo, 
     fetchFolders: fetchFoldersTyped,
     fetchProjects: fetchProjectsTyped,
-    setError 
+    setError,
+    handleBulkAssignProject: handleBulkAssignProjectWithRefresh,
+    handleBulkMoveToFolder: handleBulkMoveToFolderWithRefresh,
+    handleBulkDelete: handleBulkDeleteWithRefresh
   };
 };

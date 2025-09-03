@@ -182,6 +182,153 @@ model Asset {
   status       AssetStatus @default(ACTIVE)
   location     String?
   
+  // Enhanced identification
+  description  String?
+  catalogName  String?
+  catalogItemId String?
+  
+  // Comprehensive categorization fields
+  trade                    String?     // Trade/Department responsible
+  title                    String?     // Asset title/role
+  preconSystem             String?     // Preconstruction system
+  operationsSystem         String?     // Operations system
+  drawingAbbreviation      String?     // Drawing abbreviation
+  preconTag                String?     // Preconstruction tag
+  systemTypeId             String?     // System type ID
+  systemCategory           String?     // System category
+  assetCategory            String?     // Asset category
+  assetCategoryName        String?     // Asset category name
+  assetType                String?     // Asset type
+  type                     String?     // Generic type
+  equipNameId              String?     // Equipment name ID
+  subSystemType            String?     // Sub system type
+  subSystemId              String?     // Sub system ID
+  subSystemClass           String?     // Sub system class
+  subSystemClassification  String?     // Sub system classification
+  classId                  String?     // Class ID
+  equipServedBy            String?     // Equipment served by
+  
+  // Comprehensive location fields
+  customerName             String?     // Customer name
+  propertyName             String?     // Property name
+  buildingName             String?     // Building name
+  floor                    String?     // Floor
+  floorName                String?     // Floor name
+  area                     String?     // Area
+  roomNumber               String?     // Room number
+  assetLocation            String?     // Asset location description
+  propertyZoneServed       String?     // Property zone served
+  xCoordinate              Decimal?    @db.Decimal(10,6)  // X coordinate
+  yCoordinate              Decimal?    @db.Decimal(10,6)  // Y coordinate
+  
+  // Size & measurement fields
+  equipmentSize            String?     // Equipment size
+  assetSizeRounded         String?     // Asset size (rounded up)
+  size                     String?     // Size
+  unit                     String?     // Unit of measurement
+  idUnit                   String?     // ID unit
+  squareFeet               Decimal?    @db.Decimal(10,2)  // Square feet
+  quantity                 Int?        // Quantity
+  weight                   Decimal?    @db.Decimal(10,2)  // Weight
+  
+  // Lifecycle & date fields
+  installDate              DateTime?   // Installation date
+  manufactureDate          DateTime?   // Manufacture date
+  serviceLife              Int?        // Service life in years
+  industryServiceLife      Int?        // Industry standard service life
+  expectedLifetime         Int?        // Expected lifetime in years
+  observedRemainingLife    Int?        // Observed remaining life in years
+  estimatedReplacementDate DateTime?   // Estimated replacement date
+  warrantyExpirationDate   DateTime?   // Warranty expiration date
+  
+  // Technical specification fields
+  motorHp                  Decimal?    @db.Decimal(10,2)  // Motor horsepower
+  estimatedOperatingHours  Int?        // Estimated operating hours per year
+  numberOfCircuits         Int?        // Number of circuits
+  supplyFanMotorSize       String?     // Supply fan motor size
+  returnFanMotorSize       String?     // Return fan motor size
+  beltSize                 String?     // Belt size
+  beltQuantity             Int?        // Belt quantity
+  filterType               String?     // Filter type
+  filterSize               String?     // Filter size
+  filterQuantity           Int?        // Filter quantity
+  refrigerant              String?     // Refrigerant type
+  refrigerantDefaultDescription String? // Refrigerant default description
+  refrigerantDescription   String?     // Refrigerant description
+  refrigerantQuantity      Decimal?    @db.Decimal(10,2)  // Refrigerant quantity
+  ratingName               String?     // Rating name
+  ratingValue              String?     // Rating value
+  
+  // TCO & cost fields
+  purchaseCost             Decimal?    @db.Decimal(12,2)  // Initial purchase cost
+  installationCost         Decimal?    @db.Decimal(12,2)  // Installation cost
+  annualMaintenanceCost    Decimal?    @db.Decimal(12,2)  // Annual maintenance cost
+  estimatedAnnualOperatingCost Decimal? @db.Decimal(12,2)  // Estimated annual operating cost
+  disposalCost             Decimal?    @db.Decimal(12,2)  // Expected disposal cost
+  salvageValue             Decimal?    @db.Decimal(12,2)  // Expected salvage value
+  totalCostOfOwnership     Decimal?    @db.Decimal(12,2)  // Calculated TCO
+  depreciationMethod       String?     // Depreciation method
+  currentBookValue         Decimal?    @db.Decimal(12,2)  // Current book value
+  
+  // Energy calculation fields
+  ratedPowerKw             Decimal?    @db.Decimal(10,3)  // Rated power in kilowatts
+  actualPowerKw            Decimal?    @db.Decimal(10,3)  // Actual measured power in kilowatts
+  powerFactor              Decimal?    @db.Decimal(3,2)   // Power factor (0-1)
+  voltage                  Int?        // Operating voltage
+  amperage                 Decimal?    @db.Decimal(10,2)  // Operating amperage
+  phase                    Int?        // Electrical phase (1 or 3)
+  dailyOperatingHours      Decimal?    @db.Decimal(4,2)   // Average daily operating hours
+  annualOperatingDays      Int?        // Operating days per year
+  loadFactor               Decimal?    @db.Decimal(3,2)   // Average load factor (0-1)
+  energyEfficiencyRating   String?     // Energy efficiency rating
+  energyEfficiencyValue    Decimal?    @db.Decimal(10,2)  // Energy efficiency value
+  estimatedAnnualKwh       Decimal?    @db.Decimal(12,2)  // Estimated annual kWh consumption
+  peakDemandKw             Decimal?    @db.Decimal(10,3)  // Peak demand in kW
+  gasConsumptionRate       Decimal?    @db.Decimal(10,3)  // Gas consumption rate
+  annualGasConsumption     Decimal?    @db.Decimal(12,2)  // Annual gas consumption
+  btuRating                Int?        // BTU rating
+  
+  // Energy cost calculation fields
+  estimatedAnnualElectricityCost Decimal? @db.Decimal(12,2)  // Calculated annual electricity cost
+  estimatedAnnualGasCost   Decimal?    @db.Decimal(12,2)  // Calculated annual gas cost
+  totalAnnualEnergyCost    Decimal?    @db.Decimal(12,2)  // Total annual energy cost
+  annualCarbonEmissions    Decimal?    @db.Decimal(12,2)  // Annual carbon emissions (kg CO2)
+  overrideElectricityRate  Decimal?    @db.Decimal(6,4)   // Override electricity rate
+  overrideGasRate          Decimal?    @db.Decimal(6,4)   // Override gas rate
+  useOverrideRates         Boolean     @default(false)    // Flag to use override rates
+  
+  // Vendor & service fields
+  vendor                   String?     // Vendor name
+  vendorWebsite            String?     // Vendor website
+  serviceId                String?     // Service contract ID
+  
+  // Status & metadata fields
+  verified                 Boolean     @default(false)    // Data verified flag
+  ownerId                  String?     // Owner ID
+  
+  // Notes fields
+  notes                    String?     // General notes
+  note1Subject             String?     // Note 1 subject
+  note1                    String?     // Note 1 content
+  note2Subject             String?     // Note 2 subject
+  note2                    String?     // Note 2 content
+  note3Subject             String?     // Note 3 subject
+  note3                    String?     // Note 3 content
+  note4Subject             String?     // Note 4 subject
+  note4                    String?     // Note 4 content
+  note5Subject             String?     // Note 5 subject
+  note5                    String?     // Note 5 content
+  note6Subject             String?     // Note 6 subject
+  note6                    String?     // Note 6 content
+  
+  // Legacy reference fields
+  legacyBranchId           String?     // Legacy branch ID
+  legacyClientSiteEquipmentRn String?  // Legacy client site equipment RN
+  legacyClientSiteEquipmentName String? // Legacy client site equipment name
+  legacyInternalAssetId    String?     // Legacy internal asset ID
+  legacyUsAssetId          String?     // Legacy USAsset ID
+  legacyUseAssetId         String?     // Legacy USE Asset ID
+  
   // Project relationship
   projectId    String?
   project      Project?    @relation(fields: [projectId], references: [id])
@@ -194,6 +341,12 @@ model Asset {
   @@index([assetTag])
   @@index([status])
   @@index([projectId])
+  @@index([assetCategory])
+  @@index([assetType])
+  @@index([trade])
+  @@index([buildingName])
+  @@index([floor])
+  @@index([installDate])
   @@index([created_at])
   @@index([is_deleted])
   @@map("assets")
