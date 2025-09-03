@@ -148,10 +148,21 @@ export class AzureBlobStorageService {
       throw new Error(`File with ID ${fileId} not found`);
     }
 
+    if (!this.storageAccountName || !this.storageAccountKey) {
+      this.logger.warn(
+        'SAS token generation not available, returning direct URL',
+      );
+      return file.blob_url;
+    }
+
     const blockBlobClient = this.containerClient.getBlockBlobClient(
       file.blob_name,
     );
-    return blockBlobClient.url;
+    const sasToken = this.generateSASToken(file, DEFAULT_EXPIRY_MINUTES, true);
+    const sasUrl = `${blockBlobClient.url}?${sasToken}`;
+
+    this.logger.log(`Generated SAS download URL for ${file.blob_name}`);
+    return sasUrl;
   }
 
   public async findMany(
@@ -268,14 +279,18 @@ export class AzureBlobStorageService {
     return file;
   }
 
-  private generateSASToken(file: File, expiresInMinutes: number): string {
+  private generateSASToken(
+    file: File,
+    expiresInMinutes: number,
+    forDownload: boolean = false,
+  ): string {
     const sasOptions = {
       containerName: this.containerName,
       blobName: file.blob_name,
       permissions: BlobSASPermissions.parse('r'),
       startsOn: new Date(),
       expiresOn: new Date(Date.now() + expiresInMinutes * MS_PER_MINUTE),
-      contentDisposition: 'inline',
+      contentDisposition: forDownload ? 'attachment' : 'inline',
       contentType: file.mimetype,
     };
 

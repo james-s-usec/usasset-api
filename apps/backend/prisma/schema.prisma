@@ -143,3 +143,17 @@ model File {
   @@index([is_deleted])
   @@map("files")
 }
+
+model Asset {
+  id         String   @id @default(uuid())
+  assetTag   String   @unique
+  name       String
+  is_deleted Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  
+  @@index([assetTag])
+  @@index([created_at])
+  @@index([is_deleted])
+  @@map("assets")
+}

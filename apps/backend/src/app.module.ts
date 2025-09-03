@@ -14,6 +14,7 @@ import { ResponseTransformInterceptor } from './common/interceptors/response-tra
 import { LogsModule } from './logs/logs.module';
 import { ProjectModule } from './features/projects/project.module';
 import { FilesModule } from './files/files.module';
+import { AssetModule } from './asset/asset.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { FilesModule } from './files/files.module';
     LogsModule,
     ProjectModule,
     FilesModule,
+    AssetModule,
   ],
   controllers: [AppController],
   providers: [AppService, GlobalExceptionFilter, ResponseTransformInterceptor],

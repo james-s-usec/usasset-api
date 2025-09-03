@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<claude-code-feature-prompt version="1.0" date="2025-09-03" feature="leaflet-pdf-viewer">
+  
+  <feature-identity>
+    <name>Leaflet.js PDF Viewer with Tile-Based Rendering</name>
+    <purpose>Implement map-style PDF viewing using Leaflet.js for smooth pan/zoom of large documents</purpose>
+    <scope>Backend PDF processing, Frontend Leaflet integration, PDF navigation controls</scope>
+    <complexity>High - requires PDF-to-tile conversion, custom Leaflet setup, caching strategy</complexity>
+    <inspiration>AkitaBox-style PDF viewer using mapping technology for document viewing</inspiration>
+  </feature-identity>
+
+  <current-state>
+    <implemented>
+      <item>Basic file management (upload, download, delete, list)</item>
+      <item>Image preview with secure SAS URLs</item>
+      <item>CSV preview with backend content proxy</item>
+      <item>Azure Blob Storage integration</item>
+      <item>Backend API pattern for file operations</item>
+    </implemented>
+    
+    <missing>
+      <item>PDF processing and tile generation</item>
+      <item>Leaflet.js integration</item>
+      <item>PDF-specific navigation controls</item>
+      <item>Tile caching and storage strategy</item>
+      <item>Multi-page PDF handling</item>
+      <item>Performance optimization for large PDFs</item>
+    </missing>
+  </current-state>
+
+  <technical-approach>
+    
+    <architecture-overview>
+      <concept>Treat PDF pages as map tiles - convert each page to tiled images that Leaflet can render</concept>
+      <benefits>
+        - Smooth pan/zoom like Google Maps
+        - Large document handling (loads tiles on demand)
+        - Mobile-friendly touch controls  
+        - Potential for annotations/overlays
+        - Familiar map-style navigation
+      </benefits>
+    </architecture-overview>
+
+    <backend-processing priority="FIRST">
+      <pdf-to-tiles-conversion>
+        <approach>On-demand tile generation with caching</approach>
+        <libraries-needed>
+          <library name="pdf-poppler" purpose="PDF to image conversion" alternative="pdf2pic"/>
+          <library name="sharp" purpose="Image processing and tile generation"/>
+          <library name="node-cache" purpose="In-memory tile caching"/>
+        </libraries-needed>
+        
+        <tile-endpoint>
+          <![CDATA[
+          GET /api/files/:fileId/pdf-tiles/:page/:z/:x/:y.png
+          
+          Parameters:
+          - fileId: File ID from database
+          - page: PDF page number (1-based)
+          - z: Zoom level (0 = full page fits in viewport)
+          - x,y: Tile coordinates within zoom level
+          
+          Response: PNG image tile or 404 if tile doesn't exist
+          ]]>
+        </tile-endpoint>
+
+        <processing-flow>
+          <step>1. Validate PDF file exists and user has access</step>
+          <step>2. Check tile cache (memory → disk → generate)</step>
+          <step>3. If not cached: Convert PDF page to high-res image</step>
+          <step>4. Generate specific tile from page image</step>
+          <step>5. Cache tile and return PNG response</step>
+        </processing-flow>
+      </pdf-to-tiles-conversion>
+
+      <pdf-metadata-endpoint>
+        <![CDATA[
+        GET /api/files/:fileId/pdf-info
+        
+        Response:
+        {
+          "pageCount": 25,
+          "title": "Document Title",
+          "author": "Author Name", 
+          "dimensions": {"width": 612, "height": 792},
+          "maxZoom": 4,
+          "tileSize": 256
+        }
+        ]]>
+      </pdf-metadata-endpoint>
+    </backend-processing>
+
+    <frontend-leaflet priority="SECOND">
+      <leaflet-integration>
+        <dependencies>
+          <dep name="react-leaflet" version="^4.0.0" purpose="React wrapper for Leaflet"/>
+          <dep name="leaflet" version="^1.9.0" purpose="Core mapping library"/>
+          <dep name="@types/leaflet" version="^1.9.0" purpose="TypeScript definitions"/>
+        </dependencies>
+
+        <component-structure>
+          <![CDATA[
+          PDFLeafletViewer.tsx
+          ├── PDFMapContainer (main Leaflet map)
+          ├── PDFTileLayer (custom tile layer)
+          ├── PDFPageControls (page navigation)
+          ├── PDFZoomControls (custom zoom)
+          └── PDFInfoPanel (metadata display)
+          ]]>
+        </component-structure>
+
+        <core-implementation>
+          <![CDATA[
+          // Custom tile layer for PDF pages
+          const PDFTileLayer = ({ fileId, currentPage }) => {
+            const tileUrl = `${API_BASE}/api/files/${fileId}/pdf-tiles/${currentPage}/{z}/{x}/{y}.png`;
+            
+            return (
+              <TileLayer
+                url={tileUrl}
+                maxZoom={4}
+                minZoom={0}
+                tileSize={256}
+                noWrap={true}
+                bounds={pdfBounds}
+              />
+            );
+          };
+          ]]>
+        </component-structure>
+      </leaflet-integration>
+
+      <pdf-specific-controls>
+        <page-navigation>
+          <control name="Previous/Next Page" shortcut="← →"/>
+          <control name="Page Jump Input" format="Page X of Y"/>
+          <control name="Page Thumbnails" display="Sidebar panel"/>
+        </page-navigation>
+        
+        <viewing-controls>
+          <control name="Fit to Width" action="Auto-zoom to page width"/>
+          <control name="Fit to Page" action="Auto-zoom to full page"/>
+          <control name="Actual Size" action="100% zoom level"/>
+          <control name="Rotate" action="90° increments" advanced="true"/>
+        </viewing-controls>
+      </pdf-specific-controls>
+    </frontend-leaflet>
+
+  </technical-approach>
+
+  <tracer-bullet approach="RECOMMENDED" estimated-effort="90 minutes">
+    
+    <concept>
+      <name>Single Page PDF Tile Viewer</name>
+      <path>Upload PDF → Convert first page to tiles → View in Leaflet map</path>
+      <rationale>
+        - Proves PDF-to-tile conversion works
+        - Validates Leaflet integration
+        - Tests core pan/zoom functionality
+        - Foundation for multi-page navigation
+      </rationale>
+    </concept>
+
+    <implementation-sequence>
+      
+      <step number="1" duration="20 minutes" layer="BACKEND">
+        <name>Basic PDF Processing</name>
+        <actions>
+          <action>Install pdf-poppler and sharp: npm install pdf-poppler sharp</action>
+          <action>Create /api/files/:id/pdf-info endpoint (page count, dimensions)</action>
+          <action>Create basic /api/files/:id/pdf-tiles/1/0/0/0.png endpoint</action>
+          <action>Convert PDF first page to single tile (no tiling yet)</action>
+        </actions>
+        <validation>Test endpoint returns PNG image of PDF first page</validation>
+      </step>
+
+      <step number="2" duration="15 minutes" layer="FRONTEND_DEPS">
+        <name>Add Leaflet Dependencies</name>
+        <actions>
+          <action>Install: npm install leaflet react-leaflet @types/leaflet</action>
+          <action>Add Leaflet CSS import to main component</action>
+          <action>Verify no TypeScript errors with imports</action>
+          <action>Create basic PDFLeafletViewer component shell</action>
+        </actions>
+        <validation>Component renders without errors, shows empty map</validation>
+      </step>
+
+      <step number="3" duration="30 minutes" layer="INTEGRATION">
+        <name>Leaflet PDF Tile Display</name>
+        <actions>
+          <action>Configure Leaflet map with custom CRS (coordinate reference system)</action>
+          <action>Add TileLayer pointing to PDF tile endpoint</action>
+          <action>Set appropriate bounds and max zoom levels</action>
+          <action>Test pan/zoom functionality</action>
+        </actions>
+        <validation>PDF page displays in Leaflet map, pan/zoom works smoothly</validation>
+      </step>
+
+      <step number="4" duration="15 minutes" layer="UI_INTEGRATION">
+        <name>Integrate with File Preview System</name>
+        <actions>
+          <action>Update FileTableRow to show preview button for PDF files</action>
+          <action>Create PDFPreviewDialog wrapping PDFLeafletViewer</action>
+          <action>Wire up file ID passing and modal display</action>
+          <action>Test full user workflow</action>
+        </actions>
+        <validation>Click PDF preview button → PDF opens in Leaflet viewer modal</validation>
+      </step>
+
+      <step number="5" duration="10 minutes" layer="VALIDATION">
+        <name>End-to-End Testing</name>
+        <actions>
+          <action>Upload a multi-page PDF file</action>
+          <action>Preview shows first page in Leaflet viewer</action>
+          <action>Verify smooth pan/zoom performance</action>
+          <action>Test on mobile/tablet for touch controls</action>
+        </actions>
+        <validation>Complete PDF preview workflow functional</validation>
+      </step>
+
+    </implementation-sequence>
+
+    <success-criteria priority="CRITICAL">
+      <criterion>✅ PDF files show preview button in file table</criterion>
+      <criterion>✅ Clicking preview opens PDF in Leaflet-powered modal</criterion>
+      <criterion>✅ First page renders as tiles with smooth pan/zoom</criterion>
+      <criterion>✅ Performance acceptable for typical PDF sizes</criterion>
+      <criterion>✅ Mobile touch controls work intuitively</criterion>
+      <criterion>✅ No breaking changes to existing preview functionality</criterion>
+    </success-criteria>
+
+  </tracer-bullet>
+
+  <full-implementation-phases note="After tracer bullet validates approach">
+    
+    <phase number="1" priority="HIGH" estimated-effort="4-5 hours">
+      <name>Complete Tile Generation System</name>
+      <deliverables>
+        <item>Full tile pyramid generation (multiple zoom levels)</item>
+        <item>Disk-based tile caching with cleanup</item>
+        <item>Error handling and fallback images</item>
+        <item>Performance optimization for large PDFs</item>
+      </deliverables>
+    </phase>
+
+    <phase number="2" priority="HIGH" estimated-effort="3-4 hours">
+      <name>Multi-Page Navigation</name>
+      <deliverables>
+        <item>Page navigation controls (prev/next/jump)</item>
+        <item>Page thumbnail sidebar</item>
+        <item>Keyboard shortcuts for navigation</item>
+        <item>URL routing for deep linking to pages</item>
+      </deliverables>
+    </phase>
+
+    <phase number="3" priority="MEDIUM" estimated-effort="2-3 hours">
+      <name>Advanced Viewing Features</name>
+      <deliverables>
+        <item>Fit-to-width/page zoom presets</item>
+        <item>Rotation controls</item>
+        <item>Search within PDF (if text extraction added)</item>
+        <item>Print/download integration</item>
+      </deliverables>
+    </phase>
+
+  </full-implementation-phases>
+
+  <architectural-decisions>
+    
+    <decision name="tile-generation-strategy">
+      <chosen>On-demand generation with multi-level caching</chosen>
+      <alternatives>
+        <option>Pre-generate all tiles at upload</option>
+        <option>Client-side PDF.js rendering</option>
+      </alternatives>
+      <rationale>
+        - On-demand reduces storage requirements
+        - Caching provides performance after first load
+        - Scales better than pre-generation for large PDFs
+        - Server-side ensures consistent rendering
+      </rationale>
+      <trade-offs>
+        - First load slower than pre-generated
+        - Server CPU usage for tile generation
+      </trade-offs>
+    </decision>
+
+    <decision name="coordinate-system">
+      <chosen>Custom CRS with PDF page dimensions</chosen>
+      <alternatives>
+        <option>Web Mercator projection</option>
+        <option>Simple pixel coordinates</option>
+      </alternatives>
+      <rationale>
+        - PDF pages have known fixed dimensions
+        - Custom CRS allows accurate zoom levels
+        - Avoids projection distortion issues
+      </rationale>
+    </decision>
+
+  </architectural-decisions>
+
+  <performance-considerations>
+    
+    <backend-performance>
+      <consideration name="PDF Processing">
+        <issue>Large PDFs can consume significant memory during conversion</issue>
+        <mitigation>Stream processing, convert one page at a time, cleanup temp files</mitigation>
+      </consideration>
+      
+      <consideration name="Tile Caching">
+        <issue>Tile storage can grow large with many PDFs</issue>
+        <mitigation>LRU cache eviction, configurable cache size limits</mitigation>
+      </consideration>
+    </backend-performance>
+
+    <frontend-performance>
+      <consideration name="Tile Loading">
+        <issue>Many tile requests can overwhelm server</issue>
+        <mitigation>Request pooling, progressive loading, cancel out-of-view requests</mitigation>
+      </consideration>
+    </frontend-performance>
+
+  </performance-considerations>
+
+  <testing-strategy>
+    
+    <test-scenarios>
+      <scenario name="Small PDF (1-5 pages)">Expected: Fast rendering, smooth navigation</scenario>
+      <scenario name="Large PDF (100+ pages)">Expected: Acceptable first load, cached performance</scenario>
+      <scenario name="Complex PDF (images, charts)">Expected: High-quality tile rendering</scenario>
+      <scenario name="Password-protected PDF">Expected: Graceful error handling</scenario>
+      <scenario name="Corrupted PDF file">Expected: Error message, no crashes</scenario>
+    </test-scenarios>
+
+    <mobile-testing>
+      <test name="Touch Pan/Zoom">Verify smooth gestures on tablets/phones</test>
+      <test name="Responsive Layout">PDF viewer adapts to small screens</test>
+      <test name="Performance">Acceptable performance on mobile devices</test>
+    </mobile-testing>
+
+  </testing-strategy>
+
+  <success-metrics>
+    
+    <functional>
+      <metric>PDF files display preview button automatically</metric>
+      <metric>Leaflet viewer renders PDF pages as interactive tiles</metric>
+      <metric>Pan/zoom performance comparable to Google Maps</metric>
+      <metric>Multi-page navigation works intuitively</metric>
+      <metric>Mobile touch controls feel natural</metric>
+    </functional>
+
+    <technical>
+      <metric>Tile generation under 2 seconds for standard pages</metric>
+      <metric>Memory usage stays under 500MB during processing</metric>
+      <metric>Cache hit ratio above 80% for repeated views</metric>
+      <metric>No performance regression in existing features</metric>
+    </technical>
+
+    <user-experience>
+      <metric>PDF opens within 3 seconds of clicking preview</metric>
+      <metric>Zoom feels smooth and responsive</metric>
+      <metric>Page navigation is discoverable and fast</metric>
+      <metric>Large PDFs don't crash or freeze browser</metric>
+    </user-experience>
+
+  </success-metrics>
+
+  <risk-mitigation>
+    
+    <high-risks>
+      <risk name="PDF processing security">
+        <mitigation>Validate PDF files, sandbox processing, resource limits</mitigation>
+      </risk>
+      
+      <risk name="Server resource exhaustion">
+        <mitigation>Request rate limiting, processing queues, memory monitoring</mitigation>
+      </risk>
+    </high-risks>
+
+    <medium-risks>
+      <risk name="Leaflet learning curve">
+        <mitigation>Start with tracer bullet, reference documentation, simple implementation first</mitigation>
+      </risk>
+      
+      <risk name="Browser compatibility">
+        <mitigation>Test on major browsers, provide fallback to iframe viewer</mitigation>
+      </risk>
+    </medium-risks>
+
+  </risk-mitigation>
+
+  <ideal-context-for-implementation>
+    
+    <setup>
+      <item>USAsset project with working file management and preview system</item>
+      <item>Backend and frontend dev servers running locally</item>
+      <item>Test PDF files available for development</item>
+      <item>All quality gates currently passing</item>
+      <item>CSV and image preview features working as reference</item>
+    </setup>
+
+    <example-kickoff-prompt>
+      "Working on USAsset (NestJS/React monorepo). Need to implement Leaflet.js PDF viewer with tile-based rendering like AkitaBox. Follow the XML prompt at .claude/leaflet-pdf-viewer-prompt.xml. Start with tracer bullet approach. Current status: CSV/image preview working, production deployment successful."
+    </example-kickoff-prompt>
+
+  </ideal-context-for-implementation>
+
+  <file-references>
+    <key-files>
+      <file path="apps/backend/src/files/" purpose="Extend file API for PDF processing"/>
+      <file path="apps/frontend/src/components/file-management/" purpose="Add PDF preview components"/>
+      <file path="package.json" purpose="Add PDF processing and Leaflet dependencies"/>
+      <file path="docs/engineering-notes/2025-09-03-blob-feature.md" purpose="Current session context"/>
+    </key-files>
+  </key-references>
+
+</claude-code-feature-prompt>
