@@ -1,17 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 import { ProjectRole } from '@prisma/client';
-
-class UserInfoDto {
-  @Expose()
-  public id!: string;
-
-  @Expose()
-  public email!: string;
-
-  @Expose()
-  public name!: string | null;
-}
+import { UserInfoDto } from './user-info.dto';
 
 export class ProjectMemberDto {
   @ApiProperty()

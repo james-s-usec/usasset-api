@@ -243,6 +243,13 @@ Common mistakes to avoid:
 1. **ALWAYS run `./verify-deployment.sh` after ANY deployment**
 2. **Script timeouts are NORMAL** - Azure continues in background (check with `az containerapp revision list`)
 3. **All logs saved to `.logs/`** - Check there first for issues
+4. **ALWAYS create verification log** - Document end-to-end testing (see VERIFICATION_LOG_2025-09-02.md as example)
+
+### 📋 Latest Deployment Status
+- **Version**: 1.1.0 (build 6936680) - 2025-09-02
+- **Status**: ✅ FULLY VERIFIED AND OPERATIONAL  
+- **Features**: User management + Project management with member assignments
+- **Verification Log**: [VERIFICATION_LOG_2025-09-02.md](./VERIFICATION_LOG_2025-09-02.md)
 
 ### Common Issues & Fixes
 | Issue | Solution |
