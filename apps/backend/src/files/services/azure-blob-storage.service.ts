@@ -225,10 +225,13 @@ export class AzureBlobStorageService {
       if (!downloadResponse.readableStreamBody) {
         throw new BadRequestException('No readable stream available for file');
       }
-      const content = await this.streamToString(downloadResponse.readableStreamBody);
+      const content = await this.streamToString(
+        downloadResponse.readableStreamBody,
+      );
       return content;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to download file content: ${errorMessage}`);
       throw new BadRequestException('Failed to retrieve file content');
     }
@@ -237,8 +240,12 @@ export class AzureBlobStorageService {
   private async streamToString(stream: NodeJS.ReadableStream): Promise<string> {
     const chunks: Buffer[] = [];
     return new Promise((resolve, reject) => {
-      stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
-      stream.on('error', (err) => reject(err));
+      stream.on('data', (chunk) =>
+        chunks.push(Buffer.from(chunk as ArrayBuffer)),
+      );
+      stream.on('error', (err) =>
+        reject(new Error(err instanceof Error ? err.message : String(err))),
+      );
       stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
     });
   }

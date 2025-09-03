@@ -106,8 +106,13 @@ export class FilesController {
   }
 
   @Get(':id/content')
-  @ApiOperation({ summary: 'Get file content as text (for CSV, text files, etc.)' })
-  @ApiResponse({ status: 200, description: 'File content retrieved successfully' })
+  @ApiOperation({
+    summary: 'Get file content as text (for CSV, text files, etc.)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'File content retrieved successfully',
+  })
   public async getFileContent(
     @Param('id') id: string,
   ): Promise<{ content: string }> {
