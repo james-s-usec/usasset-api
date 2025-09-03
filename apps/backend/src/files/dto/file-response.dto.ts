@@ -25,4 +25,10 @@ export class FileResponseDto {
     name: string;
     color: string | null;
   };
+
+  @ApiPropertyOptional({ description: 'Project information' })
+  public project?: {
+    id: string;
+    name: string;
+  };
 }

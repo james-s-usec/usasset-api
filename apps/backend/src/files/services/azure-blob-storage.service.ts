@@ -105,7 +105,7 @@ export class AzureBlobStorageService {
     }
   }
 
-  public async upload(file: MulterFile, folderId?: string): Promise<File> {
+  public async upload(file: MulterFile, folderId?: string, projectId?: string): Promise<File> {
     this.validateFileSize(file);
 
     const isImage = file.mimetype.startsWith('image/');
@@ -132,6 +132,7 @@ export class AzureBlobStorageService {
         blob_url: blockBlobClient.url,
         container_name: this.containerName,
         blob_name: blobName,
+        project_id: projectId || null,
         folder_id: folderId || null,
       },
     });
@@ -169,12 +170,13 @@ export class AzureBlobStorageService {
   public async findMany(
     page: number,
     limit: number,
+    projectId?: string,
   ): Promise<{
     files: File[];
     pagination: { page: number; limit: number; total: number };
   }> {
     const skip = this.calculateSkip(page, limit);
-    const [files, total] = await this.fetchFilesAndCount(skip, limit);
+    const [files, total] = await this.fetchFilesAndCount(skip, limit, projectId);
     const pagination = this.buildPaginationResponse(page, limit, total);
 
     return {
@@ -190,10 +192,16 @@ export class AzureBlobStorageService {
   private async fetchFilesAndCount(
     skip: number,
     limit: number,
+    projectId?: string,
   ): Promise<[File[], number]> {
+    const whereClause = {
+      is_deleted: false,
+      ...(projectId && { project_id: projectId }),
+    };
+    
     return Promise.all([
       this.prisma.file.findMany({
-        where: { is_deleted: false },
+        where: whereClause,
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
@@ -205,10 +213,16 @@ export class AzureBlobStorageService {
               color: true,
             },
           },
+          project: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       }),
       this.prisma.file.count({
-        where: { is_deleted: false },
+        where: whereClause,
       }),
     ]);
   }
@@ -277,6 +291,26 @@ export class AzureBlobStorageService {
     }
   }
 
+  public async downloadFile(blobName: string): Promise<Buffer> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(blobName);
+
+    try {
+      const downloadResponse = await blockBlobClient.download();
+      if (!downloadResponse.readableStreamBody) {
+        throw new BadRequestException('No readable stream available for file');
+      }
+      const buffer = await this.streamToBuffer(
+        downloadResponse.readableStreamBody,
+      );
+      return buffer;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to download file: ${errorMessage}`);
+      throw new BadRequestException('Failed to retrieve file');
+    }
+  }
+
   private async streamToString(stream: NodeJS.ReadableStream): Promise<string> {
     const chunks: Buffer[] = [];
     return new Promise((resolve, reject) => {
@@ -287,6 +321,19 @@ export class AzureBlobStorageService {
         reject(new Error(err instanceof Error ? err.message : String(err))),
       );
       stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    });
+  }
+
+  private async streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    return new Promise((resolve, reject) => {
+      stream.on('data', (chunk) =>
+        chunks.push(Buffer.from(chunk as ArrayBuffer)),
+      );
+      stream.on('error', (err) =>
+        reject(new Error(err instanceof Error ? err.message : String(err))),
+      );
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
     });
   }
 
@@ -446,6 +493,47 @@ export class AzureBlobStorageService {
       added,
       marked_deleted: markedDeleted,
       already_synced: alreadySynced,
+    };
+  }
+
+  public async updateFile(
+    fileId: string,
+    updateData: { folder_id?: string },
+  ): Promise<File & { folder?: { id: string; name: string; color: string | null } }> {
+    // Validate folder exists if folder_id is provided
+    if (updateData.folder_id) {
+      const folder = await this.prisma.folder.findUnique({
+        where: { id: updateData.folder_id, is_deleted: false },
+      });
+      if (!folder) {
+        throw new BadRequestException(`Folder with ID ${updateData.folder_id} not found`);
+      }
+    }
+
+    // Update the file
+    const updatedFile = await this.prisma.file.update({
+      where: { id: fileId, is_deleted: false },
+      data: {
+        folder_id: updateData.folder_id || null,
+        updated_at: new Date(),
+      },
+      include: {
+        folder: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+      },
+    });
+
+    this.logger.log(`Updated file ${fileId} folder to ${updateData.folder_id || 'null'}`);
+    
+    // Transform null to undefined for TypeScript compatibility
+    return {
+      ...updatedFile,
+      folder: updatedFile.folder || undefined,
     };
   }
 }

@@ -1,7 +1,9 @@
 {
   "name": "usasset-api",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "npm run start:dev --workspace=backend & npm run dev --workspace=frontend",
     "build": "rm -f .logs/*build.log && (npm run build --workspace=backend > .logs/backend-build.log 2>&1 & npm run build --workspace=frontend > .logs/frontend-build.log 2>&1 & npm run build --workspace=cli > .logs/cli-build.log 2>&1; wait) && echo 'Build complete - see .logs/ for details' || echo 'Build failures found - see .logs/ for details'",
@@ -19,5 +21,9 @@
     "repomix": "./generate-repomix.sh",
     "repomix:backend": "cd apps/backend && npx repomix",
     "repomix:frontend": "cd apps/frontend && npx repomix"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.78",
+    "unpdf": "^1.2.2"
   }
 }

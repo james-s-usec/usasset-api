@@ -18,6 +18,8 @@ const FileTableHeader: React.FC = () => (
   <TableHead>
     <TableRow>
       <TableCell>File Name</TableCell>
+      <TableCell>Project</TableCell>
+      <TableCell>Folder</TableCell>
       <TableCell>Type</TableCell>
       <TableCell>Size</TableCell>
       <TableCell>Uploaded</TableCell>
@@ -26,10 +28,20 @@ const FileTableHeader: React.FC = () => (
   </TableHead>
 );
 
+interface Folder {
+  id: string;
+  name: string;
+  color: string;
+  is_default: boolean;
+  file_count: number;
+}
+
 interface FileTableProps {
   files: FileData[];
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>;
+  folders?: Folder[];
   onRefresh: () => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
   getFileContent?: (fileId: string) => Promise<string>;
@@ -45,7 +57,7 @@ interface FileTableProps {
 
 const EmptyRow: React.FC = () => (
   <TableRow>
-    <TableCell colSpan={5} align="center">
+    <TableCell colSpan={7} align="center">
       <Typography variant="body2" color="text.secondary">
         No files uploaded yet. Upload your first file to get started.
       </Typography>
@@ -64,7 +76,7 @@ const FileSummary: React.FC<{ count: number; onRefresh: () => Promise<void> }> =
   </Box>
 );
 
-const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: string) => Promise<void>; onDelete: (fileId: string, fileName: string) => Promise<void>; onPreview?: (fileId: string) => Promise<string>; getFileContent?: (fileId: string) => Promise<string>; getPdfInfo?: (fileId: string) => Promise<{ pageCount: number; title?: string; author?: string; dimensions: { width: number; height: number }; maxZoom: number; tileSize: number }> }> = ({ files, onDownload, onDelete, onPreview, getFileContent, getPdfInfo }) => (
+const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: string) => Promise<void>; onDelete: (fileId: string, fileName: string) => Promise<void>; onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>; folders?: Folder[]; onPreview?: (fileId: string) => Promise<string>; getFileContent?: (fileId: string) => Promise<string>; getPdfInfo?: (fileId: string) => Promise<{ pageCount: number; title?: string; author?: string; dimensions: { width: number; height: number }; maxZoom: number; tileSize: number }> }> = ({ files, onDownload, onDelete, onMoveToFolder, folders, onPreview, getFileContent, getPdfInfo }) => (
   <TableContainer component={Paper}>
     <Table>
       <FileTableHeader />
@@ -78,6 +90,8 @@ const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: strin
               file={file}
               onDownload={onDownload}
               onDelete={onDelete}
+              onMoveToFolder={onMoveToFolder}
+              folders={folders}
               onPreview={onPreview}
               getFileContent={getFileContent}
               getPdfInfo={getPdfInfo}
@@ -93,6 +107,8 @@ export const FileTable: React.FC<FileTableProps> = ({
   files,
   onDownload,
   onDelete,
+  onMoveToFolder,
+  folders,
   onRefresh,
   onPreview,
   getFileContent,
@@ -103,6 +119,8 @@ export const FileTable: React.FC<FileTableProps> = ({
       files={files}
       onDownload={onDownload}
       onDelete={onDelete}
+      onMoveToFolder={onMoveToFolder}
+      folders={folders}
       onPreview={onPreview}
       getFileContent={getFileContent}
       getPdfInfo={getPdfInfo}

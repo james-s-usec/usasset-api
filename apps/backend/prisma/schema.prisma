@@ -84,6 +84,7 @@ model Project {
   // Relations
   owner       User?         @relation(fields: [owner_id], references: [id])
   members     ProjectMember[]
+  files       File[]        // Project can have many files
   
   @@index([owner_id])
   @@index([status])
@@ -149,6 +150,7 @@ model File {
   blob_url      String
   container_name String
   blob_name     String
+  project_id    String?  // Optional - files can exist without a project during development
   folder_id     String?  // Optional - files can be unorganized
   is_deleted    Boolean  @default(false)
   created_at    DateTime @default(now())
@@ -159,8 +161,10 @@ model File {
   deleted_by    String?
   
   // Relations
+  project       Project? @relation(fields: [project_id], references: [id])
   folder        Folder?  @relation(fields: [folder_id], references: [id])
   
+  @@index([project_id])
   @@index([folder_id])
   @@index([created_at])
   @@index([is_deleted])

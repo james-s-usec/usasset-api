@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AzureBlobStorageService } from './azure-blob-storage.service';
-import * as pdf from 'pdf-poppler';
-import sharp from 'sharp';
+import * as sharp from 'sharp';
+import { renderPageAsImage, getDocumentProxy } from 'unpdf';
 
 interface PDFInfo {
   pageCount: number;
@@ -26,32 +26,152 @@ export class PdfProcessingService {
   private readonly logger = new Logger(PdfProcessingService.name);
   private readonly TILE_SIZE = 256;
   private readonly MAX_ZOOM = 4;
+  private readonly pageCache = new Map<string, Buffer>(); // Cache rendered pages
 
   public constructor(
     private readonly prisma: PrismaService,
     private readonly blobStorage: AzureBlobStorageService,
-  ) {}
+  ) {
+    this.logger.log('PDF Processing Service initialized with UnPDF');
+  }
 
   public async getPdfInfo(fileId: string): Promise<PDFInfo> {
     const file = await this.validatePdfFile(fileId);
 
     try {
-      // For tracer bullet, return basic info
-      // In a full implementation, we'd use pdf-poppler to get actual metadata
+      this.logger.log(`📄 PDF Info Request - File: ${file.original_name}, Size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      
+      const pdfBuffer = await this.getPdfBuffer(fileId);
+      const uint8Array = new Uint8Array(pdfBuffer);
+      const documentProxy = await getDocumentProxy(uint8Array);
+      
+      this.logger.log(`📊 PDF Metadata - Pages: ${documentProxy.numPages}, Buffer Size: ${(pdfBuffer.length / 1024 / 1024).toFixed(2)}MB`);
+
+      // Get actual dimensions by rendering first page at zoom 0
+      let actualWidth = 612;
+      let actualHeight = 792;
+      
+      try {
+        const { width, height } = await this.getOrRenderPage(fileId, 1, 0);
+        actualWidth = width;
+        actualHeight = height;
+        this.logger.log(`📐 PDF Actual Dimensions - ${actualWidth}x${actualHeight}`);
+      } catch (error) {
+        this.logger.warn(`Could not get PDF dimensions, using default: ${error}`);
+      }
+
       return {
-        pageCount: 1, // Simplified for tracer bullet
+        pageCount: documentProxy.numPages,
         title: file.original_name,
         dimensions: {
-          width: 612, // Standard PDF page width in points
-          height: 792, // Standard PDF page height in points
+          width: actualWidth,
+          height: actualHeight,
         },
         maxZoom: this.MAX_ZOOM,
         tileSize: this.TILE_SIZE,
       };
     } catch (error) {
-      this.logger.error(`Failed to get PDF info for ${fileId}: ${error}`);
-      throw new BadRequestException('Failed to process PDF file');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get PDF info for ${fileId}: ${errorMessage}`, {
+        fileId,
+        error: error instanceof Error ? error.stack : error,
+        fileName: file.original_name,
+      });
+      throw new BadRequestException(`Failed to process PDF file: ${errorMessage}`);
     }
+  }
+
+  public async getPdfPreview(
+    fileId: string,
+    page: number,
+    width: number = 800,
+  ): Promise<Buffer> {
+    const file = await this.validatePdfFile(fileId);
+
+    try {
+      const pdfBuffer = await this.getPdfBuffer(fileId);
+      const uint8Array = new Uint8Array(pdfBuffer);
+
+      // Render PDF page at specified width, maintaining aspect ratio
+      const imageArrayBuffer = await renderPageAsImage(uint8Array, page, {
+        width,
+        canvasImport: () => import('@napi-rs/canvas'),
+      });
+
+      // Convert to PNG
+      const imageBuffer = Buffer.from(imageArrayBuffer);
+      const pngBuffer = await sharp(imageBuffer)
+        .png()
+        .toBuffer();
+
+      this.logger.log(`Generated PDF preview for page ${page} of ${fileId}`);
+      return pngBuffer;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to generate PDF preview: ${errorMessage}`, {
+        fileId,
+        page,
+        width,
+        error: error instanceof Error ? error.stack : error,
+      });
+      throw new BadRequestException(`Failed to generate PDF preview: ${errorMessage}`);
+    }
+  }
+
+  private async getOrRenderPage(
+    fileId: string,
+    page: number,
+    zoom: number,
+  ): Promise<{ buffer: Buffer; width: number; height: number }> {
+    const cacheKey = `${fileId}_${page}_${zoom}`;
+    
+    // Check cache first
+    if (this.pageCache.has(cacheKey)) {
+      this.logger.log(`💾 Cache Hit - Page ${page}, Zoom ${zoom}`);
+      const cachedBuffer = this.pageCache.get(cacheKey)!;
+      
+      // Get actual image dimensions from cached buffer
+      const metadata = await sharp(cachedBuffer).metadata();
+      return {
+        buffer: cachedBuffer,
+        width: metadata.width!,
+        height: metadata.height!,
+      };
+    }
+
+    // Render and cache
+    this.logger.log(`🔄 Cache Miss - Rendering page ${page}, zoom ${zoom}`);
+    const pdfBuffer = await this.getPdfBuffer(fileId);
+    const uint8Array = new Uint8Array(pdfBuffer);
+
+    const scale = Math.pow(2, zoom);
+    const baseWidth = 612 * scale;
+    const baseHeight = 792 * scale;
+
+    const renderStart = Date.now();
+    const imageArrayBuffer = await renderPageAsImage(uint8Array, page, {
+      width: baseWidth,
+      height: baseHeight,
+      canvasImport: () => import('@napi-rs/canvas'),
+    });
+    const renderTime = Date.now() - renderStart;
+
+    const imageBuffer = Buffer.from(imageArrayBuffer);
+    
+    // Get actual dimensions from rendered image
+    const metadata = await sharp(imageBuffer).metadata();
+    const actualWidth = metadata.width!;
+    const actualHeight = metadata.height!;
+    
+    this.pageCache.set(cacheKey, imageBuffer);
+    
+    this.logger.log(`⚡ Rendered & Cached - ${renderTime}ms, ${(imageArrayBuffer.byteLength / 1024).toFixed(0)}KB, Actual: ${actualWidth}x${actualHeight}`);
+    
+    return {
+      buffer: imageBuffer,
+      width: actualWidth,
+      height: actualHeight,
+    };
   }
 
   public async getPdfTile(
@@ -64,45 +184,114 @@ export class PdfProcessingService {
     const file = await this.validatePdfFile(fileId);
 
     try {
-      // For tracer bullet: convert first page to single tile (no real tiling yet)
-      if (page !== 1 || zoom !== 0 || x !== 0 || y !== 0) {
-        throw new NotFoundException('Tile not found');
+      const startTime = Date.now();
+      this.logger.log(`🎯 Tile Request - Page: ${page}, Zoom: ${zoom}, Coords: [${x}, ${y}]`);
+      
+      // Get cached or render page
+      const { buffer: imageBuffer, width: fullWidth, height: fullHeight } = await this.getOrRenderPage(fileId, page, zoom);
+
+      // Calculate tile boundaries
+      const tileX = x * this.TILE_SIZE;
+      const tileY = y * this.TILE_SIZE;
+
+      // Check if tile is completely outside image bounds
+      if (tileX >= fullWidth || tileY >= fullHeight) {
+        this.logger.warn(`🚫 Tile completely out of bounds - Tile: [${tileX}, ${tileY}], Image: [${fullWidth}, ${fullHeight}]`);
+        
+        // Return blank white tile for out-of-bounds requests
+        const blankTile = await sharp({
+          create: {
+            width: this.TILE_SIZE,
+            height: this.TILE_SIZE,
+            channels: 3,
+            background: { r: 255, g: 255, b: 255 }
+          }
+        }).png().toBuffer();
+        
+        this.logger.log(`✅ Blank Tile Generated - ${zoom}/${x}/${y}, Size: ${(blankTile.length / 1024).toFixed(0)}KB`);
+        return blankTile;
       }
 
-      // Get PDF content from blob storage
-      const pdfContent = await this.getPdfContentAsBuffer(fileId);
+      // Calculate actual extract dimensions with strict bounds checking
+      const extractWidth = Math.min(this.TILE_SIZE, Math.max(0, fullWidth - tileX));
+      const extractHeight = Math.min(this.TILE_SIZE, Math.max(0, fullHeight - tileY));
+      
+      // Double-check we have valid extraction area
+      if (extractWidth <= 0 || extractHeight <= 0) {
+        this.logger.warn(`🚫 Invalid extract dimensions - Width: ${extractWidth}, Height: ${extractHeight}`);
+        
+        // Return blank white tile
+        const blankTile = await sharp({
+          create: {
+            width: this.TILE_SIZE,
+            height: this.TILE_SIZE,
+            channels: 3,
+            background: { r: 255, g: 255, b: 255 }
+          }
+        }).png().toBuffer();
+        
+        return blankTile;
+      }
+      
+      this.logger.log(`✂️ Tile Extract - From: [${tileX}, ${tileY}], Size: ${extractWidth}x${extractHeight}, Image: ${fullWidth}x${fullHeight}`);
 
-      // Convert PDF page to image using pdf-poppler
-      const options = {
-        format: 'jpeg' as const,
-        out_dir: '/tmp',
-        out_prefix: `pdf-${fileId}-page`,
-        page: 1,
-      };
+      // Crop the specific tile from the full page image
+      let tileImage = sharp(imageBuffer)
+        .extract({
+          left: tileX,
+          top: tileY,
+          width: extractWidth,
+          height: extractHeight,
+        });
 
-      // This will create a temporary file, we'll clean it up after processing
-      await pdf.convert(pdfContent, options);
+      // If edge tile is smaller than TILE_SIZE, extend with white background
+      if (extractWidth < this.TILE_SIZE || extractHeight < this.TILE_SIZE) {
+        tileImage = tileImage.extend({
+          top: 0,
+          bottom: this.TILE_SIZE - extractHeight,
+          left: 0,
+          right: this.TILE_SIZE - extractWidth,
+          background: { r: 255, g: 255, b: 255, alpha: 1 }
+        });
+      }
 
-      // For simplicity in tracer bullet, create a simple colored tile
-      // In full implementation, this would process the actual PDF
-      const tileBuffer = await sharp({
-        create: {
-          width: this.TILE_SIZE,
-          height: this.TILE_SIZE,
-          channels: 3,
-          background: { r: 255, g: 255, b: 255 },
-        },
-      })
-        .jpeg()
-        .toBuffer();
+      const tileBuffer = await tileImage.png().toBuffer();
 
-      this.logger.log(
-        `Generated tile for PDF ${fileId}: page=${page}, z=${zoom}, x=${x}, y=${y}`,
-      );
+      const totalTime = Date.now() - startTime;
+      this.logger.log(`✅ Tile Complete - ${zoom}/${x}/${y}, Total: ${totalTime}ms, Size: ${(tileBuffer.length / 1024).toFixed(0)}KB`);
+      
       return tileBuffer;
     } catch (error) {
-      this.logger.error(`Failed to generate PDF tile: ${error}`);
-      throw new BadRequestException('Failed to generate PDF tile');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to generate PDF tile: ${errorMessage}`, {
+        fileId,
+        page,
+        zoom, 
+        x,
+        y,
+        error: error instanceof Error ? error.stack : error,
+      });
+      throw new BadRequestException(`Failed to generate PDF tile: ${errorMessage}`);
+    }
+  }
+
+  private async getPdfBuffer(fileId: string): Promise<Buffer> {
+    const file = await this.validatePdfFile(fileId);
+
+    try {
+      const fileBuffer = await this.blobStorage.downloadFile(file.blob_name);
+      return fileBuffer;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to download PDF from blob storage: ${errorMessage}`, 
+        {
+          fileId,
+          blobName: file.blob_name,
+          error: error instanceof Error ? error.stack : error,
+        }
+      );
+      throw new BadRequestException(`Failed to retrieve PDF file: ${errorMessage}`);
     }
   }
 
@@ -122,11 +311,5 @@ export class PdfProcessingService {
     }
 
     return file;
-  }
-
-  private async getPdfContentAsBuffer(fileId: string): Promise<Buffer> {
-    // Use the existing blob storage service to get file content
-    const content = await this.blobStorage.getFileContentAsText(fileId);
-    return Buffer.from(content, 'binary');
   }
 }

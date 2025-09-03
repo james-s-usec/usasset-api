@@ -14,6 +14,7 @@ import { FloatingDebugConsole } from './components/FloatingDebugConsole'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { FilesPage } from './pages/FilesPage'
 import { AssetsPage } from './pages/AssetsPage'
+import { DocumentsPage } from './components/documents/DocumentsPage'
 
 const NavigationBar = (): React.ReactElement => {
   const navItems = [
@@ -21,6 +22,7 @@ const NavigationBar = (): React.ReactElement => {
     { label: 'Projects', path: '/projects' },
     { label: 'Assets', path: '/assets' },
     { label: 'Files', path: '/files' },
+    { label: 'Documents', path: '/documents' },
     { label: 'Debug', path: '/debug' },
     { label: 'Settings', path: '/settings' }
   ]
@@ -104,6 +106,7 @@ const AppContent = (): React.ReactElement => {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/files" element={<FilesPage />} />
+          <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/debug" element={<DebugPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

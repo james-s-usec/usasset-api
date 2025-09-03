@@ -5,21 +5,42 @@ import {
   Typography,
   IconButton,
   Chip,
+  Box,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
   Delete as DeleteIcon,
   Visibility as PreviewIcon,
+  DriveFileMove as MoveIcon,
 } from '@mui/icons-material';
 import type { FileData } from './types';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
 import { CSVPreviewDialog } from './CSVPreviewDialog';
 import { PDFPreviewDialog } from './PDFPreviewDialog';
 
+interface Folder {
+  id: string;
+  name: string;
+  color: string;
+  is_default: boolean;
+  file_count: number;
+}
+
 interface FileTableRowProps {
   file: FileData;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>;
+  folders?: Folder[];
   onPreview?: (fileId: string) => Promise<string>;
   getFileContent?: (fileId: string) => Promise<string>;
   getPdfInfo?: (fileId: string) => Promise<{
@@ -85,12 +106,24 @@ const DeleteButton: React.FC<{ onDelete: () => Promise<void> }> = ({ onDelete })
   </IconButton>
 );
 
+const MoveButton: React.FC<{ onMove: () => void }> = ({ onMove }) => (
+  <IconButton
+    onClick={onMove}
+    color="primary"
+    size="small"
+    title="Move to Folder"
+  >
+    <MoveIcon />
+  </IconButton>
+);
+
 const FileActions: React.FC<{
   file: FileData;
   onDownload: () => Promise<void>;
   onDelete: () => Promise<void>;
   onPreview?: () => void;
-}> = ({ file, onDownload, onDelete, onPreview }) => {
+  onMove?: () => void;
+}> = ({ file, onDownload, onDelete, onPreview, onMove }) => {
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
   const isPDF = file.mimetype === 'application/pdf';
@@ -99,6 +132,7 @@ const FileActions: React.FC<{
     <>
       {(isImage || isCSV || isPDF) && onPreview && <PreviewButton onPreview={onPreview} />}
       <DownloadButton onDownload={onDownload} />
+      {onMove && <MoveButton onMove={onMove} />}
       <DeleteButton onDelete={onDelete} />
     </>
   );
@@ -164,12 +198,45 @@ const FileRowContent: React.FC<{
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: () => void;
-}> = ({ file, onDownload, onDelete, onPreview }) => (
+  onMove?: () => void;
+}> = ({ file, onDownload, onDelete, onPreview, onMove }) => (
   <TableRow hover>
     <TableCell>
       <Typography variant="body2" fontWeight="medium">
         {file.original_name}
       </Typography>
+    </TableCell>
+    <TableCell>
+      {file.project ? (
+        <Typography variant="body2" fontSize="0.875rem" color="primary.main">
+          {file.project.name}
+        </Typography>
+      ) : (
+        <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
+          No Project
+        </Typography>
+      )}
+    </TableCell>
+    <TableCell>
+      {file.folder ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box 
+            sx={{ 
+              width: 8, 
+              height: 8, 
+              borderRadius: 1, 
+              bgcolor: file.folder.color || '#gray',
+            }} 
+          />
+          <Typography variant="body2" fontSize="0.875rem">
+            {file.folder.name}
+          </Typography>
+        </Box>
+      ) : (
+        <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
+          Unorganized
+        </Typography>
+      )}
     </TableCell>
     <TableCell>
       <Chip
@@ -186,6 +253,7 @@ const FileRowContent: React.FC<{
         onDownload={() => onDownload(file.id)}
         onDelete={() => onDelete(file.id, file.original_name)}
         onPreview={onPreview}
+        onMove={onMove}
       />
     </TableCell>
   </TableRow>
@@ -211,14 +279,107 @@ const createPreviewClickHandler = (
 const createDefaultGetFileContent = (): ((fileId: string) => Promise<string>) => 
   (): Promise<string> => Promise.reject(new Error('getFileContent not provided'));
 
-export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, onDelete, onPreview, getFileContent, getPdfInfo }) => {
+const FolderMoveDialog: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  fileName: string;
+  currentFolder?: { id: string; name: string };
+  folders: Folder[];
+  onMove: (folderId: string | null) => Promise<void>;
+}> = ({ open, onClose, fileName, currentFolder, folders, onMove }) => {
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+  const [moving, setMoving] = useState(false);
+
+  React.useEffect(() => {
+    if (open) {
+      setSelectedFolderId(currentFolder?.id || '');
+    }
+  }, [open, currentFolder?.id]);
+
+  const handleMove = async (): Promise<void> => {
+    setMoving(true);
+    try {
+      await onMove(selectedFolderId || null);
+      onClose();
+    } catch (error) {
+      console.error('Failed to move file:', error);
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Move File</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" gutterBottom>
+          Move "{fileName}" to a different folder
+        </Typography>
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="folder-move-select-label">Folder</InputLabel>
+          <Select
+            labelId="folder-move-select-label"
+            value={selectedFolderId}
+            label="Folder"
+            onChange={(e): void => setSelectedFolderId(e.target.value)}
+            disabled={moving}
+          >
+            <MenuItem value="">
+              <em>Unorganized</em>
+            </MenuItem>
+            {folders.map((folder) => (
+              <MenuItem key={folder.id} value={folder.id}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box 
+                    sx={{ 
+                      width: 12, 
+                      height: 12, 
+                      borderRadius: 1, 
+                      bgcolor: folder.color || '#gray',
+                    }} 
+                  />
+                  {folder.name}
+                </Box>
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={moving}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleMove} 
+          variant="contained" 
+          disabled={moving}
+        >
+          {moving ? 'Moving...' : 'Move'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, onDelete, onMoveToFolder, folders, onPreview, getFileContent, getPdfInfo }) => {
   const { previewOpen, previewUrl, loading, handlePreview, setPreviewOpen, csvPreviewOpen, setCsvPreviewOpen, pdfPreviewOpen, setPdfPreviewOpen } = usePreviewLogic(file, onPreview);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
   const isPDF = file.mimetype === 'application/pdf';
   
   const handlePreviewClick = createPreviewClickHandler(isCSV, isImage, isPDF, setCsvPreviewOpen, setPdfPreviewOpen, handlePreview);
+
+  const handleMoveClick = (): void => {
+    setMoveDialogOpen(true);
+  };
+
+  const handleMoveToFolder = async (folderId: string | null): Promise<void> => {
+    if (onMoveToFolder) {
+      await onMoveToFolder(file.id, folderId);
+    }
+  };
 
   return (
     <>
@@ -227,6 +388,7 @@ export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, on
         onDownload={onDownload}
         onDelete={onDelete}
         onPreview={handlePreviewClick}
+        onMove={onMoveToFolder && folders ? handleMoveClick : undefined}
       />
       
       <ImagePreviewDialog
@@ -253,6 +415,17 @@ export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, on
         loading={false}
         getPdfInfo={getPdfInfo}
       />
+      
+      {onMoveToFolder && folders && (
+        <FolderMoveDialog
+          open={moveDialogOpen}
+          onClose={() => setMoveDialogOpen(false)}
+          fileName={file.original_name}
+          currentFolder={file.folder}
+          folders={folders}
+          onMove={handleMoveToFolder}
+        />
+      )}
     </>
   );
 };

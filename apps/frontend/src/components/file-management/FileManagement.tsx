@@ -13,13 +13,30 @@ const ErrorAlert: React.FC<{ error: string; onClose: () => void }> = ({ error, o
   </Alert>
 );
 
+interface Folder {
+  id: string;
+  name: string;
+  color: string;
+  is_default: boolean;
+  file_count: number;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  status: string;
+}
+
 interface MainContentProps {
   error: string | null;
   uploading: boolean;
   files: FileData[];
-  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  folders: Folder[];
+  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>, folderId?: string, projectId?: string) => Promise<void>;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onMoveToFolder: (fileId: string, folderId: string | null) => Promise<void>;
   onPreview: (fileId: string) => Promise<string>;
   getFileContent: (fileId: string) => Promise<string>;
   getPdfInfo: (fileId: string) => Promise<{
@@ -32,31 +49,39 @@ interface MainContentProps {
   }>;
   onRefresh: () => Promise<void>;
   onErrorClose: () => void;
+  fetchFolders: () => Promise<Folder[]>;
+  fetchProjects: () => Promise<Project[]>;
 }
 
 const MainContent: React.FC<MainContentProps> = ({
   error,
   uploading,
   files,
+  folders,
   onFileUpload,
   onDownload,
   onDelete,
+  onMoveToFolder,
   onPreview,
   getFileContent,
   getPdfInfo,
   onRefresh,
-  onErrorClose
+  onErrorClose,
+  fetchFolders,
+  fetchProjects
 }) => (
   <Box>
     <Typography variant="h4" gutterBottom>
       File Management
     </Typography>
     {error && <ErrorAlert error={error} onClose={onErrorClose} />}
-    <FileUploadSection uploading={uploading} onFileUpload={onFileUpload} />
+    <FileUploadSection uploading={uploading} onFileUpload={onFileUpload} fetchFolders={fetchFolders} fetchProjects={fetchProjects} />
     <FileTable
       files={files}
       onDownload={onDownload}
       onDelete={onDelete}
+      onMoveToFolder={onMoveToFolder}
+      folders={folders}
       onPreview={onPreview}
       getFileContent={getFileContent}
       getPdfInfo={getPdfInfo}
@@ -80,14 +105,18 @@ export const FileManagement: React.FC = () => {
       error={state.error}
       uploading={state.uploading}
       files={state.files}
+      folders={state.folders}
       onFileUpload={state.handleFileUpload}
       onDownload={state.handleDownload}
       onDelete={state.handleDelete}
+      onMoveToFolder={state.handleMoveToFolder}
       onPreview={state.handlePreview}
       getFileContent={state.getFileContent}
       getPdfInfo={state.getPdfInfo}
       onRefresh={state.loadFiles}
       onErrorClose={() => state.setError(null)}
+      fetchFolders={state.fetchFolders}
+      fetchProjects={state.fetchProjects}
     />
   );
 };

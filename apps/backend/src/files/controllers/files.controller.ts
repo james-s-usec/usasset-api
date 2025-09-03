@@ -3,8 +3,10 @@ import {
   Post,
   Get,
   Delete,
+  Patch,
   Param,
   Query,
+  Body,
   UseInterceptors,
   UploadedFile,
   Res,
@@ -31,18 +33,19 @@ export class FilesController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all files with pagination' })
+  @ApiOperation({ summary: 'List all files with pagination, optionally filtered by project' })
   @ApiResponse({ status: 200, description: 'Files retrieved successfully' })
   public async listFiles(
     @Query('page') page = '1',
     @Query('limit') limit = '10',
+    @Query('project_id') projectId?: string,
   ): Promise<{
     files: FileResponseDto[];
     pagination: { page: number; limit: number; total: number };
   }> {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    const result = await this.storageService.findMany(pageNum, limitNum);
+    const result = await this.storageService.findMany(pageNum, limitNum, projectId);
     return {
       files: result.files.map((file) => this.mapToResponseDto(file)),
       pagination: result.pagination,
@@ -61,8 +64,9 @@ export class FilesController {
   public async uploadFile(
     @UploadedFile() file: MulterFile,
     @Query('folder_id') folderId?: string,
+    @Query('project_id') projectId?: string,
   ): Promise<FileResponseDto> {
-    const uploadedFile = await this.storageService.upload(file, folderId);
+    const uploadedFile = await this.storageService.upload(file, folderId, projectId);
     return this.mapToResponseDto(uploadedFile);
   }
 
@@ -78,6 +82,10 @@ export class FilesController {
       name: string;
       color: string | null;
     } | null;
+    project?: {
+      id: string;
+      name: string;
+    } | null;
   }): FileResponseDto {
     return {
       id: file.id,
@@ -87,6 +95,7 @@ export class FilesController {
       size: file.size,
       created_at: file.created_at,
       folder: file.folder || undefined,
+      project: file.project || undefined,
     };
   }
 
@@ -131,6 +140,17 @@ export class FilesController {
     return { content };
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update file metadata (e.g., move to folder)' })
+  @ApiResponse({ status: 200, description: 'File updated successfully' })
+  public async updateFile(
+    @Param('id') id: string,
+    @Body() updateData: { folder_id?: string },
+  ): Promise<FileResponseDto> {
+    const updatedFile = await this.storageService.updateFile(id, updateData);
+    return this.mapToResponseDto(updatedFile);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a file from Azure Blob Storage' })
   @ApiResponse({ status: 200, description: 'File deleted successfully' })
@@ -153,6 +173,25 @@ export class FilesController {
     tileSize: number;
   }> {
     return await this.pdfService.getPdfInfo(id);
+  }
+
+  @Get(':id/pdf-preview/:page.png')
+  @ApiOperation({ summary: 'Get full PDF page preview as PNG' })
+  @ApiResponse({ status: 200, description: 'PDF page preview image' })
+  public async getPdfPreview(
+    @Param('id') id: string,
+    @Param('page') page: string,
+    @Res() res: Response,
+    @Query('width') width?: string,
+  ): Promise<void> {
+    const pageNum = parseInt(page, 10);
+    const widthNum = width ? parseInt(width, 10) : 800;
+    
+    const imageBuffer = await this.pdfService.getPdfPreview(id, pageNum, widthNum);
+    
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(imageBuffer);
   }
 
   @Get(':id/pdf-tiles/:page/:z/:x/:y.png')

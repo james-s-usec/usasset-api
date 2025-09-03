@@ -37,11 +37,19 @@ const fetchFiles = async (): Promise<FileData[]> => {
   throw new Error('Failed to load files');
 };
 
-const uploadFile = async (file: File): Promise<void> => {
+const uploadFile = async (file: File, folderId?: string, projectId?: string): Promise<void> => {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/api/files`, {
+  const params = new URLSearchParams();
+  if (folderId) params.append('folder_id', folderId);
+  if (projectId) params.append('project_id', projectId);
+  
+  const url = params.toString() 
+    ? `${API_BASE}/api/files?${params.toString()}`
+    : `${API_BASE}/api/files`;
+
+  const response = await fetch(url, {
     method: 'POST',
     body: formData,
   });
@@ -136,14 +144,53 @@ const deleteFile = async (fileId: string): Promise<void> => {
   }
 };
 
+const fetchFolders = async (): Promise<unknown[]> => {
+  const response = await fetch(`${API_BASE}/api/folders`);
+  const result = await response.json();
+  
+  if (result.success) {
+    return result.data;
+  }
+  throw new Error('Failed to load folders');
+};
+
+const fetchProjects = async (): Promise<unknown[]> => {
+  const response = await fetch(`${API_BASE}/api/projects`);
+  const result = await response.json();
+  
+  if (result.success && result.data.data) {
+    return result.data.data; // Projects API has nested data structure
+  }
+  throw new Error('Failed to load projects');
+};
+
+const moveFile = async (fileId: string, folderId: string | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/files/${fileId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      folder_id: folderId,
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to move file: ${response.status}`);
+  }
+};
+
 interface UseFileOperationsReturn {
   fetchFiles: () => Promise<FileData[]>;
-  uploadFile: (file: File) => Promise<void>;
+  uploadFile: (file: File, folderId?: string, projectId?: string) => Promise<void>;
   handleDownload: (fileId: string) => Promise<void>;
   performDelete: (fileId: string, fileName: string) => Promise<void>;
   handlePreview: (fileId: string) => Promise<string>;
   getFileContent: (fileId: string) => Promise<string>;
   getPdfInfo: (fileId: string) => Promise<PDFInfo>;
+  fetchFolders: () => Promise<unknown[]>;
+  fetchProjects: () => Promise<unknown[]>;
+  moveFile: (fileId: string, folderId: string | null) => Promise<void>;
 }
 
 const useDownloadHandler = (setError: (error: string | null) => void): ((fileId: string) => Promise<void>) =>
@@ -195,5 +242,8 @@ export const useFileOperations = (
     handlePreview,
     getFileContent,
     getPdfInfo,
+    fetchFolders,
+    fetchProjects,
+    moveFile,
   };
 };
