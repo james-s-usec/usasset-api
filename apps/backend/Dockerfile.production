@@ -33,7 +33,10 @@ FROM node:20-alpine AS dependencies
 # - python3: Required for node-gyp compilation
 # - make, g++: Build tools for native modules
 # - openssl: Required by Prisma for database connections
-RUN apk add --no-cache python3 make g++ openssl
+# - pkgconfig: Required by canvas package compilation
+# - cairo-dev, pango-dev, jpeg-dev, giflib-dev, pixman-dev: Canvas native dependencies
+RUN apk add --no-cache python3 make g++ openssl pkgconfig \
+    cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
 
 WORKDIR /app
 
@@ -90,11 +93,15 @@ LABEL maintainer="USAsset Team"
 LABEL version="1.0.0"
 LABEL description="USAsset Backend API"
 
-# Install only runtime dependencies
+# Install runtime dependencies
 # - openssl: Required by Prisma at runtime
 # - netcat-openbsd: Used for health checks in entrypoint
 # - dumb-init: Proper signal handling and zombie reaping
-RUN apk add --no-cache openssl netcat-openbsd dumb-init
+# - python3, make, g++, pkgconfig: Required by canvas package at runtime
+# - cairo-dev, pango-dev, jpeg-dev, giflib-dev, pixman-dev: Canvas native dependencies
+RUN apk add --no-cache openssl netcat-openbsd dumb-init \
+    python3 make g++ pkgconfig \
+    cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
 
 # Security: Create a non-root user
 # Check if group/user exists before creating

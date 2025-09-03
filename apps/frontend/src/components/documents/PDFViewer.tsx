@@ -68,9 +68,12 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
     }
   };
 
-  const createPDFCRS = (_width: number, height: number) => {
+  const createPDFCRS = (width: number, height: number) => {
+    // Standard PDF coordinate system: use original dimensions
+    // Backend renders at 4x, so we need to account for that in transformation
+    const scale = 1/4; // Scale down from 4x backend rendering to logical size
     return L.extend({}, CRS.Simple, {
-      transformation: new L.Transformation(1, 0, -1, height)
+      transformation: new L.Transformation(scale, 0, -scale, height * scale)
     });
   };
 
@@ -132,10 +135,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
     );
   }
 
-  // Use base PDF dimensions for bounds (not scaled)
-  const baseWidth = pdfInfo.dimensions.width;
-  const baseHeight = pdfInfo.dimensions.height;
-  const bounds = new LatLngBounds([0, 0], [baseHeight, baseWidth]);
+  // Use logical PDF dimensions (divide backend 4x scale back to original)
+  const logicalWidth = pdfInfo.dimensions.width / 4;
+  const logicalHeight = pdfInfo.dimensions.height / 4;
+  const bounds = new LatLngBounds([0, 0], [logicalHeight, logicalWidth]);
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -208,8 +211,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
       {/* PDF Viewer - Leaflet Map with Tiles */}
       <Box sx={{ flexGrow: 1, position: 'relative' }}>
         <MapContainer
-          crs={createPDFCRS(baseWidth, baseHeight)}
-          center={[baseHeight / 2, baseWidth / 2]}
+          crs={createPDFCRS(logicalWidth, logicalHeight)}
+          center={[logicalHeight / 2, logicalWidth / 2]}
           zoom={0}
           minZoom={0}
           maxZoom={pdfInfo.maxZoom}

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Expose } from 'class-transformer';
+import { Expose, Transform } from 'class-transformer';
 import { AssetStatus } from '@prisma/client';
 
 /**
@@ -172,39 +172,60 @@ export class SafeAssetDto {
 
   @ApiPropertyOptional({ description: 'X coordinate', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public xCoordinate?: number;
 
   @ApiPropertyOptional({ description: 'Y coordinate', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public yCoordinate?: number;
 
   // TCO & Cost fields
   @ApiPropertyOptional({ description: 'Initial purchase cost', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public purchaseCost?: number;
 
   @ApiPropertyOptional({ description: 'Installation cost', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public installationCost?: number;
 
-  @ApiPropertyOptional({ description: 'Annual maintenance cost', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Annual maintenance cost',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public annualMaintenanceCost?: number;
 
-  @ApiPropertyOptional({ description: 'Estimated annual operating cost', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Estimated annual operating cost',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public estimatedAnnualOperatingCost?: number;
 
-  @ApiPropertyOptional({ description: 'Expected disposal cost', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Expected disposal cost',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public disposalCost?: number;
 
-  @ApiPropertyOptional({ description: 'Expected salvage value', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Expected salvage value',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public salvageValue?: number;
 
   @ApiPropertyOptional({ description: 'Calculated TCO', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public totalCostOfOwnership?: number;
 
   @ApiPropertyOptional({ description: 'Depreciation method' })
@@ -213,23 +234,40 @@ export class SafeAssetDto {
 
   @ApiPropertyOptional({ description: 'Current book value', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public currentBookValue?: number;
 
   // Energy fields
-  @ApiPropertyOptional({ description: 'Rated power in kilowatts', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Rated power in kilowatts',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public ratedPowerKw?: number;
 
-  @ApiPropertyOptional({ description: 'Actual measured power in kilowatts', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Actual measured power in kilowatts',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public actualPowerKw?: number;
 
-  @ApiPropertyOptional({ description: 'Average daily operating hours', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Average daily operating hours',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public dailyOperatingHours?: number;
 
-  @ApiPropertyOptional({ description: 'Estimated annual kWh consumption', type: 'number' })
+  @ApiPropertyOptional({
+    description: 'Estimated annual kWh consumption',
+    type: 'number',
+  })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public estimatedAnnualKwh?: number;
 
   @ApiPropertyOptional({ description: 'Voltage', type: 'integer' })
@@ -249,11 +287,17 @@ export class SafeAssetDto {
   @Expose()
   public manufactureDate?: Date;
 
-  @ApiPropertyOptional({ description: 'Service life in years', type: 'integer' })
+  @ApiPropertyOptional({
+    description: 'Service life in years',
+    type: 'integer',
+  })
   @Expose()
   public serviceLife?: number;
 
-  @ApiPropertyOptional({ description: 'Expected lifetime in years', type: 'integer' })
+  @ApiPropertyOptional({
+    description: 'Expected lifetime in years',
+    type: 'integer',
+  })
   @Expose()
   public expectedLifetime?: number;
 
@@ -276,10 +320,12 @@ export class SafeAssetDto {
 
   @ApiPropertyOptional({ description: 'Square feet', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public squareFeet?: number;
 
   @ApiPropertyOptional({ description: 'Weight', type: 'number' })
   @Expose()
+  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public weight?: number;
 
   // Vendor & service
