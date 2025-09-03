@@ -33,7 +33,9 @@ export class FilesController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all files with pagination, optionally filtered by project' })
+  @ApiOperation({
+    summary: 'List all files with pagination, optionally filtered by project',
+  })
   @ApiResponse({ status: 200, description: 'Files retrieved successfully' })
   public async listFiles(
     @Query('page') page = '1',
@@ -45,7 +47,11 @@ export class FilesController {
   }> {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    const result = await this.storageService.findMany(pageNum, limitNum, projectId);
+    const result = await this.storageService.findMany(
+      pageNum,
+      limitNum,
+      projectId,
+    );
     return {
       files: result.files.map((file) => this.mapToResponseDto(file)),
       pagination: result.pagination,
@@ -66,7 +72,11 @@ export class FilesController {
     @Query('folder_id') folderId?: string,
     @Query('project_id') projectId?: string,
   ): Promise<FileResponseDto> {
-    const uploadedFile = await this.storageService.upload(file, folderId, projectId);
+    const uploadedFile = await this.storageService.upload(
+      file,
+      folderId,
+      projectId,
+    );
     return this.mapToResponseDto(uploadedFile);
   }
 
@@ -141,11 +151,13 @@ export class FilesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update file metadata (e.g., move to folder)' })
+  @ApiOperation({
+    summary: 'Update file metadata (e.g., move to folder or assign to project)',
+  })
   @ApiResponse({ status: 200, description: 'File updated successfully' })
   public async updateFile(
     @Param('id') id: string,
-    @Body() updateData: { folder_id?: string },
+    @Body() updateData: { folder_id?: string; project_id?: string },
   ): Promise<FileResponseDto> {
     const updatedFile = await this.storageService.updateFile(id, updateData);
     return this.mapToResponseDto(updatedFile);
@@ -186,9 +198,13 @@ export class FilesController {
   ): Promise<void> {
     const pageNum = parseInt(page, 10);
     const widthNum = width ? parseInt(width, 10) : 800;
-    
-    const imageBuffer = await this.pdfService.getPdfPreview(id, pageNum, widthNum);
-    
+
+    const imageBuffer = await this.pdfService.getPdfPreview(
+      id,
+      pageNum,
+      widthNum,
+    );
+
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(imageBuffer);

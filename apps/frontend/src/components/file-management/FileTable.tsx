@@ -17,13 +17,13 @@ import { FileTableRow } from './FileTableRow';
 const FileTableHeader: React.FC = () => (
   <TableHead>
     <TableRow>
-      <TableCell>File Name</TableCell>
-      <TableCell>Project</TableCell>
-      <TableCell>Folder</TableCell>
-      <TableCell>Type</TableCell>
-      <TableCell>Size</TableCell>
-      <TableCell>Uploaded</TableCell>
-      <TableCell align="center">Actions</TableCell>
+      <TableCell sx={{ width: '25%' }}>File Name</TableCell>
+      <TableCell sx={{ width: '15%' }}>Project</TableCell>
+      <TableCell sx={{ width: '15%' }}>Folder</TableCell>
+      <TableCell sx={{ width: '10%' }}>Type</TableCell>
+      <TableCell sx={{ width: '8%' }}>Size</TableCell>
+      <TableCell sx={{ width: '12%' }}>Uploaded</TableCell>
+      <TableCell align="center" sx={{ width: '15%', minWidth: 180 }}>Actions</TableCell>
     </TableRow>
   </TableHead>
 );
@@ -36,12 +36,21 @@ interface Folder {
   file_count: number;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  status: string;
+}
+
 interface FileTableProps {
   files: FileData[];
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>;
   folders?: Folder[];
+  onMoveToProject?: (fileId: string, projectId: string | null) => Promise<void>;
+  projects?: Project[];
   onRefresh: () => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
   getFileContent?: (fileId: string) => Promise<string>;
@@ -76,9 +85,9 @@ const FileSummary: React.FC<{ count: number; onRefresh: () => Promise<void> }> =
   </Box>
 );
 
-const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: string) => Promise<void>; onDelete: (fileId: string, fileName: string) => Promise<void>; onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>; folders?: Folder[]; onPreview?: (fileId: string) => Promise<string>; getFileContent?: (fileId: string) => Promise<string>; getPdfInfo?: (fileId: string) => Promise<{ pageCount: number; title?: string; author?: string; dimensions: { width: number; height: number }; maxZoom: number; tileSize: number }> }> = ({ files, onDownload, onDelete, onMoveToFolder, folders, onPreview, getFileContent, getPdfInfo }) => (
-  <TableContainer component={Paper}>
-    <Table>
+const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: string) => Promise<void>; onDelete: (fileId: string, fileName: string) => Promise<void>; onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>; folders?: Folder[]; onMoveToProject?: (fileId: string, projectId: string | null) => Promise<void>; projects?: Project[]; onPreview?: (fileId: string) => Promise<string>; getFileContent?: (fileId: string) => Promise<string>; getPdfInfo?: (fileId: string) => Promise<{ pageCount: number; title?: string; author?: string; dimensions: { width: number; height: number }; maxZoom: number; tileSize: number }> }> = ({ files, onDownload, onDelete, onMoveToFolder, folders, onMoveToProject, projects, onPreview, getFileContent, getPdfInfo }) => (
+  <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+    <Table sx={{ minWidth: 800 }}>
       <FileTableHeader />
       <TableBody>
         {files.length === 0 ? (
@@ -92,6 +101,8 @@ const FileTableContent: React.FC<{ files: FileData[]; onDownload: (fileId: strin
               onDelete={onDelete}
               onMoveToFolder={onMoveToFolder}
               folders={folders}
+              onMoveToProject={onMoveToProject}
+              projects={projects}
               onPreview={onPreview}
               getFileContent={getFileContent}
               getPdfInfo={getPdfInfo}
@@ -109,6 +120,8 @@ export const FileTable: React.FC<FileTableProps> = ({
   onDelete,
   onMoveToFolder,
   folders,
+  onMoveToProject,
+  projects,
   onRefresh,
   onPreview,
   getFileContent,
@@ -121,6 +134,8 @@ export const FileTable: React.FC<FileTableProps> = ({
       onDelete={onDelete}
       onMoveToFolder={onMoveToFolder}
       folders={folders}
+      onMoveToProject={onMoveToProject}
+      projects={projects}
       onPreview={onPreview}
       getFileContent={getFileContent}
       getPdfInfo={getPdfInfo}

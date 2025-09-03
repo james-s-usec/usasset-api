@@ -21,6 +21,7 @@ import {
   Delete as DeleteIcon,
   Visibility as PreviewIcon,
   DriveFileMove as MoveIcon,
+  Assignment as AssignIcon,
 } from '@mui/icons-material';
 import type { FileData } from './types';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
@@ -35,12 +36,21 @@ interface Folder {
   file_count: number;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  status: string;
+}
+
 interface FileTableRowProps {
   file: FileData;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>;
   folders?: Folder[];
+  onMoveToProject?: (fileId: string, projectId: string | null) => Promise<void>;
+  projects?: Project[];
   onPreview?: (fileId: string) => Promise<string>;
   getFileContent?: (fileId: string) => Promise<string>;
   getPdfInfo?: (fileId: string) => Promise<{
@@ -71,6 +81,49 @@ const getMimeTypeColor = (mimetype: string): 'primary' | 'secondary' | 'success'
   if (mimetype.includes('image')) return 'secondary';
   if (mimetype === 'application/pdf') return 'primary';
   return 'warning';
+};
+
+const getFileTypeLabel = (mimetype: string): string => {
+  // Common document types
+  if (mimetype === 'application/pdf') return 'PDF';
+  if (mimetype.includes('wordprocessingml.document')) return 'DOCX';
+  if (mimetype.includes('presentationml.presentation')) return 'PPTX';
+  if (mimetype.includes('spreadsheetml.sheet')) return 'XLSX';
+  if (mimetype === 'application/msword') return 'DOC';
+  if (mimetype === 'application/vnd.ms-excel') return 'XLS';
+  if (mimetype === 'application/vnd.ms-powerpoint') return 'PPT';
+  
+  // Text and data formats
+  if (mimetype.includes('csv')) return 'CSV';
+  if (mimetype.includes('json')) return 'JSON';
+  if (mimetype.includes('xml')) return 'XML';
+  if (mimetype.includes('text/plain')) return 'TXT';
+  if (mimetype.includes('text/html')) return 'HTML';
+  
+  // Images
+  if (mimetype.startsWith('image/jpeg')) return 'JPEG';
+  if (mimetype.startsWith('image/png')) return 'PNG';
+  if (mimetype.startsWith('image/gif')) return 'GIF';
+  if (mimetype.startsWith('image/webp')) return 'WEBP';
+  if (mimetype.startsWith('image/')) return 'Image';
+  
+  // Video/Audio
+  if (mimetype.startsWith('video/')) return 'Video';
+  if (mimetype.startsWith('audio/')) return 'Audio';
+  
+  // Archives
+  if (mimetype.includes('zip')) return 'ZIP';
+  if (mimetype.includes('rar')) return 'RAR';
+  if (mimetype.includes('7z')) return '7Z';
+  
+  // Fallback to file extension if available
+  const parts = mimetype.split('/');
+  if (parts.length === 2) {
+    const subtype = parts[1].toUpperCase();
+    if (subtype.length <= 5) return subtype;
+  }
+  
+  return 'File';
 };
 
 const PreviewButton: React.FC<{ onPreview: () => void }> = ({ onPreview }) => (
@@ -117,24 +170,37 @@ const MoveButton: React.FC<{ onMove: () => void }> = ({ onMove }) => (
   </IconButton>
 );
 
+const AssignButton: React.FC<{ onAssign: () => void }> = ({ onAssign }) => (
+  <IconButton
+    onClick={onAssign}
+    color="secondary"
+    size="small"
+    title="Assign to Project"
+  >
+    <AssignIcon />
+  </IconButton>
+);
+
 const FileActions: React.FC<{
   file: FileData;
   onDownload: () => Promise<void>;
   onDelete: () => Promise<void>;
   onPreview?: () => void;
   onMove?: () => void;
-}> = ({ file, onDownload, onDelete, onPreview, onMove }) => {
+  onAssign?: () => void;
+}> = ({ file, onDownload, onDelete, onPreview, onMove, onAssign }) => {
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
   const isPDF = file.mimetype === 'application/pdf';
   
   return (
-    <>
+    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', flexWrap: 'nowrap' }}>
       {(isImage || isCSV || isPDF) && onPreview && <PreviewButton onPreview={onPreview} />}
       <DownloadButton onDownload={onDownload} />
       {onMove && <MoveButton onMove={onMove} />}
+      {onAssign && <AssignButton onAssign={onAssign} />}
       <DeleteButton onDelete={onDelete} />
-    </>
+    </Box>
   );
 };
 
@@ -199,7 +265,8 @@ const FileRowContent: React.FC<{
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: () => void;
   onMove?: () => void;
-}> = ({ file, onDownload, onDelete, onPreview, onMove }) => (
+  onAssign?: () => void;
+}> = ({ file, onDownload, onDelete, onPreview, onMove, onAssign }) => (
   <TableRow hover>
     <TableCell>
       <Typography variant="body2" fontWeight="medium">
@@ -240,20 +307,22 @@ const FileRowContent: React.FC<{
     </TableCell>
     <TableCell>
       <Chip
-        label={file.mimetype}
+        label={getFileTypeLabel(file.mimetype)}
         size="small"
         color={getMimeTypeColor(file.mimetype)}
+        title={file.mimetype} // Show full MIME type on hover
       />
     </TableCell>
     <TableCell>{formatFileSize(file.size)}</TableCell>
     <TableCell>{formatDate(file.created_at)}</TableCell>
-    <TableCell align="center">
+    <TableCell align="center" sx={{ width: '15%', minWidth: 180 }}>
       <FileActions
         file={file}
         onDownload={() => onDownload(file.id)}
         onDelete={() => onDelete(file.id, file.original_name)}
         onPreview={onPreview}
         onMove={onMove}
+        onAssign={onAssign}
       />
     </TableCell>
   </TableRow>
@@ -361,9 +430,91 @@ const FolderMoveDialog: React.FC<{
   );
 };
 
-export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, onDelete, onMoveToFolder, folders, onPreview, getFileContent, getPdfInfo }) => {
+const ProjectMoveDialog: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  fileName: string;
+  currentProject?: { id: string; name: string };
+  projects: Project[];
+  onMove: (projectId: string | null) => Promise<void>;
+}> = ({ open, onClose, fileName, currentProject, projects, onMove }) => {
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [moving, setMoving] = useState(false);
+
+  React.useEffect(() => {
+    if (open) {
+      setSelectedProjectId(currentProject?.id || '');
+    }
+  }, [open, currentProject?.id]);
+
+  const handleMove = async (): Promise<void> => {
+    setMoving(true);
+    try {
+      await onMove(selectedProjectId || null);
+      onClose();
+    } catch (error) {
+      console.error('Failed to assign file to project:', error);
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Assign to Project</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" gutterBottom>
+          Assign "{fileName}" to a project
+        </Typography>
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="project-move-select-label">Project</InputLabel>
+          <Select
+            labelId="project-move-select-label"
+            value={selectedProjectId}
+            label="Project"
+            onChange={(e): void => setSelectedProjectId(e.target.value)}
+            disabled={moving}
+          >
+            <MenuItem value="">
+              <em>No Project</em>
+            </MenuItem>
+            {projects.map((project) => (
+              <MenuItem key={project.id} value={project.id}>
+                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                  <Typography variant="body2" fontWeight="medium">
+                    {project.name}
+                  </Typography>
+                  {project.description && (
+                    <Typography variant="caption" color="text.secondary">
+                      {project.description}
+                    </Typography>
+                  )}
+                </Box>
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={moving}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleMove} 
+          variant="contained" 
+          disabled={moving}
+        >
+          {moving ? 'Assigning...' : 'Assign'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, onDelete, onMoveToFolder, folders, onMoveToProject, projects, onPreview, getFileContent, getPdfInfo }) => {
   const { previewOpen, previewUrl, loading, handlePreview, setPreviewOpen, csvPreviewOpen, setCsvPreviewOpen, pdfPreviewOpen, setPdfPreviewOpen } = usePreviewLogic(file, onPreview);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
@@ -375,9 +526,19 @@ export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, on
     setMoveDialogOpen(true);
   };
 
+  const handleAssignClick = (): void => {
+    setAssignDialogOpen(true);
+  };
+
   const handleMoveToFolder = async (folderId: string | null): Promise<void> => {
     if (onMoveToFolder) {
       await onMoveToFolder(file.id, folderId);
+    }
+  };
+
+  const handleMoveToProject = async (projectId: string | null): Promise<void> => {
+    if (onMoveToProject) {
+      await onMoveToProject(file.id, projectId);
     }
   };
 
@@ -389,6 +550,7 @@ export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, on
         onDelete={onDelete}
         onPreview={handlePreviewClick}
         onMove={onMoveToFolder && folders ? handleMoveClick : undefined}
+        onAssign={onMoveToProject && projects ? handleAssignClick : undefined}
       />
       
       <ImagePreviewDialog
@@ -424,6 +586,17 @@ export const FileTableRow: React.FC<FileTableRowProps> = ({ file, onDownload, on
           currentFolder={file.folder}
           folders={folders}
           onMove={handleMoveToFolder}
+        />
+      )}
+      
+      {onMoveToProject && projects && (
+        <ProjectMoveDialog
+          open={assignDialogOpen}
+          onClose={() => setAssignDialogOpen(false)}
+          fileName={file.original_name}
+          currentProject={file.project}
+          projects={projects}
+          onMove={handleMoveToProject}
         />
       )}
     </>

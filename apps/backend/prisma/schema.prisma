@@ -85,6 +85,7 @@ model Project {
   owner       User?         @relation(fields: [owner_id], references: [id])
   members     ProjectMember[]
   files       File[]        // Project can have many files
+  assets      Asset[]       // Project can have many assets
   
   @@index([owner_id])
   @@index([status])
@@ -172,15 +173,35 @@ model File {
 }
 
 model Asset {
-  id         String   @id @default(uuid())
-  assetTag   String   @unique
-  name       String
-  is_deleted Boolean  @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id           String      @id @default(uuid())
+  assetTag     String      @unique
+  name         String
+  manufacturer String?
+  modelNumber  String?
+  serialNumber String?
+  status       AssetStatus @default(ACTIVE)
+  location     String?
+  
+  // Project relationship
+  projectId    String?
+  project      Project?    @relation(fields: [projectId], references: [id])
+  
+  // Audit fields
+  is_deleted   Boolean     @default(false)
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
   
   @@index([assetTag])
+  @@index([status])
+  @@index([projectId])
   @@index([created_at])
   @@index([is_deleted])
   @@map("assets")
+}
+
+enum AssetStatus {
+  ACTIVE
+  MAINTENANCE
+  RETIRED
+  DISPOSED
 }

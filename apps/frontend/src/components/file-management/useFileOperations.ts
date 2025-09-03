@@ -180,6 +180,22 @@ const moveFile = async (fileId: string, folderId: string | null): Promise<void> 
   }
 };
 
+const moveFileToProject = async (fileId: string, projectId: string | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/files/${fileId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      project_id: projectId,
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to assign file to project: ${response.status}`);
+  }
+};
+
 interface UseFileOperationsReturn {
   fetchFiles: () => Promise<FileData[]>;
   uploadFile: (file: File, folderId?: string, projectId?: string) => Promise<void>;
@@ -191,6 +207,7 @@ interface UseFileOperationsReturn {
   fetchFolders: () => Promise<unknown[]>;
   fetchProjects: () => Promise<unknown[]>;
   moveFile: (fileId: string, folderId: string | null) => Promise<void>;
+  moveFileToProject: (fileId: string, projectId: string | null) => Promise<void>;
 }
 
 const useDownloadHandler = (setError: (error: string | null) => void): ((fileId: string) => Promise<void>) =>
@@ -245,5 +262,6 @@ export const useFileOperations = (
     fetchFolders,
     fetchProjects,
     moveFile,
+    moveFileToProject,
   };
 };

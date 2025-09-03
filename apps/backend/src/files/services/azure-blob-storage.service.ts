@@ -105,7 +105,11 @@ export class AzureBlobStorageService {
     }
   }
 
-  public async upload(file: MulterFile, folderId?: string, projectId?: string): Promise<File> {
+  public async upload(
+    file: MulterFile,
+    folderId?: string,
+    projectId?: string,
+  ): Promise<File> {
     this.validateFileSize(file);
 
     const isImage = file.mimetype.startsWith('image/');
@@ -176,7 +180,11 @@ export class AzureBlobStorageService {
     pagination: { page: number; limit: number; total: number };
   }> {
     const skip = this.calculateSkip(page, limit);
-    const [files, total] = await this.fetchFilesAndCount(skip, limit, projectId);
+    const [files, total] = await this.fetchFilesAndCount(
+      skip,
+      limit,
+      projectId,
+    );
     const pagination = this.buildPaginationResponse(page, limit, total);
 
     return {
@@ -198,7 +206,7 @@ export class AzureBlobStorageService {
       is_deleted: false,
       ...(projectId && { project_id: projectId }),
     };
-    
+
     return Promise.all([
       this.prisma.file.findMany({
         where: whereClause,
@@ -498,15 +506,34 @@ export class AzureBlobStorageService {
 
   public async updateFile(
     fileId: string,
-    updateData: { folder_id?: string },
-  ): Promise<File & { folder?: { id: string; name: string; color: string | null } }> {
+    updateData: { folder_id?: string; project_id?: string },
+  ): Promise<
+    File & {
+      folder?: { id: string; name: string; color: string | null };
+      project?: { id: string; name: string };
+    }
+  > {
     // Validate folder exists if folder_id is provided
     if (updateData.folder_id) {
       const folder = await this.prisma.folder.findUnique({
         where: { id: updateData.folder_id, is_deleted: false },
       });
       if (!folder) {
-        throw new BadRequestException(`Folder with ID ${updateData.folder_id} not found`);
+        throw new BadRequestException(
+          `Folder with ID ${updateData.folder_id} not found`,
+        );
+      }
+    }
+
+    // Validate project exists if project_id is provided
+    if (updateData.project_id) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: updateData.project_id, is_deleted: false },
+      });
+      if (!project) {
+        throw new BadRequestException(
+          `Project with ID ${updateData.project_id} not found`,
+        );
       }
     }
 
@@ -514,7 +541,14 @@ export class AzureBlobStorageService {
     const updatedFile = await this.prisma.file.update({
       where: { id: fileId, is_deleted: false },
       data: {
-        folder_id: updateData.folder_id || null,
+        folder_id:
+          updateData.folder_id !== undefined
+            ? updateData.folder_id || null
+            : undefined,
+        project_id:
+          updateData.project_id !== undefined
+            ? updateData.project_id || null
+            : undefined,
         updated_at: new Date(),
       },
       include: {
@@ -525,15 +559,24 @@ export class AzureBlobStorageService {
             color: true,
           },
         },
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
-    this.logger.log(`Updated file ${fileId} folder to ${updateData.folder_id || 'null'}`);
-    
+    this.logger.log(
+      `Updated file ${fileId}: folder=${updateData.folder_id || 'unchanged'}, project=${updateData.project_id || 'unchanged'}`,
+    );
+
     // Transform null to undefined for TypeScript compatibility
     return {
       ...updatedFile,
       folder: updatedFile.folder || undefined,
+      project: updatedFile.project || undefined,
     };
   }
 }

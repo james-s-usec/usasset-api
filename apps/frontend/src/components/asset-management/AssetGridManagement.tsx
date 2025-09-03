@@ -51,7 +51,8 @@ export const AssetGridManagement: React.FC = () => {
       sortable: true,
       filter: true,
       flex: 1,
-      minWidth: 150,
+      minWidth: 120,
+      pinned: 'left',
     },
     {
       headerName: 'Name',
@@ -59,7 +60,77 @@ export const AssetGridManagement: React.FC = () => {
       sortable: true,
       filter: true,
       flex: 2,
-      minWidth: 200,
+      minWidth: 180,
+    },
+    {
+      headerName: 'Manufacturer',
+      field: 'manufacturer',
+      sortable: true,
+      filter: true,
+      flex: 1,
+      minWidth: 130,
+      valueFormatter: (params: any) => params.value || '-',
+    },
+    {
+      headerName: 'Model',
+      field: 'modelNumber',
+      sortable: true,
+      filter: true,
+      flex: 1,
+      minWidth: 120,
+      valueFormatter: (params: any) => params.value || '-',
+    },
+    {
+      headerName: 'Serial Number',
+      field: 'serialNumber',
+      sortable: true,
+      filter: true,
+      flex: 1,
+      minWidth: 130,
+      valueFormatter: (params: any) => params.value || '-',
+    },
+    {
+      headerName: 'Status',
+      field: 'status',
+      sortable: true,
+      filter: true,
+      flex: 1,
+      minWidth: 100,
+      cellRenderer: (params: any) => {
+        const status = params.value || 'ACTIVE';
+        const colors = {
+          ACTIVE: '#4caf50',
+          MAINTENANCE: '#ff9800',
+          RETIRED: '#9e9e9e',
+          DISPOSED: '#f44336',
+        };
+        return (
+          <Box 
+            sx={{ 
+              display: 'inline-flex',
+              alignItems: 'center',
+              px: 1,
+              py: 0.5,
+              borderRadius: 1,
+              backgroundColor: colors[status as keyof typeof colors] + '20',
+              color: colors[status as keyof typeof colors],
+              fontSize: '0.75rem',
+              fontWeight: 'medium',
+            }}
+          >
+            {status}
+          </Box>
+        );
+      },
+    },
+    {
+      headerName: 'Location',
+      field: 'location',
+      sortable: true,
+      filter: true,
+      flex: 1.5,
+      minWidth: 160,
+      valueFormatter: (params: any) => params.value || '-',
     },
     {
       headerName: 'Created',
@@ -67,7 +138,7 @@ export const AssetGridManagement: React.FC = () => {
       sortable: true,
       filter: 'agDateColumnFilter',
       flex: 1,
-      minWidth: 150,
+      minWidth: 110,
       valueFormatter: (params: any) => {
         return new Date(params.value).toLocaleDateString();
       },
@@ -94,9 +165,10 @@ export const AssetGridManagement: React.FC = () => {
         </Box>
       ),
       flex: 1,
-      minWidth: 150,
+      minWidth: 140,
       sortable: false,
       filter: false,
+      pinned: 'right',
     },
   ], [handleEdit, handleDelete]);
 

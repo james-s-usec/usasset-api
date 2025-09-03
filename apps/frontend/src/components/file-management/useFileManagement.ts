@@ -28,6 +28,7 @@ interface UseFileManagementReturn {
   handleDownload: (fileId: string) => Promise<void>;
   handleDelete: (fileId: string, fileName: string) => Promise<void>;
   handleMoveToFolder: (fileId: string, folderId: string | null) => Promise<void>;
+  handleMoveToProject: (fileId: string, projectId: string | null) => Promise<void>;
   handlePreview: (fileId: string) => Promise<string>;
   getFileContent: (fileId: string) => Promise<string>;
   getPdfInfo: (fileId: string) => Promise<{
@@ -110,7 +111,7 @@ export const useFileManagement = (): UseFileManagementReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { fetchFiles, uploadFile, handleDownload, performDelete, handlePreview, getFileContent, getPdfInfo, fetchFolders, fetchProjects, moveFile } = useFileOperations(setError);
+  const { fetchFiles, uploadFile, handleDownload, performDelete, handlePreview, getFileContent, getPdfInfo, fetchFolders, fetchProjects, moveFile, moveFileToProject } = useFileOperations(setError);
 
   const loadFolders = useCallback(async (): Promise<void> => {
     try {
@@ -150,6 +151,14 @@ export const useFileManagement = (): UseFileManagementReturn => {
     [moveFile, loadFiles]
   );
 
+  const handleMoveToProject = useCallback(
+    async (fileId: string, projectId: string | null): Promise<void> => {
+      await moveFileToProject(fileId, projectId);
+      await loadFiles();
+    },
+    [moveFileToProject, loadFiles]
+  );
+
   const fetchFoldersTyped = useCallback(async (): Promise<Folder[]> => {
     const result = await fetchFolders();
     return result as Folder[];
@@ -171,6 +180,7 @@ export const useFileManagement = (): UseFileManagementReturn => {
     handleDownload, 
     handleDelete, 
     handleMoveToFolder, 
+    handleMoveToProject, 
     handlePreview, 
     getFileContent, 
     getPdfInfo, 
