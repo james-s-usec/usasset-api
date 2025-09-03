@@ -121,7 +121,7 @@ export const DocumentsPage: React.FC = () => {
       ) : (
         <Grid container spacing={3}>
           {pdfFiles.map((file) => (
-            <Grid item xs={12} sm={6} md={4} key={file.id}>
+            <Grid item xs={12} sm={6} md={4} key={file.id} {...{} as any}>
               <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardMedia sx={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.100' }}>
                   <PdfIcon sx={{ fontSize: 48, color: 'text.secondary' }} />

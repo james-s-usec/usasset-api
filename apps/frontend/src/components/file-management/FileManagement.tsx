@@ -66,6 +66,9 @@ interface MainContentProps {
   onErrorClose: () => void;
   fetchFolders: () => Promise<Folder[]>;
   fetchProjects: () => Promise<Project[]>;
+  onBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>;
+  onBulkMoveToFolder: (fileIds: string[], folderId: string | null) => Promise<void>;
+  onBulkDelete: (fileIds: string[]) => Promise<void>;
 }
 
 const MainContent: React.FC<MainContentProps> = ({
@@ -91,7 +94,10 @@ const MainContent: React.FC<MainContentProps> = ({
   onRefresh,
   onErrorClose,
   fetchFolders,
-  fetchProjects
+  fetchProjects,
+  onBulkAssignProject,
+  onBulkMoveToFolder,
+  onBulkDelete
 }) => (
   <Box>
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -148,9 +154,9 @@ const MainContent: React.FC<MainContentProps> = ({
         getFileContent={getFileContent}
         getPdfInfo={getPdfInfo}
         onRefresh={onRefresh}
-        onBulkAssignProject={state.handleBulkAssignProject}
-        onBulkMoveToFolder={state.handleBulkMoveToFolder}
-        onBulkDelete={state.handleBulkDelete}
+        onBulkAssignProject={onBulkAssignProject}
+        onBulkMoveToFolder={onBulkMoveToFolder}
+        onBulkDelete={onBulkDelete}
       />
     ) : viewMode === 'tree' ? (
       <FileTreeView
@@ -238,6 +244,9 @@ export const FileManagement: React.FC = () => {
       onErrorClose={() => state.setError(null)}
       fetchFolders={state.fetchFolders}
       fetchProjects={state.fetchProjects}
+      onBulkAssignProject={state.handleBulkAssignProject}
+      onBulkMoveToFolder={state.handleBulkMoveToFolder}
+      onBulkDelete={state.handleBulkDelete}
     />
   );
 };

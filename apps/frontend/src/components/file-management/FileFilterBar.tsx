@@ -12,6 +12,7 @@ import {
   IconButton,
   Collapse,
 } from '@mui/material';
+import type { SelectChangeEvent } from '@mui/material';
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,
@@ -109,7 +110,7 @@ export const FileFilterBar: React.FC<FileFilterBarProps> = ({
     onFiltersChange({ ...filters, search: event.target.value });
   };
 
-  const handleSelectChange = (field: keyof FileFilters) => (event: React.ChangeEvent<{ value: unknown }>) => {
+  const handleSelectChange = (field: keyof FileFilters) => (event: SelectChangeEvent) => {
     onFiltersChange({ ...filters, [field]: event.target.value as string });
   };
 
