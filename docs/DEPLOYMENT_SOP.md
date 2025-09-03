@@ -269,6 +269,111 @@ az containerapp revision activate -n usasset-backend -g useng-usasset-api-rg --r
 - Backend URL: `https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io`
 - Frontend URL: `https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io`
 
+## 🆕 AZURE STORAGE & FILE UPLOAD CONFIGURATION (CRITICAL)
+
+### Prerequisites for File Upload Feature
+1. **Azure Storage Account**: `usassetstoragedev` (already created)
+2. **Container**: `uploads` (already created)
+3. **Key Vault Secret**: Must be added for production
+
+### Step 1: Add Storage Connection String to Key Vault
+```bash
+# Add the storage connection string to Key Vault
+az keyvault secret set \
+  --vault-name usasset-kv-yf2eqktewmxp2 \
+  --name azure-storage-connection-string \
+  --value "DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net;AccountName=usassetstoragedev;AccountKey=<YOUR-KEY>"
+```
+
+### Step 2: Add Secret to Container App
+```bash
+# Add secret to backend Container App (MUST DO THIS FIRST!)
+az containerapp secret set \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --secrets azure-storage-connection-string="<CONNECTION-STRING>" \
+  --output none
+```
+
+### Step 3: Deploy Backend with Storage Configuration
+```bash
+# Deploy with storage environment variables
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --image usassetacryf2eqktewmxp2.azurecr.io/backend:$GIT_COMMIT \
+  --set-env-vars \
+    APP_VERSION=$GIT_COMMIT \
+    BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S) \
+    AZURE_STORAGE_CONNECTION_STRING=secretref:azure-storage-connection-string \
+    AZURE_STORAGE_CONTAINER_NAME=uploads \
+    CORS_ORIGIN="https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io" \
+  --revision-suffix deploy-$GIT_COMMIT-storage
+```
+
+### ⚠️ CRITICAL: CORS Configuration
+
+**MUST UPDATE CORS AFTER FRONTEND DEPLOYMENT!**
+The backend needs to allow the frontend URL for CORS:
+
+```bash
+# Update backend CORS to allow frontend
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --set-env-vars CORS_ORIGIN="https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io" \
+  --output none
+```
+
+**How CORS Works in This App:**
+- Backend reads `CORS_ORIGIN` environment variable
+- If set: Uses that value (production)
+- If not set: Defaults to localhost:5173,5174,5175 (development)
+- Code location: `apps/backend/src/main.ts` lines 13-24
+
+### Frontend API URL Configuration
+
+**CRITICAL**: Frontend must be built with backend URL:
+```bash
+# When building frontend Docker image
+docker build -f apps/frontend/Dockerfile \
+  --build-arg VITE_APP_VERSION=$GIT_COMMIT \
+  --build-arg VITE_BUILD_TIME="$(date -Iseconds)" \
+  --build-arg VITE_API_URL=https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io \
+  -t frontend:$GIT_COMMIT .
+```
+
+**File Upload API Calls:**
+- Frontend uses `config.api.baseUrl` from `src/config/index.ts`
+- File operations in `src/components/file-management/useFileOperations.ts`
+- MUST use full backend URL, not relative paths!
+
+### Complete Deployment Checklist for File Upload
+
+- [ ] Storage account exists: `usassetstoragedev`
+- [ ] Container exists: `uploads`
+- [ ] Connection string in Key Vault: `azure-storage-connection-string`
+- [ ] Secret added to Container App: `azure-storage-connection-string`
+- [ ] Backend deployed with `AZURE_STORAGE_CONNECTION_STRING=secretref:...`
+- [ ] Backend deployed with `AZURE_STORAGE_CONTAINER_NAME=uploads`
+- [ ] Frontend built with `VITE_API_URL=https://backend-url...`
+- [ ] Backend CORS updated with frontend URL
+- [ ] Test file upload at `/files` page
+
+### Testing File Upload in Production
+```bash
+# Test backend directly
+curl -X POST https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/files \
+  -F "file=@test.csv" \
+  -H "Accept: application/json" | jq
+
+# List files
+curl https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/files | jq
+
+# Test from frontend
+# Navigate to: https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io/files
+```
+
 ## 🔧 TROUBLESHOOTING GUIDE
 
 ### Frontend Version Not Showing
@@ -298,10 +403,66 @@ az acr login --name usassetacryf2eqktewmxp2
 **Symptom:** "Resource group not found"
 **Fix:**
 ```bash
-# Find correct RG
-az group list --query "[].name" -o tsv | grep -i usasset
-# Use: useng-usasset-api-rg
+# Use correct resource group name:
+useng-usasset-api-rg
+# NOT: USAssetRG, usasset-rg, etc.
 ```
+
+### File Upload Errors
+
+#### CORS Blocked Error
+**Symptom:** "Access to fetch at 'backend-url' from origin 'frontend-url' has been blocked by CORS policy"
+**Fix:**
+```bash
+# Update backend CORS environment variable
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --set-env-vars CORS_ORIGIN="https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io"
+```
+
+#### Storage Connection Error
+**Symptom:** "Failed to upload file" or 500 error on file upload
+**Fix:**
+```bash
+# 1. Check if secret exists
+az containerapp secret list \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --query "[].name" -o tsv
+
+# 2. If missing, add it
+az containerapp secret set \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --secrets azure-storage-connection-string="<CONNECTION-STRING>"
+
+# 3. Restart with environment variable
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --set-env-vars AZURE_STORAGE_CONNECTION_STRING=secretref:azure-storage-connection-string
+```
+
+#### Network Error in Frontend
+**Symptom:** "Network error loading files" on Files page
+**Causes & Fixes:**
+
+1. **Frontend using relative URLs instead of full backend URL**
+   - Check `apps/frontend/src/components/file-management/useFileOperations.ts`
+   - Must use: `const API_BASE = config.api.baseUrl;`
+   - Must call: `${API_BASE}/api/files` NOT just `/api/files`
+
+2. **Frontend not built with backend URL**
+   ```bash
+   # Rebuild frontend with correct API URL
+   docker build -f apps/frontend/Dockerfile \
+     --build-arg VITE_API_URL=https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io \
+     -t frontend:new .
+   ```
+
+3. **CORS not configured**
+   - See CORS Blocked Error fix above
 
 ### Lint Errors Block Deployment
 **Symptom:** "Function exceeds 30 lines"
@@ -316,6 +477,7 @@ const AppContent = () => { /* now under 30 lines */ }
 ```
 
 ---
-**Last Updated**: Sep 2, 2025  
-**Status**: WORKING (Frontend b779423-v2, Backend 7b4411e)  
-**Rule**: Build locally, push to ACR, deploy. Always verify.
+**Last Updated**: Sep 3, 2025  
+**Status**: WORKING (Frontend 861af17, Backend 861af17)  
+**Features**: File Upload with Azure Blob Storage ✅  
+**Rule**: Build locally, push to ACR, deploy. Always verify CORS!

@@ -1,0 +1,3073 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data-extraction-feature-guide version="1.0" date="2025-09-03">
+  
+  <feature-overview>
+    <name>Asset Data Extraction and Import System</name>
+    <description>Enterprise-grade ETL pipeline for asset management data ingestion</description>
+    <approach>Configurable, rule-based processing with full traceability</approach>
+    <tech-stack>NestJS, csv-parser/xlsx, Prisma, Azure Blob Storage</tech-stack>
+    <note>⚠️ Asset schema is TBD - will be defined in next phase. Examples below use placeholder asset fields.</note>
+  </feature-overview>
+
+  <processing-pipeline>
+    <flow>Upload → Store in Azure → Process → Extract Data → Save to Database</flow>
+    <status-tracking>Update file.processing_status at each stage</status-tracking>
+  </processing-pipeline>
+
+  <!-- ========== LAYERED ETL ARCHITECTURE ========== -->
+  <etl-architecture>
+    
+    <overview>
+      <description>Configurable rule-based ETL pipeline with database-driven rules</description>
+      <layers>Extract → Validate → Clean → Transform → Map → Load</layers>
+      <configuration>Rules stored in database, managed via UI, hot-reloadable</configuration>
+      <architectural-pattern>Hybrid Pipeline Architecture (Functional-First, Command-Enhanced)</architectural-pattern>
+    </overview>
+
+    <architectural-patterns>
+      <primary-pattern>
+        <name>Pipeline Pattern (Functional)</name>
+        <description>Data flows through discrete transformation stages as pure functions</description>
+        <characteristics>
+          - Each stage: Input → Transformation → Output
+          - Immutable data passing between stages
+          - Composable and testable in isolation
+          - Side-effect free transformations
+        </characteristics>
+      </primary-pattern>
+      
+      <supporting-patterns>
+        <pattern name="Chain of Responsibility">
+          <purpose>Rules within each layer form a processing chain</purpose>
+          <usage>Dynamic rule insertion/removal at runtime</usage>
+        </pattern>
+        <pattern name="Strategy Pattern">
+          <purpose>Multiple algorithms for same operation</purpose>
+          <usage>Loading strategies, conflict resolution, validation</usage>
+        </pattern>
+        <pattern name="Observer Pattern">
+          <purpose>Event-driven notifications</purpose>
+          <usage>Stage completion, reference updates, progress tracking</usage>
+        </pattern>
+        <pattern name="Repository Pattern">
+          <purpose>Abstract data access</purpose>
+          <usage>Reference table access regardless of source</usage>
+        </pattern>
+        <pattern name="Command Pattern">
+          <purpose>Encapsulate operations as objects</purpose>
+          <usage>Undo/replay, audit trail, async execution</usage>
+        </pattern>
+      </supporting-patterns>
+    </architectural-patterns>
+
+    <pipeline-flow-diagram>
+      <ascii-art>
+        <![CDATA[
+        ┌─────────────────────────────────────────────────────────────────────────────────────┐
+        │                           ETL PIPELINE ARCHITECTURE                                 │
+        └─────────────────────────────────────────────────────────────────────────────────────┘
+        
+        INPUT                                                                          OUTPUT
+          │                                                                              │
+          ▼                                                                              ▼
+        ┌─────┐   ┌──────────────────────────────────────────────────────────────┐   ┌──────┐
+        │FILE │──▶│                    PIPELINE ORCHESTRATOR                      │──▶│ DB   │
+        └─────┘   │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │   └──────┘
+                  │  │ Strategy │  │ Observer │  │ Command  │  │Reference │   │
+                  │  │ Selector │  │  Manager │  │  Queue   │  │  Cache   │   │
+                  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+                  └──────────────────────────────────────────────────────────────┘
+                                              │
+                  ┌───────────────────────────┼───────────────────────────────────┐
+                  │                           ▼                                   │
+                  │  ╔═══════════════════════════════════════════════════════╗   │
+                  │  ║              STAGE 1: EXTRACT                         ║   │
+                  │  ╟─────────────────────────────────────────────────────╢   │
+                  │  ║  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ ║   │
+                  │  ║  │Format   │→ │Encoding │→ │Schema   │→ │Range    │ ║   │
+                  │  ║  │Detector │  │Handler  │  │Detector │  │Selector │ ║   │
+                  │  ║  └─────────┘  └─────────┘  └─────────┘  └─────────┘ ║   │
+                  │  ║                    ▼ Raw Data Array                   ║   │
+                  │  ╚═══════════════════╤═══════════════════════════════════╝   │
+                  │                      │ [Stage Snapshot → Blob Storage]       │
+                  │                      ▼                                       │
+                  │  ╔═══════════════════════════════════════════════════════╗   │
+                  │  ║              STAGE 2: VALIDATE                        ║   │
+                  │  ╟─────────────────────────────────────────────────────╢   │
+                  │  ║  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ ║   │
+                  │  ║  │Required │→ │Type     │→ │Format   │→ │Reference│ ║   │
+                  │  ║  │Fields   │  │Validator│  │Checker  │  │Lookup   │ ║   │
+                  │  ║  └─────────┘  └─────────┘  └─────────┘  └─────────┘ ║   │
+                  │  ║                    ▼ Valid Records + Errors           ║   │
+                  │  ╚═══════════════════╤═══════════════════════════════════╝   │
+                  │                      │ [Stage Snapshot → Blob Storage]       │
+                  │                      ▼                                       │
+                  │  ╔═══════════════════════════════════════════════════════╗   │
+                  │  ║               STAGE 3: CLEAN                          ║   │
+                  │  ╟─────────────────────────────────────────────────────╢   │
+                  │  ║  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ ║   │
+                  │  ║  │Whitespace│→ │Phone    │→ │Date     │→ │Currency │ ║   │
+                  │  ║  │Cleaner  │  │Standard │  │Standard │  │Formatter│ ║   │
+                  │  ║  └─────────┘  └─────────┘  └─────────┘  └─────────┘ ║   │
+                  │  ║  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ ║   │
+                  │  ║  │Email/URL│→ │Name/Addr│→ │Null     │→ │Dedupe   │ ║   │
+                  │  ║  │Cleaner  │  │Standard │  │Handler  │  │Engine   │ ║   │
+                  │  ║  └─────────┘  └─────────┘  └─────────┘  └─────────┘ ║   │
+                  │  ║                    ▼ Cleaned Records                  ║   │
+                  │  ╚═══════════════════╤═══════════════════════════════════╝   │
+                  │                      │ [Stage Snapshot → Blob Storage]       │
+                  │                      ▼                                       │
+                  │  ╔═══════════════════════════════════════════════════════╗   │
+                  │  ║             STAGE 4: TRANSFORM                        ║   │
+                  │  ╟─────────────────────────────────────────────────────╢   │
+                  │  ║  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ ║   │
+                  │  ║  │Calculate│→ │Business │→ │Merge/   │→ │Enrich   │ ║   │
+                  │  ║  │Derived  │  │Rules    │  │Split    │  │Data     │ ║   │
+                  │  ║  └─────────┘  └─────────┘  └─────────┘  └─────────┘ ║   │
+                  │  ║                    ▼ Business Objects                 ║   │
+                  │  ╚═══════════════════╤═══════════════════════════════════╝   │
+                  │                      │ [Stage Snapshot → Blob Storage]       │
+                  │                      ▼                                       │
+                  │  ╔═══════════════════════════════════════════════════════╗   │
+                  │  ║                STAGE 5: MAP                           ║   │
+                  │  ╟─────────────────────────────────────────────────────╢   │
+                  │  ║  ┌─────────────────────────────────────────────────┐ ║   │
+                  │  ║  │            FIELD MAPPER ENGINE                  │ ║   │
+                  │  ║  │  ┌─────────┐  ┌─────────┐  ┌─────────┐       │ ║   │
+                  │  ║  │  │Source → │→ │Reference│→ │Default  │       │ ║   │
+                  │  ║  │  │Target   │  │Lookups  │  │Values   │       │ ║   │
+                  │  ║  │  └─────────┘  └─────────┘  └─────────┘       │ ║   │
+                  │  ║  │         ▲                        ▲             │ ║   │
+                  │  ║  │         └────────┬───────────────┘             │ ║   │
+                  │  ║  │            [Reference Tables]                  │ ║   │
+                  │  ║  │          ┌──────────────────┐                  │ ║   │
+                  │  ║  │          │ Polling Manager  │                  │ ║   │
+                  │  ║  │          │  - Users         │                  │ ║   │
+                  │  ║  │          │  - Projects      │                  │ ║   │
+                  │  ║  │          │  - Departments   │                  │ ║   │
+                  │  ║  │          │  - Categories    │                  │ ║   │
+                  │  ║  │          └──────────────────┘                  │ ║   │
+                  │  ║  └─────────────────────────────────────────────────┘ ║   │
+                  │  ║                    ▼ Schema-Compliant Objects        ║   │
+                  │  ╚═══════════════════╤═══════════════════════════════════╝   │
+                  │                      │ [Stage Snapshot → Blob Storage]       │
+                  │                      ▼                                       │
+                  │  ╔═══════════════════════════════════════════════════════╗   │
+                  │  ║           STAGE 5.5: APPROVAL (Optional)             ║   │
+                  │  ╟─────────────────────────────────────────────────────╢   │
+                  │  ║  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ ║   │
+                  │  ║  │Confidence│→ │Auto     │→ │Review   │→ │User     │ ║   │
+                  │  ║  │Scorer   │  │Approval │  │Queue    │  │Approval │ ║   │
+                  │  ║  └─────────┘  └─────────┘  └─────────┘  └─────────┘ ║   │
+                  │  ║         ▼ Approved Records                           ║   │
+                  │  ╚═══════════════════╤═══════════════════════════════════╝   │
+                  │                      │                                       │
+                  │                      ▼                                       │
+                  │  ╔═══════════════════════════════════════════════════════╗   │
+                  │  ║                STAGE 6: LOAD                          ║   │
+                  │  ╟─────────────────────────────────────────────────────╢   │
+                  │  ║           ┌──────────────────────┐                   ║   │
+                  │  ║           │   LOADER SELECTOR    │                   ║   │
+                  │  ║           └──────────┬───────────┘                   ║   │
+                  │  ║                      ▼                               ║   │
+                  │  ║  ┌──────────────────────────────────────────────┐   ║   │
+                  │  ║  │ Bulk │ Upsert │ Stream │ Transaction │ Delta │   ║   │
+                  │  ║  └──────────────────────────────────────────────┘   ║   │
+                  │  ║                      ▼                               ║   │
+                  │  ║               [Database Commit]                      ║   │
+                  │  ╚═══════════════════╤═══════════════════════════════════╝   │
+                  │                      │                                       │
+                  └──────────────────────┼───────────────────────────────────┘
+                                         ▼
+                          ┌──────────────────────────┐
+                          │    AUDIT & LINEAGE       │
+                          │  ┌──────────────────┐   │
+                          │  │ • Import Stages  │   │
+                          │  │ • Record Lineage │   │
+                          │  │ • Rule Execution │   │
+                          │  │ • Transformations│   │
+                          │  └──────────────────┘   │
+                          └──────────────────────────┘
+        
+        LEGEND:
+        ═══ Pipeline Stage (Functional Transformation)
+        ─── Processing Step (Pure Function)
+        │   Data Flow
+        ▶   Direction
+        []  Side Effect (Storage/Cache)
+        ]]>
+      </ascii-art>
+    </pipeline-flow-diagram>
+
+    <data-flow-detail>
+      <ascii-art>
+        <![CDATA[
+        DETAILED DATA FLOW WITH PATTERNS:
+        
+        ┌────────────┐
+        │ RAW FILE   │  
+        │ (CSV/Excel)│
+        └─────┬──────┘
+              │
+              ▼
+        ╔═════════════════════════════════════════╗
+        ║         FUNCTIONAL PIPELINE             ║
+        ║                                         ║
+        ║  f(x) = load ∘ map ∘ transform ∘       ║
+        ║         clean ∘ validate ∘ extract     ║
+        ║                                         ║
+        ║  where each stage:                      ║
+        ║  - Input: Immutable Data                ║
+        ║  - Process: Pure Transformation         ║
+        ║  - Output: New Immutable Data           ║
+        ╚════════════╤════════════════════════════╝
+                     │
+        ┌────────────┼────────────────────────────┐
+        │            ▼                            │
+        │  ┌──────────────────────────────────┐  │
+        │  │     CHAIN OF RESPONSIBILITY      │  │
+        │  │                                  │  │
+        │  │  Rule1 → Rule2 → Rule3 → RuleN   │  │
+        │  │    ↓       ↓       ↓       ↓     │  │
+        │  │  Process  Skip   Process  Process│  │
+        │  └──────────────────────────────────┘  │
+        │                                         │
+        │  ┌──────────────────────────────────┐  │
+        │  │         STRATEGY PATTERN         │  │
+        │  │                                  │  │
+        │  │  Context: Load Operation         │  │
+        │  │     ↓                            │  │
+        │  │  ┌──────────┐                    │  │
+        │  │  │Strategy? │                    │  │
+        │  │  └────┬─────┘                    │  │
+        │  │       ├─→ BulkLoader             │  │
+        │  │       ├─→ UpsertLoader           │  │
+        │  │       ├─→ StreamingLoader        │  │
+        │  │       └─→ TransactionalLoader    │  │
+        │  └──────────────────────────────────┘  │
+        │                                         │
+        │  ┌──────────────────────────────────┐  │
+        │  │         OBSERVER PATTERN         │  │
+        │  │                                  │  │
+        │  │  StageComplete → Notify:         │  │
+        │  │    • Progress Monitor            │  │
+        │  │    • Audit Logger                │  │
+        │  │    • Lineage Tracker             │  │
+        │  │    • WebSocket Clients           │  │
+        │  └──────────────────────────────────┘  │
+        │                                         │
+        │  ┌──────────────────────────────────┐  │
+        │  │        COMMAND PATTERN           │  │
+        │  │                                  │  │
+        │  │  Commands:                       │  │
+        │  │    • SaveStageSnapshot           │  │
+        │  │    • UpdateLineage               │  │
+        │  │    • NotifySubscribers           │  │
+        │  │    • RollbackStage               │  │
+        │  │                                  │  │
+        │  │  CommandQueue.execute()          │  │
+        │  └──────────────────────────────────┘  │
+        │                                         │
+        │  ┌──────────────────────────────────┐  │
+        │  │       REPOSITORY PATTERN         │  │
+        │  │                                  │  │
+        │  │  ReferenceTableRepository        │  │
+        │  │    ↓                             │  │
+        │  │  ┌─────────────────────┐         │  │
+        │  │  │ Database │ API │ File│         │  │
+        │  │  └─────────────────────┘         │  │
+        │  │                                  │  │
+        │  │  Consistent Interface:           │  │
+        │  │    • lookup(key)                 │  │
+        │  │    • bulkLookup(keys[])          │  │
+        │  │    • refresh()                   │  │
+        │  └──────────────────────────────────┘  │
+        └─────────────────────────────────────────┘
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │   DATABASE     │
+                    │                │
+                    │  • Records     │
+                    │  • Audit Trail │
+                    │  • Lineage     │
+                    └────────────────┘
+        ]]>
+      </ascii-art>
+    </data-flow-detail>
+
+    <layer-definitions>
+      
+      <extract-layer order="1">
+        <purpose>Read raw data from files</purpose>
+        <specific-extractors>
+          
+          <file-format-detector>
+            <name>File Format Detection & Parsing</name>
+            <options>
+              - CSV with configurable delimiters (comma, tab, pipe, semicolon)
+              - Excel with multi-sheet support (XLSX, XLS)
+              - JSON nested structure extraction
+              - Fixed-width text files
+            </options>
+            <design-pattern>Strategy Pattern</design-pattern>
+            <interface>
+              interface FileExtractor {
+                detect(buffer: Buffer): FileType;
+                extract(buffer: Buffer, config: ExtractConfig): RawData[];
+              }
+            </interface>
+          </file-format-detector>
+
+          <encoding-detector>
+            <name>Encoding & Character Set Detection</name>
+            <options>
+              - UTF-8, UTF-16, ISO-8859-1, Windows-1252
+              - Auto-detect encoding
+              - Handle BOM (Byte Order Mark)
+              - Convert to standard UTF-8
+            </options>
+            <design-pattern>Chain of Responsibility</design-pattern>
+            <interface>
+              interface EncodingHandler {
+                canHandle(buffer: Buffer): boolean;
+                decode(buffer: Buffer): string;
+                setNext(handler: EncodingHandler): void;
+              }
+            </interface>
+          </encoding-detector>
+
+          <schema-detector>
+            <name>Header & Schema Detection</name>
+            <options>
+              - Auto-detect header row
+              - Skip n rows before data
+              - Column type inference
+              - Handle merged cells in Excel
+            </options>
+            <design-pattern>Template Method Pattern</design-pattern>
+            <interface>
+              abstract class SchemaDetector {
+                abstract detectHeaders(data: any[]): string[];
+                abstract inferTypes(data: any[]): FieldType[];
+                detectSchema(data: any[]): Schema {
+                  // Template method combining detection steps
+                }
+              }
+            </interface>
+          </schema-detector>
+
+          <range-selector>
+            <name>Data Range Selection</name>
+            <options>
+              - Specific sheet selection in Excel
+              - Row range extraction (start/end)
+              - Column selection/exclusion
+              - Named range support for Excel
+            </options>
+            <design-pattern>Builder Pattern</design-pattern>
+            <interface>
+              class RangeBuilder {
+                selectSheet(name: string): this;
+                skipRows(n: number): this;
+                limitRows(n: number): this;
+                selectColumns(cols: string[]): this;
+                build(): RangeConfig;
+              }
+            </interface>
+          </range-selector>
+
+          <metadata-extractor>
+            <name>Metadata Extraction</name>
+            <options>
+              - File creation/modification dates
+              - Author/creator information
+              - Sheet names and counts
+              - Row/column counts
+            </options>
+            <design-pattern>Visitor Pattern</design-pattern>
+            <interface>
+              interface MetadataVisitor {
+                visitExcel(file: ExcelFile): Metadata;
+                visitCSV(file: CSVFile): Metadata;
+                visitJSON(file: JSONFile): Metadata;
+              }
+            </interface>
+          </metadata-extractor>
+
+        </specific-extractors>
+        <output>Raw data array with detected metadata</output>
+      </extract-layer>
+
+      <validate-layer order="2">
+        <purpose>Check data quality and completeness</purpose>
+        <rules>
+          - Required field validation
+          - Data type validation (number, date, email)
+          - Format validation (regex patterns)
+          - Range validation (min/max values)
+          - Uniqueness validation
+          - Foreign key validation
+        </rules>
+        <design-pattern>Composite Pattern + Specification Pattern</design-pattern>
+        <interface>
+          interface ValidationRule {
+            validate(value: any, context: ValidationContext): ValidationResult;
+          }
+          class CompositeValidator implements ValidationRule {
+            add(rule: ValidationRule): void;
+            validate(value: any, context: ValidationContext): ValidationResult;
+          }
+        </interface>
+        <output>Valid records + error report</output>
+      </validate-layer>
+
+      <clean-layer order="3">
+        <purpose>Standardize and clean data</purpose>
+        <specific-cleaners>
+          
+          <whitespace-cleaner>
+            <name>Whitespace & Character Cleaning</name>
+            <options>
+              - Trim leading/trailing spaces
+              - Remove non-printable characters
+              - Normalize internal whitespace
+              - Remove zero-width characters
+            </options>
+            <design-pattern>Pipeline Pattern</design-pattern>
+            <interface>
+              class CleaningPipeline {
+                pipe(cleaner: Cleaner): this;
+                execute(value: string): string;
+              }
+            </interface>
+          </whitespace-cleaner>
+
+          <phone-standardizer>
+            <name>Phone Number Standardization</name>
+            <options>
+              - Remove formatting characters
+              - Add/remove country codes
+              - Format to E.164 standard
+              - Validate against regional patterns
+            </options>
+            <design-pattern>Strategy Pattern</design-pattern>
+            <interface>
+              interface PhoneFormatter {
+                format(phone: string, country: string): string;
+                validate(phone: string, country: string): boolean;
+              }
+            </interface>
+          </phone-standardizer>
+
+          <date-standardizer>
+            <name>Date/Time Standardization</name>
+            <options>
+              - Parse multiple date formats (MM/DD/YYYY, DD-MM-YYYY, etc.)
+              - Convert to ISO 8601
+              - Handle timezone conversions
+              - Fix two-digit years
+            </options>
+            <design-pattern>Adapter Pattern</design-pattern>
+            <interface>
+              interface DateAdapter {
+                parse(dateStr: string, format?: string): Date;
+                format(date: Date, format: string): string;
+                detectFormat(dateStr: string): string;
+              }
+            </interface>
+          </date-standardizer>
+
+          <currency-formatter>
+            <name>Currency & Number Formatting</name>
+            <options>
+              - Remove currency symbols
+              - Handle decimal separators (comma vs period)
+              - Convert text numbers to numeric
+              - Round to specified precision
+            </options>
+            <design-pattern>Decorator Pattern</design-pattern>
+            <interface>
+              abstract class NumberProcessor {
+                abstract process(value: string): number;
+              }
+              class CurrencyDecorator extends NumberProcessor {
+                constructor(private processor: NumberProcessor) {}
+                process(value: string): number {
+                  // Remove currency symbols then delegate
+                }
+              }
+            </interface>
+          </currency-formatter>
+
+          <email-url-cleaner>
+            <name>Email & URL Validation/Cleaning</name>
+            <options>
+              - Lowercase email addresses
+              - Validate email format
+              - Fix common typos (@gmial.com → @gmail.com)
+              - Normalize URLs (add https://, remove trailing slashes)
+            </options>
+            <design-pattern>Factory Pattern</design-pattern>
+            <interface>
+              interface Sanitizer {
+                sanitize(value: string): string;
+                isValid(value: string): boolean;
+              }
+              class SanitizerFactory {
+                static create(type: 'email' | 'url'): Sanitizer;
+              }
+            </interface>
+          </email-url-cleaner>
+
+          <name-address-standardizer>
+            <name>Name & Address Standardization</name>
+            <options>
+              - Proper case formatting
+              - Split full names into first/last
+              - Standardize abbreviations (St. → Street)
+              - Parse address components
+            </options>
+            <design-pattern>Interpreter Pattern</design-pattern>
+            <interface>
+              interface AddressExpression {
+                interpret(context: AddressContext): ParsedAddress;
+              }
+            </interface>
+          </name-address-standardizer>
+
+          <null-handler>
+            <name>Null & Default Value Handling</name>
+            <options>
+              - Replace empty strings with NULL
+              - Set default values for missing data
+              - Convert "N/A", "None", "-" to NULL
+              - Handle Excel error values (#N/A, #DIV/0!)
+            </options>
+            <design-pattern>Null Object Pattern</design-pattern>
+            <interface>
+              interface NullHandler {
+                isNull(value: any): boolean;
+                getDefault(fieldType: string): any;
+                normalize(value: any): any;
+              }
+            </interface>
+          </null-handler>
+
+          <deduplicator>
+            <name>Deduplication & Uniqueness</name>
+            <options>
+              - Remove exact duplicates
+              - Fuzzy matching for near-duplicates
+              - Merge duplicate records
+              - Generate unique identifiers
+            </options>
+            <design-pattern>Strategy Pattern + Memento Pattern</design-pattern>
+            <interface>
+              interface DeduplicationStrategy {
+                findDuplicates(records: any[]): DuplicateGroup[];
+                merge(duplicates: any[]): any;
+              }
+              class DeduplicationMemento {
+                saveState(records: any[]): void;
+                restore(): any[];
+              }
+            </interface>
+          </deduplicator>
+
+        </specific-cleaners>
+        <output>Cleaned data records</output>
+      </clean-layer>
+
+      <transform-layer order="4">
+        <purpose>Apply business logic transformations</purpose>
+        <rules>
+          - Calculate derived fields
+          - Apply business formulas
+          - Merge/split columns
+          - Lookup reference data
+          - Apply conditional logic
+          - Data enrichment
+        </rules>
+        <output>Transformed business data</output>
+      </transform-layer>
+
+      <map-layer order="5">
+        <purpose>Map to target schema</purpose>
+        <mapping-interface>
+          
+          <overview>
+            <description>Dynamic field mapping with reference data lookups</description>
+            <design-pattern>Adapter Pattern + Registry Pattern + Observer Pattern</design-pattern>
+          </overview>
+
+          <core-mapper-interface>
+            <name>Field Mapping Engine</name>
+            <interface>
+              interface FieldMapper {
+                // Core mapping functionality
+                map(source: Record&lt;string, any&gt;, rules: MappingRule[]): Record&lt;string, any&gt;;
+                
+                // Reference data lookup
+                lookup(table: string, key: string, value: any): Promise&lt;any&gt;;
+                
+                // Batch lookup for performance
+                batchLookup(table: string, key: string, values: any[]): Promise&lt;Map&lt;any, any&gt;&gt;;
+              }
+              
+              interface MappingRule {
+                sourceField: string | string[];  // Single or multiple source fields
+                targetField: string;
+                transform?: TransformFunction;
+                lookupConfig?: LookupConfig;
+                defaultValue?: any;
+              }
+              
+              interface LookupConfig {
+                table: string;           // Table to query
+                keyField: string;        // Field to match on
+                returnField: string;     // Field to return
+                cache: boolean;          // Cache results
+                createIfMissing?: boolean;  // Auto-create missing refs
+              }
+            </interface>
+          </core-mapper-interface>
+
+          <reference-data-poller>
+            <name>Reference Data Polling System</name>
+            <purpose>Keep reference data in memory for fast lookups</purpose>
+            <design-pattern>Observer Pattern + Cache-Aside Pattern</design-pattern>
+            <interface>
+              class ReferenceDataPoller {
+                private cache: Map&lt;string, Map&lt;any, any&gt;&gt;;
+                private pollingIntervals: Map&lt;string, number&gt;;
+                
+                // Start polling a table
+                startPolling(config: PollingConfig): void {
+                  setInterval(() =&gt; this.refreshCache(config), config.interval);
+                }
+                
+                // Get cached data
+                getCached(table: string, key: string, value: any): any {
+                  return this.cache.get(table)?.get(value);
+                }
+                
+                // Force refresh
+                async refreshCache(config: PollingConfig): Promise&lt;void&gt; {
+                  const data = await this.prisma[config.table].findMany({
+                    select: config.fields
+                  });
+                  this.updateCache(config.table, data, config.keyField);
+                  this.notifyObservers(config.table);
+                }
+              }
+              
+              interface PollingConfig {
+                table: string;          // Table name to poll
+                keyField: string;       // Primary lookup field
+                fields: string[];       // Fields to cache
+                interval: number;       // Polling interval in ms
+                eager: boolean;         // Load on startup
+              }
+            </interface>
+          </reference-data-poller>
+
+          <mapping-registry>
+            <name>Mapping Configuration Registry</name>
+            <purpose>Store and manage mapping configurations per entity type</purpose>
+            <design-pattern>Registry Pattern + Strategy Pattern</design-pattern>
+            <interface>
+              class MappingRegistry {
+                private mappings: Map&lt;string, MappingConfig&gt;;
+                
+                register(entityType: string, config: MappingConfig): void;
+                getMapping(entityType: string): MappingConfig;
+                
+                // Dynamic mapping creation
+                createMapping(source: any[], target: string): MappingConfig {
+                  // Auto-detect field mappings based on names
+                  // Fuzzy match similar field names
+                  // Infer data types
+                }
+              }
+              
+              interface MappingConfig {
+                entityType: string;     // Target entity (User, Project, Asset)
+                rules: MappingRule[];
+                validations: ValidationRule[];
+                lookups: LookupConfig[];
+              }
+            </interface>
+          </mapping-registry>
+
+          <transform-functions>
+            <name>Transformation Functions</name>
+            <purpose>Common transformations during mapping</purpose>
+            <interface>
+              type TransformFunction = (value: any, row: any) => any;
+              
+              const Transformers = {
+                // Concatenate multiple fields
+                concat: (...fields: string[]) =&gt; (value: any, row: any) =&gt; {
+                  return fields.map(f =&gt; row[f]).join(' ');
+                },
+                
+                // Split field into multiple
+                split: (delimiter: string, index: number) =&gt; (value: any) =&gt; {
+                  return value.split(delimiter)[index];
+                },
+                
+                // Conditional mapping
+                conditional: (condition: (row: any) =&gt; boolean, trueVal: any, falseVal: any) =&gt; {
+                  return (value: any, row: any) =&gt; condition(row) ? trueVal : falseVal;
+                },
+                
+                // Lookup and replace
+                lookup: (table: string, field: string) =&gt; async (value: any) =&gt; {
+                  return await referencePoller.getCached(table, field, value);
+                }
+              };
+            </interface>
+          </transform-functions>
+
+          <example-mappings>
+            <user-import-mapping>
+              {
+                "entityType": "User",
+                "rules": [
+                  {
+                    "sourceField": "Email Address",
+                    "targetField": "email",
+                    "transform": "lowercase"
+                  },
+                  {
+                    "sourceField": ["First Name", "Last Name"],
+                    "targetField": "name",
+                    "transform": "concat"
+                  },
+                  {
+                    "sourceField": "Department Code",
+                    "targetField": "departmentId",
+                    "lookupConfig": {
+                      "table": "departments",
+                      "keyField": "code",
+                      "returnField": "id",
+                      "cache": true,
+                      "createIfMissing": true
+                    }
+                  }
+                ]
+              }
+            </user-import-mapping>
+            
+            <asset-import-mapping>
+              {
+                "entityType": "Asset",
+                "rules": [
+                  {
+                    "sourceField": "Asset Tag",
+                    "targetField": "tagNumber"
+                  },
+                  {
+                    "sourceField": "Category",
+                    "targetField": "categoryId",
+                    "lookupConfig": {
+                      "table": "categories",
+                      "keyField": "name",
+                      "returnField": "id",
+                      "cache": true
+                    }
+                  },
+                  {
+                    "sourceField": "Status",
+                    "targetField": "status",
+                    "transform": "mapStatus",
+                    "defaultValue": "ACTIVE"
+                  }
+                ]
+              }
+            </asset-import-mapping>
+          </example-mappings>
+
+          <polling-configurations>
+            <reference-tables>
+              // Tables to keep in memory for fast lookups
+              [
+                {
+                  "table": "users",
+                  "keyField": "email",
+                  "fields": ["id", "email", "name"],
+                  "interval": 60000,  // 1 minute
+                  "eager": true
+                },
+                {
+                  "table": "projects",
+                  "keyField": "name",
+                  "fields": ["id", "name", "code"],
+                  "interval": 300000,  // 5 minutes
+                  "eager": true
+                },
+                {
+                  "table": "departments",
+                  "keyField": "code",
+                  "fields": ["id", "code", "name"],
+                  "interval": 3600000,  // 1 hour
+                  "eager": false
+                },
+                {
+                  "table": "categories",
+                  "keyField": "name",
+                  "fields": ["id", "name", "type"],
+                  "interval": 3600000,  // 1 hour
+                  "eager": false
+                }
+              ]
+            </reference-tables>
+          </polling-configurations>
+
+        </mapping-interface>
+        <output>Schema-compliant objects with resolved references</output>
+      </map-layer>
+
+      <load-layer order="6">
+        <purpose>Save to database with configurable loading strategies</purpose>
+        
+        <loader-patterns>
+          
+          <bulk-loader>
+            <name>Bulk Insert Loader</name>
+            <use-case>High-volume, clean data, no conflicts expected</use-case>
+            <design-pattern>Batch Command Pattern + Unit of Work</design-pattern>
+            <interface>
+              class BulkLoader implements DataLoader {
+                private batchSize: number = 1000;
+                private transactionSize: number = 5000;
+                
+                async load(records: any[], config: LoadConfig): Promise&lt;LoadResult&gt; {
+                  const batches = this.chunk(records, this.batchSize);
+                  const results: LoadResult[] = [];
+                  
+                  for (const batch of batches) {
+                    const result = await this.prisma.$transaction(async (tx) =&gt; {
+                      return tx[config.table].createMany({
+                        data: batch,
+                        skipDuplicates: config.skipDuplicates
+                      });
+                    });
+                    results.push(result);
+                  }
+                  
+                  return this.mergeResults(results);
+                }
+                
+                private chunk&lt;T&gt;(array: T[], size: number): T[][] {
+                  // Efficient chunking algorithm
+                }
+              }
+            </interface>
+            <performance>
+              - 10,000+ records/second for simple schemas
+              - Minimal memory footprint with streaming
+              - Automatic retry on transient failures
+            </performance>
+          </bulk-loader>
+
+          <upsert-loader>
+            <name>Intelligent Upsert Loader</name>
+            <use-case>Mixed new/existing data, conflict resolution needed</use-case>
+            <design-pattern>Strategy Pattern + Repository Pattern</design-pattern>
+            <interface>
+              class UpsertLoader implements DataLoader {
+                private conflictStrategy: ConflictStrategy;
+                
+                async load(records: any[], config: LoadConfig): Promise&lt;LoadResult&gt; {
+                  const result = {
+                    created: 0,
+                    updated: 0,
+                    skipped: 0,
+                    errors: []
+                  };
+                  
+                  for (const record of records) {
+                    try {
+                      const existing = await this.findExisting(record, config.uniqueKeys);
+                      
+                      if (existing) {
+                        const action = this.conflictStrategy.resolve(existing, record);
+                        
+                        switch (action) {
+                          case 'update':
+                            await this.update(existing.id, record);
+                            result.updated++;
+                            break;
+                          case 'skip':
+                            result.skipped++;
+                            break;
+                          case 'merge':
+                            const merged = this.merge(existing, record);
+                            await this.update(existing.id, merged);
+                            result.updated++;
+                            break;
+                        }
+                      } else {
+                        await this.create(record);
+                        result.created++;
+                      }
+                    } catch (error) {
+                      result.errors.push({ record, error });
+                    }
+                  }
+                  
+                  return result;
+                }
+              }
+              
+              interface ConflictStrategy {
+                resolve(existing: any, incoming: any): 'update' | 'skip' | 'merge';
+              }
+              
+              class TimestampStrategy implements ConflictStrategy {
+                resolve(existing: any, incoming: any): 'update' | 'skip' | 'merge' {
+                  // Update if incoming is newer
+                  if (incoming.updatedAt > existing.updatedAt) return 'update';
+                  return 'skip';
+                }
+              }
+            </interface>
+          </upsert-loader>
+
+          <streaming-loader>
+            <name>Stream Processing Loader</name>
+            <use-case>Very large files, memory constraints</use-case>
+            <design-pattern>Iterator Pattern + Backpressure Control</design-pattern>
+            <interface>
+              class StreamingLoader implements DataLoader {
+                private bufferSize: number = 100;
+                private concurrency: number = 5;
+                
+                async load(stream: Readable, config: LoadConfig): Promise&lt;LoadResult&gt; {
+                  const buffer: any[] = [];
+                  const promises: Promise&lt;any&gt;[] = [];
+                  
+                  return new Promise((resolve, reject) =&gt; {
+                    stream
+                      .pipe(this.createTransformStream())
+                      .on('data', async (record) =&gt; {
+                        buffer.push(record);
+                        
+                        if (buffer.length >= this.bufferSize) {
+                          // Apply backpressure
+                          stream.pause();
+                          
+                          const batch = buffer.splice(0, this.bufferSize);
+                          const promise = this.processBatch(batch, config);
+                          promises.push(promise);
+                          
+                          // Limit concurrent operations
+                          if (promises.length >= this.concurrency) {
+                            await Promise.race(promises);
+                          }
+                          
+                          stream.resume();
+                        }
+                      })
+                      .on('end', async () =&gt; {
+                        // Process remaining buffer
+                        if (buffer.length > 0) {
+                          await this.processBatch(buffer, config);
+                        }
+                        
+                        // Wait for all promises
+                        await Promise.all(promises);
+                        resolve(this.aggregateResults());
+                      })
+                      .on('error', reject);
+                  });
+                }
+              }
+            </interface>
+            <features>
+              - Memory-efficient for files of any size
+              - Backpressure handling prevents OOM
+              - Progress reporting via events
+            </features>
+          </streaming-loader>
+
+          <transactional-loader>
+            <name>All-or-Nothing Transactional Loader</name>
+            <use-case>Critical imports requiring consistency</use-case>
+            <design-pattern>Transaction Script Pattern + Saga Pattern</design-pattern>
+            <interface>
+              class TransactionalLoader implements DataLoader {
+                async load(records: any[], config: LoadConfig): Promise&lt;LoadResult&gt; {
+                  const saga = new ImportSaga();
+                  
+                  try {
+                    return await this.prisma.$transaction(async (tx) =&gt; {
+                      // Pre-validation phase
+                      saga.addStep('validate', async () =&gt; {
+                        for (const record of records) {
+                          await this.validateReferences(record, tx);
+                        }
+                      });
+                      
+                      // Load phase
+                      saga.addStep('load', async () =&gt; {
+                        const results = [];
+                        for (const record of records) {
+                          const result = await tx[config.table].create({
+                            data: record
+                          });
+                          results.push(result);
+                        }
+                        return results;
+                      });
+                      
+                      // Post-processing phase
+                      saga.addStep('postProcess', async () =&gt; {
+                        await this.updateRelatedTables(records, tx);
+                        await this.updateStatistics(config.importId, tx);
+                      });
+                      
+                      return await saga.execute();
+                    }, {
+                      maxWait: 30000,
+                      timeout: 60000
+                    });
+                  } catch (error) {
+                    await saga.compensate();
+                    throw error;
+                  }
+                }
+              }
+              
+              class ImportSaga {
+                private steps: SagaStep[] = [];
+                private completedSteps: string[] = [];
+                
+                async execute(): Promise&lt;any&gt; {
+                  for (const step of this.steps) {
+                    await step.execute();
+                    this.completedSteps.push(step.name);
+                  }
+                }
+                
+                async compensate(): Promise&lt;void&gt; {
+                  // Rollback completed steps in reverse order
+                  for (const stepName of this.completedSteps.reverse()) {
+                    const step = this.steps.find(s =&gt; s.name === stepName);
+                    await step.compensate();
+                  }
+                }
+              }
+            </interface>
+            <guarantees>
+              - ACID compliance
+              - Automatic rollback on failure
+              - Compensation logic for external systems
+            </guarantees>
+          </transactional-loader>
+
+          <incremental-loader>
+            <name>Delta/Incremental Loader</name>
+            <use-case>Regular updates, change tracking</use-case>
+            <design-pattern>Change Data Capture + Event Sourcing</design-pattern>
+            <interface>
+              class IncrementalLoader implements DataLoader {
+                async load(records: any[], config: LoadConfig): Promise&lt;LoadResult&gt; {
+                  const changeSet = await this.detectChanges(records, config);
+                  
+                  const result = {
+                    added: [],
+                    modified: [],
+                    deleted: [],
+                    unchanged: []
+                  };
+                  
+                  // Process additions
+                  for (const record of changeSet.additions) {
+                    const created = await this.create(record);
+                    result.added.push(created);
+                    await this.emitEvent('record.added', created);
+                  }
+                  
+                  // Process modifications
+                  for (const change of changeSet.modifications) {
+                    const updated = await this.update(change.id, change.data);
+                    result.modified.push(updated);
+                    await this.emitEvent('record.modified', {
+                      before: change.before,
+                      after: updated
+                    });
+                  }
+                  
+                  // Process deletions (if configured)
+                  if (config.processDeletes) {
+                    for (const id of changeSet.deletions) {
+                      await this.softDelete(id);
+                      result.deleted.push(id);
+                      await this.emitEvent('record.deleted', id);
+                    }
+                  }
+                  
+                  return result;
+                }
+                
+                private async detectChanges(records: any[], config: LoadConfig): Promise&lt;ChangeSet&gt; {
+                  const existing = await this.loadExisting(config.table);
+                  const changeDetector = new ChangeDetector(config.compareFields);
+                  return changeDetector.compare(existing, records);
+                }
+              }
+            </interface>
+            <features>
+              - Minimal database writes
+              - Change history tracking
+              - Event emission for downstream systems
+            </features>
+          </incremental-loader>
+
+          <parallel-loader>
+            <name>Concurrent Parallel Loader</name>
+            <use-case>Independent records, maximize throughput</use-case>
+            <design-pattern>Worker Pool Pattern + Promise Pool</design-pattern>
+            <interface>
+              class ParallelLoader implements DataLoader {
+                private workerPool: WorkerPool;
+                
+                async load(records: any[], config: LoadConfig): Promise&lt;LoadResult&gt; {
+                  const chunks = this.partitionByAffinity(records);
+                  const workers = Math.min(chunks.length, config.maxWorkers || 10);
+                  
+                  const pool = new PromisePool({
+                    concurrency: workers,
+                    taskTimeout: 30000
+                  });
+                  
+                  for (const chunk of chunks) {
+                    pool.add(async () =&gt; {
+                      return this.workerPool.execute('loadChunk', {
+                        records: chunk,
+                        config
+                      });
+                    });
+                  }
+                  
+                  const results = await pool.run();
+                  return this.aggregateResults(results);
+                }
+                
+                private partitionByAffinity(records: any[]): any[][] {
+                  // Partition records to minimize lock contention
+                  // Group by foreign key references, hash of primary key, etc.
+                }
+              }
+            </interface>
+            <optimization>
+              - CPU core utilization
+              - Connection pooling
+              - Lock contention minimization
+            </optimization>
+          </parallel-loader>
+
+        </loader-patterns>
+
+        <loader-selection-strategy>
+          <name>Adaptive Loader Selection</name>
+          <description>Automatically choose best loader based on data characteristics</description>
+          <interface>
+            class LoaderSelector {
+              select(metadata: ImportMetadata): DataLoader {
+                const { recordCount, hasConflicts, isTransactional, memoryLimit } = metadata;
+                
+                if (isTransactional) {
+                  return new TransactionalLoader();
+                } else if (recordCount > 100000 && memoryLimit) {
+                  return new StreamingLoader();
+                } else if (hasConflicts) {
+                  return new UpsertLoader();
+                } else if (recordCount > 10000) {
+                  return new ParallelLoader();
+                } else {
+                  return new BulkLoader();
+                }
+              }
+            }
+          </interface>
+        </loader-selection-strategy>
+
+        <output>Import statistics with detailed metrics</output>
+      </load-layer>
+
+      <approval-review-layer order="5.5" optional="true">
+        <purpose>User approval, confidence scoring, and manual review flagging</purpose>
+        
+        <confidence-scoring>
+          <name>Automated Confidence Scoring</name>
+          <description>Calculate confidence score for each record based on validation results</description>
+          <design-pattern>Chain of Responsibility + Weighted Scoring</design-pattern>
+          <interface>
+            interface ConfidenceScorer {
+              score(record: any, validationResults: ValidationResult[]): ConfidenceScore;
+            }
+            
+            interface ConfidenceScore {
+              overall: number;          // 0-100 overall confidence
+              fieldScores: Map&lt;string, number&gt;;  // Per-field confidence
+              flags: ReviewFlag[];      // Issues requiring review
+              autoApprove: boolean;     // Can be auto-approved
+            }
+            
+            interface ReviewFlag {
+              severity: 'low' | 'medium' | 'high' | 'critical';
+              field: string;
+              reason: string;
+              suggestion?: string;
+            }
+            
+            class ConfidenceCalculator {
+              private weights = {
+                requiredField: 30,      // Missing required = -30%
+                dataType: 20,          // Wrong type = -20%
+                format: 15,            // Format issues = -15%
+                range: 10,             // Out of range = -10%
+                lookup: 25,            // Failed lookup = -25%
+                duplicate: 20,         // Possible duplicate = -20%
+                businessRule: 30       // Business rule violation = -30%
+              };
+              
+              calculate(record: any, issues: ValidationIssue[]): number {
+                let score = 100;
+                for (const issue of issues) {
+                  score -= this.weights[issue.type] || 10;
+                }
+                return Math.max(0, score);
+              }
+            }
+          </interface>
+          
+          <scoring-rules>
+            - 90-100%: High confidence - auto-approve
+            - 70-89%: Medium confidence - bulk approve option
+            - 50-69%: Low confidence - review recommended
+            - 0-49%: Very low - manual review required
+          </scoring-rules>
+        </confidence-scoring>
+
+        <approval-workflow>
+          <name>Multi-Stage Approval System</name>
+          <description>Configurable approval workflow based on confidence and business rules</description>
+          <design-pattern>State Pattern + Command Pattern</design-pattern>
+          <interface>
+            interface ApprovalWorkflow {
+              states: ApprovalState[];
+              transitions: StateTransition[];
+              currentState: ApprovalState;
+            }
+            
+            enum ApprovalState {
+              PENDING_REVIEW = 'pending_review',
+              AUTO_APPROVED = 'auto_approved',
+              USER_APPROVED = 'user_approved',
+              REJECTED = 'rejected',
+              FLAGGED_FOR_REVIEW = 'flagged_for_review',
+              PARTIALLY_APPROVED = 'partially_approved'
+            }
+            
+            interface RecordApproval {
+              recordId: string;
+              state: ApprovalState;
+              confidence: number;
+              reviewFlags: ReviewFlag[];
+              approvedBy?: string;
+              approvedAt?: Date;
+              rejectionReason?: string;
+              modifications?: any;     // User corrections
+            }
+            
+            class ApprovalManager {
+              async processRecord(record: any, confidence: ConfidenceScore): Promise&lt;RecordApproval&gt; {
+                if (confidence.overall >= 90 && !confidence.flags.some(f => f.severity === 'critical')) {
+                  return this.autoApprove(record);
+                } else if (confidence.overall < 50 || confidence.flags.some(f => f.severity === 'critical')) {
+                  return this.flagForReview(record, confidence.flags);
+                } else {
+                  return this.queueForApproval(record, confidence);
+                }
+              }
+              
+              async bulkApprove(recordIds: string[], userId: string): Promise&lt;void&gt; {
+                // Approve multiple records at once
+              }
+              
+              async modifyAndApprove(recordId: string, modifications: any, userId: string): Promise&lt;void&gt; {
+                // Apply user corrections and approve
+              }
+            }
+          </interface>
+        </approval-workflow>
+
+        <review-interface>
+          <name>Manual Review Interface</name>
+          <description>UI components for reviewing and approving imports</description>
+          <components>
+            
+            <review-queue-component>
+              // Shows all records pending review
+              interface ReviewQueueProps {
+                records: ImportRecord[];
+                onApprove: (ids: string[]) => void;
+                onReject: (ids: string[], reason: string) => void;
+                onModify: (id: string, changes: any) => void;
+              }
+              
+              // Features:
+              - Sort by confidence score
+              - Filter by flag severity
+              - Bulk selection
+              - Side-by-side comparison (original vs imported)
+              - Inline editing
+            </review-queue-component>
+
+            <confidence-indicator-component>
+              // Visual confidence indicator
+              interface ConfidenceIndicatorProps {
+                score: number;
+                flags: ReviewFlag[];
+              }
+              
+              // Display:
+              - Color-coded bar (red/yellow/green)
+              - Percentage value
+              - Warning icons for flags
+              - Tooltip with details
+            </confidence-indicator-component>
+
+            <field-review-component>
+              // Per-field review and correction
+              interface FieldReviewProps {
+                field: string;
+                originalValue: any;
+                mappedValue: any;
+                confidence: number;
+                flags: ReviewFlag[];
+                onCorrect: (value: any) => void;
+              }
+              
+              // Features:
+              - Highlight problematic fields
+              - Show original vs mapped
+              - Suggest corrections
+              - Apply to similar records
+            </field-review-component>
+
+          </components>
+        </review-interface>
+
+        <auto-approval-rules>
+          <name>Configurable Auto-Approval Rules</name>
+          <description>Database-driven rules for automatic approval</description>
+          <interface>
+            interface AutoApprovalRule {
+              id: string;
+              name: string;
+              entityType: string;
+              conditions: ApprovalCondition[];
+              minConfidence: number;
+              maxRecords?: number;     // Limit for safety
+              enabled: boolean;
+            }
+            
+            interface ApprovalCondition {
+              field: string;
+              operator: 'exists' | 'matches' | 'in' | 'range';
+              value: any;
+              required: boolean;
+            }
+            
+            // Example rules:
+            {
+              "name": "Auto-approve high confidence users",
+              "entityType": "User",
+              "minConfidence": 95,
+              "conditions": [
+                { "field": "email", "operator": "exists", "required": true },
+                { "field": "email", "operator": "matches", "value": "@company.com$", "required": true }
+              ]
+            }
+          </interface>
+        </auto-approval-rules>
+
+        <review-flagging-system>
+          <name>Intelligent Review Flagging</name>
+          <description>ML-based pattern detection for anomalies</description>
+          <patterns>
+            - Unusual value combinations
+            - Statistical outliers
+            - Duplicate detection (fuzzy matching)
+            - Missing related data
+            - Business rule violations
+            - Data quality issues
+          </patterns>
+          <interface>
+            class AnomalyDetector {
+              private patterns: Pattern[] = [];
+              
+              async detectAnomalies(record: any, historicalData: any[]): ReviewFlag[] {
+                const flags: ReviewFlag[] = [];
+                
+                // Statistical outlier detection
+                if (this.isOutlier(record.value, historicalData)) {
+                  flags.push({
+                    severity: 'medium',
+                    field: 'value',
+                    reason: 'Value is statistical outlier',
+                    suggestion: `Expected range: ${this.getExpectedRange(historicalData)}`
+                  });
+                }
+                
+                // Duplicate detection
+                const duplicate = this.findDuplicate(record, historicalData);
+                if (duplicate) {
+                  flags.push({
+                    severity: 'high',
+                    field: 'all',
+                    reason: `Possible duplicate of record ${duplicate.id}`,
+                    suggestion: 'Review or merge with existing record'
+                  });
+                }
+                
+                return flags;
+              }
+            }
+          </interface>
+        </review-flagging-system>
+
+        <database-schema-additions>
+          model ImportApproval {
+            id            String   @id @default(uuid())
+            import_job_id String
+            record_id     String   // Reference to imported record
+            record_data   Json     // Snapshot of record data
+            state         String   // ApprovalState enum
+            confidence    Float
+            flags         Json     // Array of ReviewFlag
+            approved_by   String?
+            approved_at   DateTime?
+            rejected_by   String?
+            rejected_at   DateTime?
+            rejection_reason String?
+            modifications Json?    // User corrections
+            created_at    DateTime @default(now())
+            updated_at    DateTime @updatedAt
+            
+            @@index([import_job_id, state])
+            @@index([confidence])
+            @@map("import_approvals")
+          }
+          
+          model ApprovalRule {
+            id            String   @id @default(uuid())
+            name          String
+            entity_type   String
+            conditions    Json     // Array of conditions
+            min_confidence Float
+            max_records   Int?
+            enabled       Boolean  @default(true)
+            created_by    String
+            created_at    DateTime @default(now())
+            updated_at    DateTime @updatedAt
+            
+            @@map("approval_rules")
+          }
+        </database-schema-additions>
+
+      </approval-review-layer>
+
+    </layer-definitions>
+
+    <rule-engine>
+      <description>Dynamic rule execution engine with staging and traceability</description>
+      <features>
+        - Database-driven rule storage
+        - Hot reload without restart
+        - Rule versioning and history
+        - A/B testing capability
+        - Performance metrics per rule
+        - Full data lineage tracking
+        - Stage snapshots for debugging
+      </features>
+      <implementation>
+        class RuleEngine {
+          async executeLayer(layer: string, data: any[], fileType: string) {
+            const rules = await this.loadRules(layer, fileType);
+            let result = data;
+            
+            for (const rule of rules) {
+              if (!rule.enabled) continue;
+              
+              const processor = this.getProcessor(rule.type);
+              result = await processor.execute(result, rule.config);
+              
+              await this.logExecution(rule, result);
+            }
+            
+            return result;
+          }
+        }
+      </implementation>
+    </rule-engine>
+
+    <!-- ========== DATA STAGING & TRACEABILITY ========== -->
+    <data-staging-system>
+      
+      <overview>
+        <description>Stage data at each ETL phase for review and debugging</description>
+        <purpose>Enable step-by-step inspection, rollback, and replay</purpose>
+        <design-pattern>Memento Pattern + Audit Log Pattern + Event Sourcing</design-pattern>
+      </overview>
+
+      <staging-architecture>
+        
+        <stage-storage>
+          <name>Multi-Stage Data Storage</name>
+          <interface>
+            interface StageManager {
+              // Save snapshot at each stage
+              async saveStage(stage: StageSnapshot): Promise<string>;
+              
+              // Retrieve stage for review
+              async getStage(importId: string, layer: string): Promise<StageSnapshot>;
+              
+              // Compare stages
+              async compareStages(importId: string, layer1: string, layer2: string): StageDiff;
+              
+              // Replay from stage
+              async replayFromStage(stageId: string): Promise<void>;
+            }
+            
+            interface StageSnapshot {
+              id: string;
+              importId: string;
+              layer: EtlLayer;
+              timestamp: Date;
+              recordCount: number;
+              
+              // Data states
+              inputData: any[];      // Data entering this stage
+              outputData: any[];     // Data leaving this stage
+              
+              // Metadata
+              rulesApplied: RuleExecution[];
+              transformations: Transformation[];
+              errors: StageError[];
+              metrics: StageMetrics;
+              
+              // Lineage
+              parentStageId?: string;
+              childStageId?: string;
+            }
+            
+            interface StageMetrics {
+              processingTimeMs: number;
+              memoryUsageMb: number;
+              recordsProcessed: number;
+              recordsModified: number;
+              recordsDropped: number;
+              recordsAdded: number;
+            }
+          </interface>
+        </stage-storage>
+
+        <data-lineage-tracker>
+          <name>Complete Data Lineage System</name>
+          <purpose>Track every transformation applied to each record</purpose>
+          <interface>
+            class LineageTracker {
+              private lineageGraph: Map&lt;string, RecordLineage&gt;;
+              
+              trackTransformation(
+                recordId: string,
+                layer: string,
+                transformation: {
+                  type: string;
+                  field: string;
+                  oldValue: any;
+                  newValue: any;
+                  rule: string;
+                  timestamp: Date;
+                }
+              ): void {
+                const lineage = this.lineageGraph.get(recordId) || new RecordLineage(recordId);
+                lineage.addTransformation(layer, transformation);
+                this.lineageGraph.set(recordId, lineage);
+              }
+              
+              getFullLineage(recordId: string): RecordLineage {
+                return this.lineageGraph.get(recordId);
+              }
+              
+              // Visualize transformation path
+              generateLineageReport(recordId: string): LineageReport {
+                const lineage = this.getFullLineage(recordId);
+                return {
+                  recordId,
+                  stages: lineage.stages,
+                  transformationCount: lineage.getTotalTransformations(),
+                  dataFlow: lineage.visualizeFlow(),
+                  issues: lineage.getIssues()
+                };
+              }
+            }
+            
+            class RecordLineage {
+              constructor(public recordId: string) {}
+              private stages: Map&lt;string, StageTransformations&gt; = new Map();
+              
+              addTransformation(layer: string, transformation: any): void {
+                if (!this.stages.has(layer)) {
+                  this.stages.set(layer, new StageTransformations(layer));
+                }
+                this.stages.get(layer).add(transformation);
+              }
+              
+              // Replay transformations to reproduce final state
+              replay(fromStage?: string): any {
+                // Re-apply all transformations from a specific stage
+              }
+            }
+          </interface>
+        </data-lineage-tracker>
+
+        <stage-review-interface>
+          <name>Stage Review UI Components</name>
+          <description>Visual tools for inspecting staged data</description>
+          <components>
+            
+            <stage-comparison-view>
+              interface StageComparisonProps {
+                importId: string;
+                stages: string[];
+              }
+              
+              // Features:
+              - Side-by-side data comparison
+              - Highlight changes between stages
+              - Filter by transformation type
+              - Export stage data
+              - Rollback to previous stage
+            </stage-comparison-view>
+
+            <record-timeline-view>
+              interface RecordTimelineProps {
+                recordId: string;
+                importId: string;
+              }
+              
+              // Shows:
+              - Chronological transformation history
+              - Rule applications
+              - Validation results at each stage
+              - Data state evolution
+            </record-timeline-view>
+
+            <stage-metrics-dashboard>
+              interface MetricsDashboardProps {
+                importId: string;
+              }
+              
+              // Displays:
+              - Processing time per stage
+              - Record counts (in/out/dropped)
+              - Error rates
+              - Memory usage
+              - Rule execution statistics
+            </stage-metrics-dashboard>
+
+          </components>
+        </stage-review-interface>
+
+      </staging-architecture>
+
+      <database-schema>
+        model ImportStage {
+          id              String   @id @default(uuid())
+          import_id       String
+          layer           String   // EXTRACT, VALIDATE, CLEAN, etc.
+          sequence        Int      // Order within import
+          
+          // Data snapshots (stored in blob storage for large datasets)
+          input_snapshot_url  String?  // Azure blob URL
+          output_snapshot_url String?  // Azure blob URL
+          
+          // Summary statistics
+          input_count     Int
+          output_count    Int
+          error_count     Int
+          
+          // Detailed metrics
+          metrics         Json     // StageMetrics object
+          rules_applied   Json     // Array of rule executions
+          errors          Json?    // Array of errors
+          
+          // Timing
+          started_at      DateTime
+          completed_at    DateTime?
+          processing_ms   Int?
+          
+          // Navigation
+          parent_stage_id String?
+          
+          created_at      DateTime @default(now())
+          
+          @@index([import_id, layer])
+          @@map("import_stages")
+        }
+        
+        model RecordLineage {
+          id              String   @id @default(uuid())
+          import_id       String
+          record_id       String   // ID in target table
+          source_row      Int      // Original row number
+          
+          // Transformation history
+          transformations Json     // Array of all transformations
+          
+          // Key milestones
+          extraction      Json     // State after extraction
+          validation      Json     // Validation results
+          cleaning        Json     // Cleaning operations
+          mapping         Json     // Mapping operations
+          
+          // Final state
+          final_state     Json
+          loaded          Boolean  @default(false)
+          
+          created_at      DateTime @default(now())
+          
+          @@index([import_id, record_id])
+          @@map("record_lineages")
+        }
+      </database-schema>
+
+    </data-staging-system>
+
+    <!-- ========== REFERENCE TABLE INJECTION ========== -->
+    <reference-table-system>
+      
+      <overview>
+        <description>Dynamically inject reference data into ETL pipeline</description>
+        <purpose>Enable lookups, enrichment, and validation against master data</purpose>
+        <design-pattern>Repository Pattern + Dependency Injection</design-pattern>
+      </overview>
+
+      <reference-table-manager>
+        
+        <configuration>
+          <name>Reference Table Configuration</name>
+          <interface>
+            interface ReferenceTableConfig {
+              id: string;
+              name: string;
+              description: string;
+              
+              // Source configuration
+              source: {
+                type: 'database' | 'api' | 'file' | 'static';
+                connection?: string;
+                table?: string;
+                endpoint?: string;
+                refreshInterval?: number;
+              };
+              
+              // Schema
+              keyField: string;        // Primary lookup field
+              valueFields: string[];   // Fields to return
+              
+              // Caching
+              cacheStrategy: 'eager' | 'lazy' | 'none';
+              cacheTTL?: number;       // Time to live in seconds
+              
+              // Usage rules
+              layers: EtlLayer[];      // Which layers can use this
+              operations: Operation[]; // Allowed operations
+            }
+            
+            enum Operation {
+              LOOKUP = 'lookup',           // Simple key-value lookup
+              VALIDATE = 'validate',       // Check if exists
+              ENRICH = 'enrich',          // Add additional fields
+              NORMALIZE = 'normalize',     // Standardize values
+              CREATE_IF_MISSING = 'create' // Auto-create missing refs
+            }
+          </interface>
+        </configuration>
+
+        <injection-points>
+          <name>Where Reference Tables Can Be Used</name>
+          <locations>
+            
+            <validation-layer>
+              // Validate against reference data
+              {
+                "layer": "VALIDATE",
+                "rule": "ValidateAgainstReference",
+                "config": {
+                  "field": "departmentCode",
+                  "referenceTable": "departments",
+                  "operation": "VALIDATE",
+                  "errorOnMissing": true
+                }
+              }
+            </validation-layer>
+
+            <cleaning-layer>
+              // Normalize using reference data
+              {
+                "layer": "CLEAN",
+                "rule": "NormalizeWithReference",
+                "config": {
+                  "field": "countryName",
+                  "referenceTable": "countries",
+                  "operation": "NORMALIZE",
+                  "lookupField": "name",
+                  "returnField": "iso_code"
+                }
+              }
+            </cleaning-layer>
+
+            <transformation-layer>
+              // Enrich with reference data
+              {
+                "layer": "TRANSFORM",
+                "rule": "EnrichFromReference",
+                "config": {
+                  "sourceField": "userId",
+                  "referenceTable": "users",
+                  "operation": "ENRICH",
+                  "addFields": ["department", "manager", "location"]
+                }
+              }
+            </transformation-layer>
+
+            <mapping-layer>
+              // Map IDs using reference table
+              {
+                "layer": "MAP",
+                "rule": "MapWithReference",
+                "config": {
+                  "sourceField": "categoryName",
+                  "targetField": "categoryId",
+                  "referenceTable": "categories",
+                  "operation": "LOOKUP",
+                  "createIfMissing": true
+                }
+              }
+            </mapping-layer>
+
+          </locations>
+        </injection-points>
+
+        <reference-table-api>
+          <name>Dynamic Reference Table Management API</name>
+          <description>Full CRUD and real-time control of reference tables</description>
+          
+          <endpoints>
+            
+            <crud-operations>
+              POST   /api/reference-tables          // Create new reference table config
+              GET    /api/reference-tables          // List all reference tables
+              GET    /api/reference-tables/:id      // Get specific table config
+              PUT    /api/reference-tables/:id      // Update table config
+              DELETE /api/reference-tables/:id      // Delete table config
+            </crud-operations>
+
+            <data-operations>
+              // Manage actual data in reference tables
+              GET    /api/reference-tables/:id/data           // View all data
+              POST   /api/reference-tables/:id/data           // Bulk upload/replace data
+              PUT    /api/reference-tables/:id/data/:key      // Update single entry
+              DELETE /api/reference-tables/:id/data/:key      // Delete single entry
+              PATCH  /api/reference-tables/:id/data           // Partial update multiple entries
+              
+              // Real-time operations
+              POST   /api/reference-tables/:id/refresh        // Force refresh from source
+              POST   /api/reference-tables/:id/sync           // Sync with external source
+              GET    /api/reference-tables/:id/stats          // Usage statistics
+              GET    /api/reference-tables/:id/changes        // Get recent changes
+            </data-operations>
+
+            <testing-operations>
+              POST   /api/reference-tables/:id/test           // Test lookup
+              POST   /api/reference-tables/:id/validate      // Validate config
+              POST   /api/reference-tables/:id/preview        // Preview import changes
+            </testing-operations>
+
+            <websocket-operations>
+              // Real-time updates via WebSocket
+              ws://api/reference-tables/:id/subscribe         // Subscribe to changes
+              ws://api/reference-tables/updates               // All table updates
+            </websocket-operations>
+
+          </endpoints>
+
+          <example-requests>
+            
+            <create-reference-table>
+              POST /api/reference-tables
+              {
+                "id": "product-categories",
+                "name": "Product Categories",
+                "description": "Master list of product categories",
+                "source": {
+                  "type": "database",
+                  "table": "categories",
+                  "refreshInterval": 300000
+                },
+                "keyField": "code",
+                "valueFields": ["id", "name", "parent_id"],
+                "cacheStrategy": "eager",
+                "editableViaApi": true,
+                "syncStrategy": "bidirectional"
+              }
+            </create-reference-table>
+
+            <update-single-entry>
+              PUT /api/reference-tables/product-categories/data/ELEC
+              {
+                "id": "123",
+                "name": "Electronics & Gadgets",
+                "parent_id": null
+              }
+            </update-single-entry>
+
+            <bulk-update>
+              PATCH /api/reference-tables/product-categories/data
+              {
+                "updates": [
+                  {
+                    "key": "ELEC",
+                    "data": { "name": "Electronics" }
+                  },
+                  {
+                    "key": "FURN",
+                    "data": { "name": "Furniture & Decor" }
+                  }
+                ],
+                "createMissing": true
+              }
+            </bulk-update>
+
+          </example-requests>
+        </reference-table-api>
+
+        <dynamic-update-system>
+          <name>Dynamic Reference Table Update System</name>
+          <description>Real-time updates and synchronization of reference data</description>
+          
+          <update-strategies>
+            
+            <push-updates>
+              <name>Push Updates from External Systems</name>
+              <interface>
+                class PushUpdateHandler {
+                  // Webhook receiver for external updates
+                  async handleWebhook(tableId: string, payload: any): Promise<void> {
+                    const table = await this.getTable(tableId);
+                    
+                    // Validate incoming data
+                    const validated = await this.validatePayload(payload, table.schema);
+                    
+                    // Apply update strategy
+                    switch (table.updateStrategy) {
+                      case 'merge':
+                        await this.mergeData(table, validated);
+                        break;
+                      case 'replace':
+                        await this.replaceData(table, validated);
+                        break;
+                      case 'append':
+                        await this.appendData(table, validated);
+                        break;
+                    }
+                    
+                    // Notify subscribers
+                    await this.notifySubscribers(tableId, 'data-updated', validated);
+                  }
+                }
+              </interface>
+            </push-updates>
+
+            <pull-updates>
+              <name>Pull Updates from External Sources</name>
+              <interface>
+                class PullUpdateScheduler {
+                  private jobs: Map&lt;string, ScheduledJob&gt; = new Map();
+                  
+                  scheduleUpdate(tableId: string, config: PullConfig): void {
+                    const job = cron.schedule(config.cronExpression, async () => {
+                      await this.pullAndUpdate(tableId);
+                    });
+                    
+                    this.jobs.set(tableId, job);
+                  }
+                  
+                  async pullAndUpdate(tableId: string): Promise<void> {
+                    const table = await this.getTable(tableId);
+                    
+                    // Fetch from external source
+                    const data = await this.fetchFromSource(table.source);
+                    
+                    // Detect changes
+                    const changes = await this.detectChanges(table.id, data);
+                    
+                    // Apply changes
+                    if (changes.hasChanges) {
+                      await this.applyChanges(table.id, changes);
+                      await this.notifySubscribers(table.id, 'data-pulled', changes);
+                    }
+                  }
+                }
+              </interface>
+            </pull-updates>
+
+            <bidirectional-sync>
+              <name>Two-Way Synchronization</name>
+              <interface>
+                class BidirectionalSync {
+                  async sync(tableId: string): Promise<SyncResult> {
+                    const table = await this.getTable(tableId);
+                    const local = await this.getLocalData(tableId);
+                    const remote = await this.getRemoteData(table.source);
+                    
+                    // Conflict resolution
+                    const resolver = new ConflictResolver(table.conflictStrategy);
+                    const resolved = resolver.resolve(local, remote);
+                    
+                    // Apply changes both ways
+                    const result = {
+                      pushedToRemote: 0,
+                      pulledFromRemote: 0,
+                      conflicts: []
+                    };
+                    
+                    // Push local changes to remote
+                    if (resolved.toPush.length > 0) {
+                      await this.pushToRemote(table.source, resolved.toPush);
+                      result.pushedToRemote = resolved.toPush.length;
+                    }
+                    
+                    // Pull remote changes to local
+                    if (resolved.toPull.length > 0) {
+                      await this.updateLocal(tableId, resolved.toPull);
+                      result.pulledFromRemote = resolved.toPull.length;
+                    }
+                    
+                    return result;
+                  }
+                }
+                
+                class ConflictResolver {
+                  constructor(private strategy: 'local-wins' | 'remote-wins' | 'newest-wins' | 'manual') {}
+                  
+                  resolve(local: any[], remote: any[]): ResolvedChanges {
+                    // Implement conflict resolution logic
+                  }
+                }
+              </interface>
+            </bidirectional-sync>
+
+          </update-strategies>
+
+          <ui-management-interface>
+            <name>Reference Table Management UI</name>
+            <components>
+              
+              <table-editor-component>
+                interface TableEditorProps {
+                  tableId: string;
+                  onSave: (data: any[]) => Promise<void>;
+                  onDelete: (keys: string[]) => Promise<void>;
+                }
+                
+                // Features:
+                - Inline editing with validation
+                - Bulk operations (add, update, delete)
+                - Import from CSV/Excel
+                - Export current data
+                - Search and filter
+                - Undo/redo changes
+                - Real-time collaboration
+              </table-editor-component>
+
+              <sync-control-panel>
+                interface SyncControlProps {
+                  tableId: string;
+                  syncConfig: SyncConfig;
+                }
+                
+                // Controls:
+                - Manual sync trigger
+                - Schedule configuration
+                - Conflict resolution settings
+                - Sync history viewer
+                - Rollback to previous version
+              </sync-control-panel>
+
+              <version-history-viewer>
+                interface VersionHistoryProps {
+                  tableId: string;
+                  onRestore: (version: string) => Promise<void>;
+                }
+                
+                // Shows:
+                - Change timeline
+                - Diff between versions
+                - Who made changes
+                - Restore point selection
+              </version-history-viewer>
+
+            </components>
+          </ui-management-interface>
+
+          <change-tracking>
+            <name>Audit Trail for Reference Tables</name>
+            <database-schema>
+              model ReferenceTableAudit {
+                id              String   @id @default(uuid())
+                table_id        String
+                operation       String   // CREATE, UPDATE, DELETE
+                key             String   // Record key
+                old_value       Json?    // Previous value
+                new_value       Json?    // New value
+                changed_by      String   // User or system
+                change_source   String   // API, UI, SYNC, WEBHOOK
+                change_reason   String?  // Optional reason
+                created_at      DateTime @default(now())
+                
+                @@index([table_id, created_at])
+                @@index([table_id, key])
+                @@map("reference_table_audits")
+              }
+              
+              model ReferenceTableVersion {
+                id              String   @id @default(uuid())
+                table_id        String
+                version_number  Int
+                snapshot        Json     // Complete table snapshot
+                created_by      String
+                created_at      DateTime @default(now())
+                description     String?
+                
+                @@unique([table_id, version_number])
+                @@map("reference_table_versions")
+              }
+            </database-schema>
+          </change-tracking>
+
+          <event-system>
+            <name>Event-Driven Updates</name>
+            <events>
+              - reference-table.created
+              - reference-table.updated
+              - reference-table.deleted
+              - reference-table.data.changed
+              - reference-table.sync.started
+              - reference-table.sync.completed
+              - reference-table.sync.failed
+              - reference-table.version.created
+            </events>
+            <interface>
+              class ReferenceTableEventEmitter extends EventEmitter {
+                emitDataChange(tableId: string, changes: DataChange[]): void {
+                  this.emit('reference-table.data.changed', {
+                    tableId,
+                    changes,
+                    timestamp: new Date(),
+                    affectedETLRules: this.getAffectedRules(tableId)
+                  });
+                }
+                
+                // Subscribers can react to changes
+                onDataChange(callback: (event: DataChangeEvent) => void): void {
+                  this.on('reference-table.data.changed', callback);
+                }
+              }
+              
+              // ETL pipeline subscribes to changes
+              class ETLReferenceSubscriber {
+                constructor(private eventEmitter: ReferenceTableEventEmitter) {
+                  this.eventEmitter.onDataChange(async (event) => {
+                    // Invalidate cache for affected table
+                    await this.cache.invalidate(event.tableId);
+                    
+                    // Re-process affected imports if configured
+                    if (this.config.autoReprocess) {
+                      await this.reprocessAffectedImports(event.affectedETLRules);
+                    }
+                  });
+                }
+              }
+            </interface>
+          </event-system>
+
+        </dynamic-update-system>
+
+        <implementation>
+          class ReferenceTableManager {
+            private tables: Map&lt;string, ReferenceTable&gt; = new Map();
+            private cache: Map&lt;string, CachedData&gt; = new Map();
+            
+            async registerTable(config: ReferenceTableConfig): Promise&lt;void&gt; {
+              const table = new ReferenceTable(config);
+              
+              if (config.cacheStrategy === 'eager') {
+                await this.loadIntoCache(table);
+              }
+              
+              this.tables.set(config.id, table);
+              
+              // Schedule refresh if configured
+              if (config.source.refreshInterval) {
+                setInterval(() =&gt; this.refresh(config.id), config.source.refreshInterval);
+              }
+            }
+            
+            async lookup(tableId: string, key: any, operation: Operation): Promise&lt;any&gt; {
+              const table = this.tables.get(tableId);
+              if (!table) throw new Error(`Reference table ${tableId} not found`);
+              
+              // Check cache first
+              if (table.config.cacheStrategy !== 'none') {
+                const cached = this.cache.get(`${tableId}:${key}`);
+                if (cached && !this.isExpired(cached)) {
+                  return cached.value;
+                }
+              }
+              
+              // Fetch from source
+              const value = await table.fetch(key);
+              
+              // Update cache
+              if (table.config.cacheStrategy !== 'none') {
+                this.cache.set(`${tableId}:${key}`, {
+                  value,
+                  timestamp: Date.now(),
+                  ttl: table.config.cacheTTL
+                });
+              }
+              
+              return value;
+            }
+            
+            async bulkLookup(tableId: string, keys: any[]): Promise&lt;Map&lt;any, any&gt;&gt; {
+              // Optimized bulk lookup with batching
+              const results = new Map();
+              const uncachedKeys = [];
+              
+              // Check cache for each key
+              for (const key of keys) {
+                const cached = this.cache.get(`${tableId}:${key}`);
+                if (cached && !this.isExpired(cached)) {
+                  results.set(key, cached.value);
+                } else {
+                  uncachedKeys.push(key);
+                }
+              }
+              
+              // Bulk fetch uncached keys
+              if (uncachedKeys.length > 0) {
+                const table = this.tables.get(tableId);
+                const fetched = await table.bulkFetch(uncachedKeys);
+                
+                for (const [key, value] of fetched) {
+                  results.set(key, value);
+                  this.updateCache(tableId, key, value);
+                }
+              }
+              
+              return results;
+            }
+          }
+        </implementation>
+
+      </reference-table-manager>
+
+      <example-reference-tables>
+        
+        <departments-table>
+          {
+            "id": "departments",
+            "name": "Department Lookup",
+            "source": {
+              "type": "database",
+              "table": "departments",
+              "refreshInterval": 3600000
+            },
+            "keyField": "code",
+            "valueFields": ["id", "name", "manager_id"],
+            "cacheStrategy": "eager",
+            "layers": ["VALIDATE", "MAP"],
+            "operations": ["LOOKUP", "VALIDATE", "CREATE_IF_MISSING"]
+          }
+        </departments-table>
+
+        <country-codes-table>
+          {
+            "id": "country-codes",
+            "name": "ISO Country Codes",
+            "source": {
+              "type": "static",
+              "data": "config/country-codes.json"
+            },
+            "keyField": "name",
+            "valueFields": ["iso2", "iso3", "numeric"],
+            "cacheStrategy": "eager",
+            "layers": ["CLEAN", "TRANSFORM"],
+            "operations": ["NORMALIZE", "VALIDATE"]
+          }
+        </country-codes-table>
+
+        <exchange-rates-table>
+          {
+            "id": "exchange-rates",
+            "name": "Currency Exchange Rates",
+            "source": {
+              "type": "api",
+              "endpoint": "https://api.exchangerate.com/latest",
+              "refreshInterval": 3600000
+            },
+            "keyField": "currency",
+            "valueFields": ["rate", "updated_at"],
+            "cacheStrategy": "lazy",
+            "cacheTTL": 3600,
+            "layers": ["TRANSFORM"],
+            "operations": ["LOOKUP", "ENRICH"]
+          }
+        </exchange-rates-table>
+
+      </example-reference-tables>
+
+    </reference-table-system>
+
+  </etl-architecture>
+
+  <!-- ========== DATABASE SCHEMA ER DIAGRAMS ========== -->
+  <database-er-diagrams>
+    
+    <etl-core-tables>
+      <ascii-art>
+        <![CDATA[
+        ETL CORE TABLES - ENTITY RELATIONSHIP DIAGRAM
+        
+        ┌─────────────────────────────────────────────────────────────────────────┐
+        │                         ETL RULE CONFIGURATION                         │
+        └─────────────────────────────────────────────────────────────────────────┘
+        
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │     ETL_RULES        │          │  ETL_RULE_TEMPLATES  │
+        ├──────────────────────┤          ├──────────────────────┤
+        │ PK: id (uuid)        │          │ PK: id (uuid)        │
+        │ name                 │◄─────────│ name                 │
+        │ description          │          │ description          │
+        │ layer (enum)         │          │ category             │
+        │ file_type            │          │ config_schema (json) │
+        │ rule_type            │          │ example_config (json)│
+        │ config (json)        │          └──────────────────────┘
+        │ enabled (bool)       │
+        │ order (int)          │          ┌──────────────────────┐
+        │ version (int)        │          │ ETL_RULE_CONDITIONS  │
+        │ created_by           │          ├──────────────────────┤
+        │ created_at           │     ┌───►│ PK: id (uuid)        │
+        │ updated_at           │     │    │ FK: rule_id          │
+        └──────────────────────┘     │    │ field                │
+                │                    │    │ operator             │
+                │                    │    │ value (json)         │
+                │                    │    └──────────────────────┘
+                │                    │
+                ├────────────────────┘
+                │
+                │    ┌──────────────────────┐
+                └───►│ ETL_RULE_EXECUTIONS  │
+                     ├──────────────────────┤
+                     │ PK: id (uuid)        │
+                     │ FK: rule_id          │
+                     │ FK: file_id          │
+                     │ records_in (int)     │
+                     │ records_out (int)    │
+                     │ errors (int)         │
+                     │ execution_ms (int)   │
+                     │ created_at           │
+                     └──────────────────────┘
+        
+        ┌─────────────────────────────────────────────────────────────────────────┐
+        │                         IMPORT JOB TRACKING                            │
+        └─────────────────────────────────────────────────────────────────────────┘
+        
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │       FILES          │          │    IMPORT_STAGES     │
+        ├──────────────────────┤          ├──────────────────────┤
+        │ PK: id (uuid)        │     ┌───►│ PK: id (uuid)        │
+        │ file_name            │     │    │ FK: import_id        │
+        │ file_size            │     │    │ layer (varchar)      │
+        │ mime_type            │     │    │ sequence (int)       │
+        │ blob_name            │     │    │ input_snapshot_url   │
+        │ processing_status    │     │    │ output_snapshot_url  │
+        │ processed_at         │     │    │ input_count (int)    │
+        │ row_count (int)      │     │    │ output_count (int)   │
+        │ imported_count (int) │     │    │ error_count (int)    │
+        │ error_count (int)    │     │    │ metrics (json)       │
+        │ import_errors (json) │     │    │ rules_applied (json) │
+        │ import_mapping (json)│     │    │ errors (json)        │
+        │ created_at           │     │    │ started_at           │
+        │ updated_at           │     │    │ completed_at         │
+        └──────────────────────┘     │    │ processing_ms (int)  │
+                │                    │    │ FK: parent_stage_id  │
+                │                    │    │ created_at           │
+                │                    │    └──────────────────────┘
+                │                    │              ▲
+                └────────────────────┘              │ self-reference
+                                                   │
+                ┌──────────────────────┐            │
+                │   RECORD_LINEAGES    │            │
+                ├──────────────────────┤            │
+                │ PK: id (uuid)        │            │
+                │ FK: import_id ───────┼────────────┘
+                │ record_id            │
+                │ source_row (int)     │
+                │ transformations(json)│
+                │ extraction (json)    │
+                │ validation (json)    │
+                │ cleaning (json)      │
+                │ mapping (json)       │
+                │ final_state (json)   │
+                │ loaded (bool)        │
+                │ created_at           │
+                └──────────────────────┘
+        
+        ┌─────────────────────────────────────────────────────────────────────────┐
+        │                         APPROVAL WORKFLOW                              │
+        └─────────────────────────────────────────────────────────────────────────┘
+        
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │  IMPORT_APPROVALS    │          │   APPROVAL_RULES     │
+        ├──────────────────────┤          ├──────────────────────┤
+        │ PK: id (uuid)        │          │ PK: id (uuid)        │
+        │ FK: import_job_id    │          │ name                 │
+        │ record_id            │          │ entity_type          │
+        │ record_data (json)   │          │ conditions (json)    │
+        │ state (varchar)      │          │ min_confidence(float)│
+        │ confidence (float)   │          │ max_records (int)    │
+        │ flags (json)         │          │ enabled (bool)       │
+        │ approved_by          │          │ created_by           │
+        │ approved_at          │          │ created_at           │
+        │ rejected_by          │          │ updated_at           │
+        │ rejected_at          │          └──────────────────────┘
+        │ rejection_reason     │
+        │ modifications (json) │
+        │ created_at           │
+        │ updated_at           │
+        └──────────────────────┘
+        
+        ┌─────────────────────────────────────────────────────────────────────────┐
+        │                      REFERENCE TABLE MANAGEMENT                        │
+        └─────────────────────────────────────────────────────────────────────────┘
+        
+        ┌──────────────────────┐     ┌────────────────────────┐     ┌─────────────────────┐
+        │  REFERENCE_TABLES    │     │REFERENCE_TABLE_AUDITS │     │REFERENCE_TABLE_VERS│
+        ├──────────────────────┤     ├────────────────────────┤     ├─────────────────────┤
+        │ PK: id (uuid)        │◄────│ PK: id (uuid)          │  ┌─►│ PK: id (uuid)       │
+        │ name                 │     │ FK: table_id           │  │  │ FK: table_id        │
+        │ description          │     │ operation              │  │  │ version_number (int)│
+        │ source_type          │     │ key                    │  │  │ snapshot (json)     │
+        │ source_config (json) │     │ old_value (json)       │  │  │ created_by          │
+        │ key_field            │     │ new_value (json)       │  │  │ created_at          │
+        │ value_fields (json)  │     │ changed_by             │  │  │ description         │
+        │ cache_strategy       │     │ change_source          │  │  └─────────────────────┘
+        │ cache_ttl (int)      │     │ change_reason          │  │
+        │ layers (json)        │     │ created_at             │  │
+        │ operations (json)    │     └────────────────────────┘  │
+        │ enabled (bool)       │                                   │
+        │ created_at           │                                   │
+        │ updated_at           │───────────────────────────────────┘
+        └──────────────────────┘
+        
+        RELATIONSHIPS:
+        ─────────────
+        • ETL_RULES ──1:N──► ETL_RULE_CONDITIONS
+        • ETL_RULES ──1:N──► ETL_RULE_EXECUTIONS
+        • FILES ──1:N──► IMPORT_STAGES
+        • FILES ──1:N──► RECORD_LINEAGES
+        • IMPORT_STAGES ──1:1──► IMPORT_STAGES (parent-child)
+        • REFERENCE_TABLES ──1:N──► REFERENCE_TABLE_AUDITS
+        • REFERENCE_TABLES ──1:N──► REFERENCE_TABLE_VERSIONS
+        
+        INDEXES:
+        ────────
+        • ETL_RULES: [layer, file_type, enabled]
+        • ETL_RULE_EXECUTIONS: [rule_id, created_at]
+        • IMPORT_STAGES: [import_id, layer]
+        • RECORD_LINEAGES: [import_id, record_id]
+        • IMPORT_APPROVALS: [import_job_id, state], [confidence]
+        • REFERENCE_TABLE_AUDITS: [table_id, created_at], [table_id, key]
+        • REFERENCE_TABLE_VERSIONS: UNIQUE[table_id, version_number]
+        ]]>
+      </ascii-art>
+    </etl-core-tables>
+
+    <asset-tables-placeholder>
+      <ascii-art>
+        <![CDATA[
+        ┌─────────────────────────────────────────────────────────────────────────┐
+        │                    ASSET TABLES (TBD - NEXT PHASE)                     │
+        └─────────────────────────────────────────────────────────────────────────┘
+        
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │   ASSETS (TBD)       │          │  ASSET_CATEGORIES    │
+        ├──────────────────────┤          ├──────────────────────┤
+        │ PK: id (uuid)        │     ┌───►│ PK: id (uuid)        │
+        │ asset_tag            │     │    │ code                 │
+        │ name                 │     │    │ name                 │
+        │ description          │     │    │ parent_id (self-ref) │
+        │ FK: category_id ─────┼─────┘    │ created_at           │
+        │ FK: location_id      │          └──────────────────────┘
+        │ FK: department_id    │
+        │ acquisition_date     │          ┌──────────────────────┐
+        │ acquisition_value    │          │  ASSET_LOCATIONS     │
+        │ current_value        │          ├──────────────────────┤
+        │ status               │     ┌───►│ PK: id (uuid)        │
+        │ ... (TBD fields)     │     │    │ building             │
+        │ created_at           │     │    │ floor                │
+        │ updated_at           │     │    │ room                 │
+        └──────────────────────┘     │    │ coordinates          │
+                │                    │    └──────────────────────┘
+                └────────────────────┘
+        
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │  ASSET_ATTRIBUTES    │          │ ASSET_CUSTOM_FIELDS  │
+        ├──────────────────────┤          ├──────────────────────┤
+        │ PK: id (uuid)        │          │ PK: id (uuid)        │
+        │ FK: asset_id         │          │ field_name           │
+        │ attribute_name       │          │ field_type           │
+        │ attribute_value      │          │ required (bool)      │
+        │ attribute_type       │          │ default_value        │
+        └──────────────────────┘          │ validation_rules     │
+                                          └──────────────────────┘
+        
+        NOTE: Asset schema will be defined in the next phase based on:
+        • Specific asset types to be managed
+        • Custom fields requirements
+        • Depreciation tracking needs
+        • Maintenance schedule requirements
+        • Compliance and audit requirements
+        ]]>
+      </ascii-art>
+    </asset-tables-placeholder>
+
+    <data-flow-relationships>
+      <ascii-art>
+        <![CDATA[
+        DATA FLOW BETWEEN TABLES:
+        
+                    ┌─────────┐
+                    │  FILE   │
+                    │ UPLOAD  │
+                    └────┬────┘
+                         │
+                         ▼
+                ┌─────────────────┐      ┌──────────────┐
+                │     FILES       │◄─────│  ETL_RULES   │
+                └────────┬────────┘      └──────────────┘
+                         │                      │
+                         ▼                      ▼
+                ┌─────────────────┐    ┌──────────────────┐
+                │  IMPORT_STAGES  │◄───│ ETL_RULE_EXEC    │
+                └────────┬────────┘    └──────────────────┘
+                         │
+                         ├──────────┐
+                         ▼          ▼
+                ┌─────────────┐  ┌──────────────────┐     ┌──────────────┐
+                │RECORD_LINE  │  │ IMPORT_APPROVALS │◄────│APPROVAL_RULES│
+                └─────────────┘  └────────┬─────────┘     └──────────────┘
+                                          │
+                                          ▼
+                                 ┌─────────────────┐       ┌──────────────┐
+                                 │  ASSETS (TBD)   │◄──────│ REF_TABLES   │
+                                 └─────────────────┘       └──────────────┘
+        ]]>
+      </ascii-art>
+    </data-flow-relationships>
+
+  </database-er-diagrams>
+
+  <!-- ========== DATABASE SCHEMA FOR RULES ========== -->
+  <rule-configuration-schema>
+    
+    <models>
+      
+      <etl-rule-model>
+        model EtlRule {
+          id          String   @id @default(uuid())
+          name        String
+          description String?
+          layer       EtlLayer // EXTRACT, VALIDATE, CLEAN, TRANSFORM, MAP, LOAD
+          file_type   String   // csv, excel, json, all
+          rule_type   String   // validator, transformer, mapper, etc.
+          config      Json     // Rule-specific configuration
+          enabled     Boolean  @default(true)
+          order       Int      // Execution order within layer
+          version     Int      @default(1)
+          created_at  DateTime @default(now())
+          updated_at  DateTime @updatedAt
+          created_by  String?
+          
+          // Relations
+          conditions  EtlRuleCondition[]
+          executions  EtlRuleExecution[]
+          
+          @@index([layer, file_type, enabled])
+          @@map("etl_rules")
+        }
+        
+        enum EtlLayer {
+          EXTRACT
+          VALIDATE
+          CLEAN
+          TRANSFORM
+          MAP
+          LOAD
+        }
+      </etl-rule-model>
+
+      <etl-rule-condition-model>
+        model EtlRuleCondition {
+          id         String  @id @default(uuid())
+          rule_id    String
+          field      String  // Field to check
+          operator   String  // equals, contains, regex, etc.
+          value      Json    // Expected value
+          
+          rule EtlRule @relation(fields: [rule_id], references: [id])
+          
+          @@map("etl_rule_conditions")
+        }
+      </etl-rule-condition-model>
+
+      <etl-rule-template-model>
+        model EtlRuleTemplate {
+          id          String   @id @default(uuid())
+          name        String
+          description String?
+          category    String   // validation, cleaning, transformation
+          config_schema Json   // JSON schema for config validation
+          example_config Json  // Example configuration
+          
+          @@map("etl_rule_templates")
+        }
+      </etl-rule-template-model>
+
+      <etl-rule-execution-model>
+        model EtlRuleExecution {
+          id           String   @id @default(uuid())
+          rule_id      String
+          file_id      String
+          records_in   Int
+          records_out  Int
+          errors       Int
+          execution_ms Int
+          created_at   DateTime @default(now())
+          
+          rule EtlRule @relation(fields: [rule_id], references: [id])
+          file File    @relation(fields: [file_id], references: [id])
+          
+          @@index([rule_id, created_at])
+          @@map("etl_rule_executions")
+        }
+      </etl-rule-execution-model>
+
+    </models>
+
+    <example-rules>
+      
+      <validation-rule>
+        {
+          "name": "Validate Email Format",
+          "layer": "VALIDATE",
+          "rule_type": "field_validator",
+          "config": {
+            "field": "email",
+            "type": "regex",
+            "pattern": "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$",
+            "error_message": "Invalid email format"
+          }
+        }
+      </validation-rule>
+
+      <cleaning-rule>
+        {
+          "name": "Standardize Phone Numbers",
+          "layer": "CLEAN",
+          "rule_type": "field_cleaner",
+          "config": {
+            "field": "phone",
+            "operations": [
+              { "type": "remove", "chars": "()- " },
+              { "type": "format", "pattern": "XXX-XXX-XXXX" }
+            ]
+          }
+        }
+      </cleaning-rule>
+
+      <transformation-rule>
+        {
+          "name": "Calculate Total Value",
+          "layer": "TRANSFORM",
+          "rule_type": "calculator",
+          "config": {
+            "target_field": "total_value",
+            "formula": "quantity * unit_price * (1 - discount_rate)"
+          }
+        }
+      </transformation-rule>
+
+    </example-rules>
+
+  </rule-configuration-schema>
+
+  <implementation-options>
+    
+    <option-a type="synchronous" complexity="simple" recommended="START HERE">
+      <description>Direct processing with basic rules</description>
+      <use-case>Small files, immediate feedback, simple validations</use-case>
+      <implementation>
+        <endpoint>POST /api/files/:id/process</endpoint>
+        <steps>
+          1. Download file from Azure Blob Storage
+          2. Load applicable rules from database
+          3. Execute ETL pipeline sequentially
+          4. Save results with audit trail
+          5. Return processing summary
+        </steps>
+        <code-location>services/etl/etl-processor.service.ts</code-location>
+      </implementation>
+      <pros>Simple, immediate feedback, easy debugging</pros>
+      <cons>Blocks API response, limited to small files</cons>
+    </option-a>
+
+    <option-b type="background-job" complexity="medium" recommended="PRODUCTION">
+      <description>Queue-based with full rule engine</description>
+      <use-case>Large files, complex rules, progress tracking</use-case>
+      <implementation>
+        <libraries>Bull Queue, BullMQ for job processing</libraries>
+        <steps>
+          1. Upload returns job ID immediately
+          2. Worker loads rules and processes in stages
+          3. Progress updates via WebSocket
+          4. Results saved with detailed metrics
+          5. Email notification on completion
+        </steps>
+        <code-location>jobs/etl/etl-job.processor.ts</code-location>
+      </implementation>
+      <pros>Scalable, non-blocking, detailed monitoring</pros>
+      <cons>More complex setup, requires queue infrastructure</cons>
+    </option-b>
+
+  </implementation-options>
+
+  <data-extraction-libraries>
+    
+    <csv-processing>
+      <library name="csv-parser" recommended="true">
+        <install>npm install csv-parser</install>
+        <features>Stream-based, memory efficient, fast</features>
+        <usage>
+          const csv = require('csv-parser');
+          const results = [];
+          fs.createReadStream('file.csv')
+            .pipe(csv())
+            .on('data', (data) => results.push(data))
+            .on('end', () => console.log(results));
+        </usage>
+      </library>
+      <library name="papaparse">
+        <install>npm install papaparse</install>
+        <features>Browser compatible, handles edge cases, preview mode</features>
+      </library>
+    </csv-processing>
+
+    <excel-processing>
+      <library name="xlsx" recommended="true">
+        <install>npm install xlsx</install>
+        <features>Read/write Excel, multiple formats, lightweight</features>
+        <usage>
+          const XLSX = require('xlsx');
+          const workbook = XLSX.read(buffer, {type: 'buffer'});
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const data = XLSX.utils.sheet_to_json(sheet);
+        </usage>
+      </library>
+      <library name="exceljs">
+        <install>npm install exceljs</install>
+        <features>Streaming, formatting preservation, more features</features>
+      </library>
+    </excel-processing>
+
+  </data-extraction-libraries>
+
+  <specific-use-cases>
+    
+    <project-member-import>
+      <csv-format>
+        Project Name,Member Email,Role
+        "Website Redesign","john@example.com","Developer"
+        "Mobile App","jane@example.com","Designer"
+      </csv-format>
+      <implementation>
+        async importProjectMembers(fileId: string) {
+          const file = await this.prisma.file.findUnique({ where: { id: fileId }});
+          const buffer = await this.azureBlobService.download(file.blob_name);
+          const data = await this.parseCSV(buffer);
+          
+          for (const row of data) {
+            // Upsert pattern for idempotent imports
+            const project = await this.prisma.project.upsert({
+              where: { name: row['Project Name'] },
+              create: { name: row['Project Name'] },
+              update: {}
+            });
+            
+            const user = await this.prisma.user.upsert({
+              where: { email: row['Member Email'] },
+              create: { email: row['Member Email'] },
+              update: {}
+            });
+            
+            await this.prisma.projectMember.create({
+              data: {
+                projectId: project.id,
+                userId: user.id,
+                role: row['Role']
+              }
+            });
+          }
+        }
+      </implementation>
+    </project-member-import>
+
+    <asset-import>
+      <csv-format>
+        Asset Name,Category,Value,Status
+        "Server-01","Hardware",25000,"Active"
+        "Office-365","Software",5000,"Active"
+      </csv-format>
+      <bulk-insert>
+        // More efficient for large datasets
+        const assets = data.map(row => ({
+          name: row['Asset Name'],
+          category: row['Category'],
+          value: parseFloat(row['Value']),
+          status: row['Status']
+        }));
+        
+        await this.prisma.asset.createMany({ 
+          data: assets,
+          skipDuplicates: true 
+        });
+      </bulk-insert>
+    </asset-import>
+
+  </specific-use-cases>
+
+  <api-endpoints>
+    
+    <process-file>
+      <endpoint>POST /api/files/:id/process</endpoint>
+      <description>Process uploaded file and import data</description>
+      <request-body>
+        {
+          "targetTable": "projects",
+          "mappings": {
+            "Project Name": "name",
+            "Description": "description"
+          }
+        }
+      </request-body>
+      <response>
+        {
+          "success": true,
+          "data": {
+            "processed": 150,
+            "imported": 148,
+            "errors": 2,
+            "errorDetails": [...]
+          }
+        }
+      </response>
+    </process-file>
+
+    <preview-data>
+      <endpoint>GET /api/files/:id/preview</endpoint>
+      <description>Preview first 10 rows of file data</description>
+      <response>
+        {
+          "success": true,
+          "data": {
+            "headers": ["Project Name", "Member Email", "Role"],
+            "rows": [...first 10 rows...],
+            "totalRows": 1500
+          }
+        }
+      </response>
+    </preview-data>
+
+    <validate-data>
+      <endpoint>POST /api/files/:id/validate</endpoint>
+      <description>Validate data before import</description>
+      <validations>
+        - Required fields present
+        - Data types match
+        - Foreign key references exist
+        - Business rules satisfied
+      </validations>
+    </validate-data>
+
+  </api-endpoints>
+
+  <database-schema-updates>
+    
+    <file-model-additions>
+      model File {
+        // ... existing fields ...
+        processing_status ProcessingStatus @default(PENDING)
+        processed_at      DateTime?
+        row_count         Int?
+        imported_count    Int?
+        error_count       Int?
+        import_errors     Json?            // Store validation errors
+        import_mapping    Json?            // Store field mappings used
+        
+        @@index([processing_status])
+      }
+      
+      enum ProcessingStatus {
+        PENDING
+        VALIDATING
+        PROCESSING
+        COMPLETED
+        FAILED
+      }
+    </file-model-additions>
+
+    <import-log-model>
+      model ImportLog {
+        id            String   @id @default(uuid())
+        file_id       String
+        row_number    Int
+        status        String   // success, error
+        error_message String?
+        data          Json     // Original row data
+        created_at    DateTime @default(now())
+        
+        file File @relation(fields: [file_id], references: [id])
+        
+        @@index([file_id])
+        @@map("import_logs")
+      }
+    </import-log-model>
+
+  </database-schema-updates>
+
+  <frontend-ui-components>
+    
+    <data-import-wizard>
+      <description>Step-by-step import wizard</description>
+      <steps>
+        1. Upload file (DONE)
+        2. Preview data (first 10 rows)
+        3. Map columns to database fields
+        4. Validate data
+        5. Import with progress bar
+      </steps>
+      <component-location>src/components/file-management/DataImportWizard.tsx</component-location>
+    </data-import-wizard>
+
+    <column-mapper>
+      <description>UI for mapping CSV columns to database fields</description>
+      <features>
+        - Auto-detect common mappings
+        - Save mapping templates
+        - Preview transformed data
+      </features>
+    </column-mapper>
+
+  </frontend-ui-components>
+
+  <implementation-roadmap>
+    
+    <phase-1 name="MVP" timeline="2-3 days">
+      <tasks>
+        - Add process endpoint to files controller
+        - Install csv-parser
+        - Implement basic CSV parsing
+        - Direct database insert
+        - Update file status
+      </tasks>
+      <deliverable>Working CSV import for projects/users</deliverable>
+    </phase-1>
+
+    <phase-2 name="Enhancement" timeline="3-5 days">
+      <tasks>
+        - Add preview endpoint
+        - Add validation
+        - Error reporting
+        - Excel support with xlsx
+        - Bulk operations optimization
+      </tasks>
+      <deliverable>Robust import with validation</deliverable>
+    </phase-2>
+
+    <phase-3 name="Advanced" timeline="1 week">
+      <tasks>
+        - Background job queue
+        - Progress tracking
+        - Import templates
+        - Column mapping UI
+        - Rollback capability
+      </tasks>
+      <deliverable>Enterprise-grade import system</deliverable>
+    </phase-3>
+
+  </implementation-roadmap>
+
+  <best-practices>
+    
+    <error-handling>
+      - Log failed rows with reasons
+      - Continue processing on single row failure
+      - Provide detailed error report
+      - Allow re-import of failed rows only
+    </error-handling>
+
+    <performance>
+      - Use database transactions for consistency
+      - Batch inserts (createMany vs individual creates)
+      - Stream large files instead of loading to memory
+      - Add indexes on lookup fields
+    </performance>
+
+    <security>
+      - Validate file size limits
+      - Sanitize all input data
+      - Check user permissions for target table
+      - Prevent CSV injection attacks
+    </security>
+
+  </best-practices>
+
+  <yagni-reminder>
+    START SIMPLE: Just parse CSV and insert to database
+    ADD LATER: Validation, mapping UI, background jobs
+    AVOID: Over-engineering before requirements are clear
+  </yagni-reminder>
+
+</data-extraction-feature-guide>
