@@ -50,7 +50,29 @@ export class AssetController {
       limit,
     );
 
-    const safeAssets = plainToInstance(SafeAssetDto, assets, {
+    // Convert Prisma objects to plain objects before DTO transformation
+    const plainAssets = assets.map(asset => ({
+      ...asset,
+      // Convert Prisma Decimals to numbers/null to avoid transformation errors
+      xCoordinate: asset.xCoordinate ? parseFloat(asset.xCoordinate.toString()) : null,
+      yCoordinate: asset.yCoordinate ? parseFloat(asset.yCoordinate.toString()) : null,
+      squareFeet: asset.squareFeet ? parseFloat(asset.squareFeet.toString()) : null,
+      weight: asset.weight ? parseFloat(asset.weight.toString()) : null,
+      purchaseCost: asset.purchaseCost ? parseFloat(asset.purchaseCost.toString()) : null,
+      installationCost: asset.installationCost ? parseFloat(asset.installationCost.toString()) : null,
+      annualMaintenanceCost: asset.annualMaintenanceCost ? parseFloat(asset.annualMaintenanceCost.toString()) : null,
+      estimatedAnnualOperatingCost: asset.estimatedAnnualOperatingCost ? parseFloat(asset.estimatedAnnualOperatingCost.toString()) : null,
+      disposalCost: asset.disposalCost ? parseFloat(asset.disposalCost.toString()) : null,
+      salvageValue: asset.salvageValue ? parseFloat(asset.salvageValue.toString()) : null,
+      totalCostOfOwnership: asset.totalCostOfOwnership ? parseFloat(asset.totalCostOfOwnership.toString()) : null,
+      currentBookValue: asset.currentBookValue ? parseFloat(asset.currentBookValue.toString()) : null,
+      ratedPowerKw: asset.ratedPowerKw ? parseFloat(asset.ratedPowerKw.toString()) : null,
+      actualPowerKw: asset.actualPowerKw ? parseFloat(asset.actualPowerKw.toString()) : null,
+      dailyOperatingHours: asset.dailyOperatingHours ? parseFloat(asset.dailyOperatingHours.toString()) : null,
+      estimatedAnnualKwh: asset.estimatedAnnualKwh ? parseFloat(asset.estimatedAnnualKwh.toString()) : null,
+    }));
+
+    const safeAssets = plainToInstance(SafeAssetDto, plainAssets, {
       excludeExtraneousValues: true,
     });
 

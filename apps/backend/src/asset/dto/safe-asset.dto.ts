@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Expose, Transform } from 'class-transformer';
+import { Expose } from 'class-transformer';
 import { AssetStatus } from '@prisma/client';
 
 /**
@@ -172,23 +172,19 @@ export class SafeAssetDto {
 
   @ApiPropertyOptional({ description: 'X coordinate', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public xCoordinate?: number;
 
   @ApiPropertyOptional({ description: 'Y coordinate', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public yCoordinate?: number;
 
   // TCO & Cost fields
   @ApiPropertyOptional({ description: 'Initial purchase cost', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public purchaseCost?: number;
 
   @ApiPropertyOptional({ description: 'Installation cost', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public installationCost?: number;
 
   @ApiPropertyOptional({
@@ -196,7 +192,6 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public annualMaintenanceCost?: number;
 
   @ApiPropertyOptional({
@@ -204,7 +199,6 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public estimatedAnnualOperatingCost?: number;
 
   @ApiPropertyOptional({
@@ -212,7 +206,6 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public disposalCost?: number;
 
   @ApiPropertyOptional({
@@ -220,12 +213,10 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public salvageValue?: number;
 
   @ApiPropertyOptional({ description: 'Calculated TCO', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public totalCostOfOwnership?: number;
 
   @ApiPropertyOptional({ description: 'Depreciation method' })
@@ -234,7 +225,6 @@ export class SafeAssetDto {
 
   @ApiPropertyOptional({ description: 'Current book value', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public currentBookValue?: number;
 
   // Energy fields
@@ -243,7 +233,6 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public ratedPowerKw?: number;
 
   @ApiPropertyOptional({
@@ -251,7 +240,6 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public actualPowerKw?: number;
 
   @ApiPropertyOptional({
@@ -259,7 +247,6 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public dailyOperatingHours?: number;
 
   @ApiPropertyOptional({
@@ -267,7 +254,6 @@ export class SafeAssetDto {
     type: 'number',
   })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public estimatedAnnualKwh?: number;
 
   @ApiPropertyOptional({ description: 'Voltage', type: 'integer' })
@@ -320,12 +306,10 @@ export class SafeAssetDto {
 
   @ApiPropertyOptional({ description: 'Square feet', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public squareFeet?: number;
 
   @ApiPropertyOptional({ description: 'Weight', type: 'number' })
   @Expose()
-  @Transform(({ value }) => value ? parseFloat(value.toString()) : null)
   public weight?: number;
 
   // Vendor & service
