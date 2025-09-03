@@ -10,6 +10,7 @@
 
 export type DebugLevel = 'debug' | 'info' | 'warn' | 'error';
 import config from '../config';
+import { DebugLogger } from '../services/debug-logger';
 export type DebugCategory = 
   | 'component' 
   | 'hook' 
@@ -275,8 +276,6 @@ class DebugUtil {
     userAgent: string;
   }): Promise<void> {
     try {
-      const { DebugLogger } = await import('../services/debug-logger');
-      
       if (logData.level === 'error') {
         const metadata = this.buildMetadata(logData);
         await DebugLogger.logError(logData.message, logData.data, metadata);

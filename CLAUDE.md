@@ -84,6 +84,7 @@ npm run typecheck                             # TypeScript validation (all works
 # Database
 docker-compose up -d                          # Start local PostgreSQL
 npx prisma migrate dev                        # Run migrations locally
+npx prisma db seed                            # Seed initial users (REQUIRED for projects)
 npx prisma studio                             # Open database GUI
 
 # Logs & Debugging
@@ -97,6 +98,13 @@ tail -f .logs/verify-deployment_*.log        # Follow verification logs
 ```bash
 # Install dependencies (from root)
 npm install
+
+# Set up database (REQUIRED)
+docker-compose up -d
+cd apps/backend
+npx prisma migrate dev
+npx prisma db seed               # CRITICAL: Seeds admin users for project functionality
+cd ../..
 
 # Run both frontend and backend
 npm run dev
@@ -184,6 +192,19 @@ See individual CLAUDE.md files in each directory for detailed configuration.
 - Don't test framework code or simple getters
 
 **Guiding Principle**: Follow these rules religiously and complexity stays manageable.
+
+## 🚨 Critical Setup Requirements
+
+### Database Seeding (REQUIRED)
+**IMPORTANT**: Before using project functionality, the database MUST be seeded with initial users:
+```bash
+cd apps/backend
+npx prisma db seed
+```
+
+**Background**: Project creation requires a valid `owner_id` that references an existing User record. The frontend uses a hardcoded admin user ID (`98d068b7-fa06-431c-bff0-f19b1ebfdcf5`) until authentication is implemented.
+
+**Symptoms if not seeded**: Project creation will fail with "No 'User' record found for nested connect" error.
 
 ## 🦆 Rubber Duck Debugging Protocol
 **When stuck on a problem, use the rubber duck technique:**

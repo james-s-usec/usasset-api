@@ -1,0 +1,1843 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<asset-feature-guide version="1.0" date="2025-01-03">
+  
+  <feature-overview>
+    <name>Asset Management Feature</name>
+    <description>Core asset tracking and management system for USAsset application</description>
+    <approach>CRUD operations with full audit trail, relationships, and bulk operations</approach>
+    <tech-stack>NestJS, Prisma, PostgreSQL, TypeScript</tech-stack>
+    <status>Schema Definition Phase</status>
+  </feature-overview>
+
+  <!-- ========== MASTER DEVELOPMENT COMMAND ========== -->
+  <claude-code-command>
+    <description>Use this command to stay on track during development</description>
+    <command>
+      <![CDATA[
+      asset-status
+      ]]>
+    </command>
+    <what-it-does>
+      When you say "asset-status", Claude Code will:
+      1. Check current implementation phase (tracer bullet, milestone 1-8, etc)
+      2. Show completed tasks ✅
+      3. Show current task in progress 🔄
+      4. Show next 3 tasks upcoming 📋
+      5. Provide exact commands to run next
+      6. Estimate time remaining
+    </what-it-does>
+    <example-response>
+      <![CDATA[
+      === ASSET FEATURE STATUS ===
+      Phase: Tracer Bullet
+      Progress: 2/4 steps (50%)
+      
+      ✅ Completed:
+      - Database schema (3 fields)
+      - Backend module generated
+      
+      🔄 Current Task:
+      - Implementing minimal service (15 min)
+        Next: Add findAll() and create() methods
+        File: apps/backend/src/assets/assets.service.ts
+      
+      📋 Upcoming:
+      1. Add minimal controller
+      2. Test with curl
+      3. Add frontend component
+      
+      💻 Next Commands:
+      cd apps/backend
+      npm run start:dev
+      curl http://localhost:3000/api/assets
+      
+      ⏱️ Estimated time to tracer bullet: 45 minutes
+      ]]>
+    </example-response>
+  </claude-code-command>
+
+  <!-- ========== QUICK REFERENCE COMMANDS ========== -->
+  <quick-commands>
+    <command name="asset-tracer">
+      <description>Start tracer bullet implementation</description>
+      <action>Jump to tracer-bullet section and begin step 1</action>
+    </command>
+    
+    <command name="asset-fields">
+      <description>Show field implementation priority</description>
+      <action>List which fields to add in which order</action>
+    </command>
+    
+    <command name="asset-next">
+      <description>What's the next thing to implement?</description>
+      <action>Show immediate next task with code snippet</action>
+    </command>
+    
+    <command name="asset-test">
+      <description>Generate test commands for current phase</description>
+      <action>Provide curl/UI test steps for what's built</action>
+    </command>
+    
+    <command name="asset-help">
+      <description>Show all asset commands</description>
+      <action>List all available commands and what phase we're in</action>
+    </command>
+  </quick-commands>
+
+  <!-- ========== ASSET SCHEMA DEFINITION - FLATTENED ========== -->
+  <asset-schema>
+    
+    <schema-status>
+      <note>FLATTENED TABLE STRUCTURE - All fields in single table for simplicity</note>
+      <approach>Single denormalized asset table with comprehensive fields</approach>
+      <reconciliation-needed>false</reconciliation-needed>
+    </schema-status>
+
+    <!-- ========== IDENTIFICATION FIELDS ========== -->
+    <identification-fields>
+      <field name="id" type="uuid" required="true" description="Primary key">
+        <prisma-type>String @id @default(uuid())</prisma-type>
+        <database-type>UUID</database-type>
+      </field>
+      
+      <field name="assetTag" type="string" required="true" description="Unique asset identifier/barcode">
+        <prisma-type>String @unique</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="name" type="string" required="true" description="Asset name">
+        <prisma-type>String</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+      
+      <field name="serialNumber" type="string" required="false" description="Manufacturer serial number">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="modelNumber" type="string" required="false" description="Model number">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="manufacturer" type="string" required="false" description="Manufacturer/Make">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+      
+      <field name="description" type="string" required="false" description="Asset description">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="catalogName" type="string" required="false" description="Catalog name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="catalogItemId" type="string" required="false" description="Catalog item ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+    </identification-fields>
+
+    <!-- ========== CATEGORIZATION FIELDS (COMPREHENSIVE) ========== -->
+    <categorization-fields>
+      <field name="trade" type="string" required="false" description="Trade/Department responsible">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="title" type="string" required="false" description="Asset title/role">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="preconSystem" type="string" required="false" description="Preconstruction system">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="operationsSystem" type="string" required="false" description="Operations system">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="drawingAbbreviation" type="string" required="false" description="Drawing abbreviation">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="preconTag" type="string" required="false" description="Preconstruction tag">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="systemTypeId" type="string" required="false" description="System type ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="systemCategory" type="string" required="false" description="System category">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="assetCategory" type="string" required="false" description="Asset category">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="assetCategoryName" type="string" required="false" description="Asset category name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="assetType" type="string" required="false" description="Asset type">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="type" type="string" required="false" description="Generic type">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="equipNameId" type="string" required="false" description="Equipment name ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="subSystemType" type="string" required="false" description="Sub system type">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="subSystemId" type="string" required="false" description="Sub system ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="subSystemClass" type="string" required="false" description="Sub system class">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="subSystemClassification" type="string" required="false" description="Sub system classification">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="classId" type="string" required="false" description="Class ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="equipServedBy" type="string" required="false" description="Equipment served by">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+    </categorization-fields>
+
+    <!-- ========== LOCATION FIELDS ========== -->
+    <location-fields>
+      <field name="customerName" type="string" required="false" description="Customer name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="propertyName" type="string" required="false" description="Property name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="buildingName" type="string" required="false" description="Building name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="floor" type="string" required="false" description="Floor">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="floorName" type="string" required="false" description="Floor name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="area" type="string" required="false" description="Area">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="roomNumber" type="string" required="false" description="Room number">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="assetLocation" type="string" required="false" description="Asset location description">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="propertyZoneServed" type="string" required="false" description="Property zone served">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="xCoordinate" type="decimal" required="false" description="X coordinate">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,6)</database-type>
+      </field>
+
+      <field name="yCoordinate" type="decimal" required="false" description="Y coordinate">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,6)</database-type>
+      </field>
+    </location-fields>
+
+    <!-- ========== SIZE & MEASUREMENT FIELDS ========== -->
+    <measurement-fields>
+      <field name="equipmentSize" type="string" required="false" description="Equipment size">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="assetSizeRounded" type="string" required="false" description="Asset size (rounded up)">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="size" type="string" required="false" description="Size">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="unit" type="string" required="false" description="Unit of measurement">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="idUnit" type="string" required="false" description="ID unit">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="squareFeet" type="decimal" required="false" description="Square feet">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,2)</database-type>
+      </field>
+
+      <field name="quantity" type="integer" required="false" description="Quantity">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="weight" type="decimal" required="false" description="Weight">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,2)</database-type>
+      </field>
+    </measurement-fields>
+
+    <!-- ========== DATE & LIFECYCLE FIELDS ========== -->
+    <lifecycle-fields>
+      <field name="installDate" type="date" required="false" description="Installation date">
+        <prisma-type>DateTime?</prisma-type>
+        <database-type>DATE</database-type>
+      </field>
+
+      <field name="manufactureDate" type="date" required="false" description="Manufacture date">
+        <prisma-type>DateTime?</prisma-type>
+        <database-type>DATE</database-type>
+      </field>
+
+      <field name="serviceLife" type="integer" required="false" description="Service life in years">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="industryServiceLife" type="integer" required="false" description="Industry standard service life">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="expectedLifetime" type="integer" required="false" description="Expected lifetime in years">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="observedRemainingLife" type="integer" required="false" description="Observed remaining life in years">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="estimatedReplacementDate" type="date" required="false" description="Estimated replacement date">
+        <prisma-type>DateTime?</prisma-type>
+        <database-type>DATE</database-type>
+      </field>
+
+      <field name="warrantyExpirationDate" type="date" required="false" description="Warranty expiration date">
+        <prisma-type>DateTime?</prisma-type>
+        <database-type>DATE</database-type>
+      </field>
+    </lifecycle-fields>
+
+    <!-- ========== TECHNICAL SPECIFICATION FIELDS ========== -->
+    <technical-fields>
+      <field name="motorHp" type="decimal" required="false" description="Motor horsepower">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,2)</database-type>
+      </field>
+
+      <field name="estimatedOperatingHours" type="integer" required="false" description="Estimated operating hours per year">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="numberOfCircuits" type="integer" required="false" description="Number of circuits">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="supplyFanMotorSize" type="string" required="false" description="Supply fan motor size">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="returnFanMotorSize" type="string" required="false" description="Return fan motor size">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="beltSize" type="string" required="false" description="Belt size">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="beltQuantity" type="integer" required="false" description="Belt quantity">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="filterType" type="string" required="false" description="Filter type">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="filterSize" type="string" required="false" description="Filter size">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="filterQuantity" type="integer" required="false" description="Filter quantity">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="refrigerant" type="string" required="false" description="Refrigerant type">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="refrigerantDefaultDescription" type="string" required="false" description="Refrigerant default description">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="refrigerantDescription" type="string" required="false" description="Refrigerant description">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="refrigerantQuantity" type="decimal" required="false" description="Refrigerant quantity">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,2)</database-type>
+      </field>
+
+      <field name="ratingName" type="string" required="false" description="Rating name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="ratingValue" type="string" required="false" description="Rating value">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+    </technical-fields>
+
+    <!-- ========== TCO & COST FIELDS (ENHANCED) ========== -->
+    <tco-cost-fields>
+      <field name="purchaseCost" type="decimal" required="false" description="Initial purchase cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="installationCost" type="decimal" required="false" description="Installation cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="annualMaintenanceCost" type="decimal" required="false" description="Annual maintenance cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="estimatedAnnualOperatingCost" type="decimal" required="false" description="Estimated annual operating cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="disposalCost" type="decimal" required="false" description="Expected disposal cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="salvageValue" type="decimal" required="false" description="Expected salvage value">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="totalCostOfOwnership" type="decimal" required="false" description="Calculated TCO">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <note>Can be calculated or manually entered</note>
+      </field>
+
+      <field name="depreciationMethod" type="string" required="false" description="Depreciation method (straight-line, declining, etc)">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="currentBookValue" type="decimal" required="false" description="Current book value">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+    </tco-cost-fields>
+
+    <!-- ========== ENERGY CALCULATION FIELDS (NEW) ========== -->
+    <energy-fields>
+      <!-- Energy Consumption -->
+      <field name="ratedPowerKw" type="decimal" required="false" description="Rated power in kilowatts">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,3)</database-type>
+      </field>
+
+      <field name="actualPowerKw" type="decimal" required="false" description="Actual measured power in kilowatts">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,3)</database-type>
+      </field>
+
+      <field name="powerFactor" type="decimal" required="false" description="Power factor (0-1)">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(3,2)</database-type>
+      </field>
+
+      <field name="voltage" type="integer" required="false" description="Operating voltage">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="amperage" type="decimal" required="false" description="Operating amperage">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,2)</database-type>
+      </field>
+
+      <field name="phase" type="integer" required="false" description="Electrical phase (1 or 3)">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <!-- Energy Usage Patterns -->
+      <field name="dailyOperatingHours" type="decimal" required="false" description="Average daily operating hours">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(4,2)</database-type>
+      </field>
+
+      <field name="annualOperatingDays" type="integer" required="false" description="Operating days per year">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <field name="loadFactor" type="decimal" required="false" description="Average load factor (0-1)">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(3,2)</database-type>
+      </field>
+
+      <!-- Energy Efficiency -->
+      <field name="energyEfficiencyRating" type="string" required="false" description="Energy efficiency rating (e.g., SEER, EER, COP)">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="energyEfficiencyValue" type="decimal" required="false" description="Energy efficiency value">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,2)</database-type>
+      </field>
+
+      <!-- Calculated Energy Values -->
+      <field name="estimatedAnnualKwh" type="decimal" required="false" description="Estimated annual kWh consumption">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>ratedPowerKw * dailyOperatingHours * annualOperatingDays * loadFactor</calculation>
+      </field>
+
+      <field name="peakDemandKw" type="decimal" required="false" description="Peak demand in kW">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,3)</database-type>
+      </field>
+
+      <!-- Natural Gas / Other Fuels -->
+      <field name="gasConsumptionRate" type="decimal" required="false" description="Gas consumption rate (therms/hour or cu ft/hour)">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,3)</database-type>
+      </field>
+
+      <field name="annualGasConsumption" type="decimal" required="false" description="Annual gas consumption">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="btuRating" type="integer" required="false" description="BTU rating">
+        <prisma-type>Int?</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+    </energy-fields>
+
+    <!-- ========== ENERGY COST CALCULATION FIELDS ========== -->
+    <energy-cost-fields>
+      <note>⚠️ RATES ARE INHERITED FROM PROJECT - These fields store calculated costs only</note>
+      
+      <!-- Calculated Energy Costs (using Project rates) -->
+      <field name="estimatedAnnualElectricityCost" type="decimal" required="false" description="Calculated annual electricity cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>Asset.estimatedAnnualKwh * Project.electricityRatePerKwh + (Asset.peakDemandKw * Project.demandChargePerKw * 12)</calculation>
+        <note>Calculated using PROJECT rates, not stored rates</note>
+      </field>
+
+      <field name="estimatedAnnualGasCost" type="decimal" required="false" description="Calculated annual gas cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>Asset.annualGasConsumption * Project.gasRatePerTherm</calculation>
+        <note>Calculated using PROJECT rates</note>
+      </field>
+
+      <field name="totalAnnualEnergyCost" type="decimal" required="false" description="Total annual energy cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>estimatedAnnualElectricityCost + estimatedAnnualGasCost</calculation>
+      </field>
+
+      <!-- Carbon Footprint (using Project emission factor) -->
+      <field name="annualCarbonEmissions" type="decimal" required="false" description="Annual carbon emissions (kg CO2)">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>Asset.estimatedAnnualKwh * Project.carbonEmissionFactor</calculation>
+        <note>Uses PROJECT emission factor</note>
+      </field>
+
+      <!-- Optional: Asset-specific rate overrides (rare cases) -->
+      <field name="overrideElectricityRate" type="decimal" required="false" description="Override electricity rate for special contracts">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(6,4)</database-type>
+        <note>Only used if asset has special utility contract different from project</note>
+      </field>
+
+      <field name="overrideGasRate" type="decimal" required="false" description="Override gas rate for special contracts">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(6,4)</database-type>
+        <note>Only used if asset has special utility contract different from project</note>
+      </field>
+
+      <field name="useOverrideRates" type="boolean" required="false" description="Flag to use override rates instead of project rates">
+        <prisma-type>Boolean @default(false)</prisma-type>
+        <database-type>BOOLEAN</database-type>
+      </field>
+    </energy-cost-fields>
+
+    <!-- ========== VENDOR & SERVICE FIELDS ========== -->
+    <vendor-service-fields>
+      <field name="vendor" type="string" required="false" description="Vendor name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="vendorWebsite" type="string" required="false" description="Vendor website">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="serviceId" type="string" required="false" description="Service contract ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+    </vendor-service-fields>
+
+    <!-- ========== STATUS & METADATA FIELDS ========== -->
+    <status-metadata-fields>
+      <field name="status" type="string" required="false" description="Asset status">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(50)</database-type>
+      </field>
+
+      <field name="verified" type="boolean" required="false" description="Data verified flag">
+        <prisma-type>Boolean @default(false)</prisma-type>
+        <database-type>BOOLEAN</database-type>
+      </field>
+
+      <field name="ownerId" type="string" required="false" description="Owner ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+    </status-metadata-fields>
+
+    <!-- ========== NOTES FIELDS ========== -->
+    <notes-fields>
+      <field name="notes" type="text" required="false" description="General notes">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="note1Subject" type="string" required="false" description="Note 1 subject">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="note1" type="text" required="false" description="Note 1 content">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="note2Subject" type="string" required="false" description="Note 2 subject">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="note2" type="text" required="false" description="Note 2 content">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="note3Subject" type="string" required="false" description="Note 3 subject">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="note3" type="text" required="false" description="Note 3 content">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="note4Subject" type="string" required="false" description="Note 4 subject">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="note4" type="text" required="false" description="Note 4 content">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="note5Subject" type="string" required="false" description="Note 5 subject">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="note5" type="text" required="false" description="Note 5 content">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+
+      <field name="note6Subject" type="string" required="false" description="Note 6 subject">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="note6" type="text" required="false" description="Note 6 content">
+        <prisma-type>String?</prisma-type>
+        <database-type>TEXT</database-type>
+      </field>
+    </notes-fields>
+
+    <!-- ========== LEGACY REFERENCE FIELDS ========== -->
+    <legacy-fields>
+      <field name="legacyBranchId" type="string" required="false" description="Legacy branch ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="legacyClientSiteEquipmentRn" type="string" required="false" description="Legacy client site equipment RN">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="legacyClientSiteEquipmentName" type="string" required="false" description="Legacy client site equipment name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="legacyInternalAssetId" type="string" required="false" description="Legacy internal asset ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="legacyUsAssetId" type="string" required="false" description="Legacy USAsset ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="legacyUseAssetId" type="string" required="false" description="Legacy USE Asset ID">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+    </legacy-fields>
+
+    <relationship-fields>
+      <!-- Relationships to other entities -->
+      <field name="projectId" type="uuid" required="false" description="Associated project">
+        <prisma-type>String?</prisma-type>
+        <relation>project Project? @relation(fields: [projectId], references: [id])</relation>
+        <note>⚠️ IMPORTANT: Energy rates are inherited from Project level</note>
+      </field>
+      
+      <field name="assignedUserId" type="uuid" required="false" description="User assigned to this asset">
+        <prisma-type>String?</prisma-type>
+        <relation>assignedUser User? @relation("AssignedAssets", fields: [assignedUserId], references: [id])</relation>
+      </field>
+      
+      <field name="createdById" type="uuid" required="true" description="User who created this record">
+        <prisma-type>String</prisma-type>
+        <relation>createdBy User @relation("CreatedAssets", fields: [createdById], references: [id])</relation>
+      </field>
+    </relationship-fields>
+
+    <!-- ========== AUDIT FIELDS ========== -->
+    <audit-fields>
+      <field name="createdAt" type="datetime" required="true" description="Record creation timestamp">
+        <prisma-type>DateTime @default(now())</prisma-type>
+        <database-type>TIMESTAMP</database-type>
+      </field>
+      
+      <field name="updatedAt" type="datetime" required="true" description="Last update timestamp">
+        <prisma-type>DateTime @updatedAt</prisma-type>
+        <database-type>TIMESTAMP</database-type>
+      </field>
+    </audit-fields>
+
+    <enum-definitions>
+      <!-- Enums for asset categorization -->
+      <enum name="AssetStatus">
+        <values>
+          <value>ACTIVE</value>
+          <value>INACTIVE</value>
+          <value>MAINTENANCE</value>
+          <value>RETIRED</value>
+          <value>DISPOSED</value>
+          <value>LOST</value>
+          <value>STOLEN</value>
+        </values>
+      </enum>
+      
+      <enum name="AssetCondition">
+        <values>
+          <value>NEW</value>
+          <value>EXCELLENT</value>
+          <value>GOOD</value>
+          <value>FAIR</value>
+          <value>POOR</value>
+          <value>FOR_REPAIR</value>
+          <value>FOR_DISPOSAL</value>
+        </values>
+      </enum>
+      
+      <enum name="AssetCategory">
+        <!-- TO BE DEFINED based on user's business needs -->
+        <placeholder>User to provide categories</placeholder>
+      </enum>
+    </enum-definitions>
+  </asset-schema>
+
+  <!-- ========== PROJECT SCHEMA UPDATES NEEDED ========== -->
+  <project-schema-updates>
+    <overview>
+      <note>⚠️ CRITICAL: Energy rates should be stored at PROJECT level, not duplicated per asset</note>
+      <rationale>All assets within a project share the same utility rates and location</rationale>
+      <calculation-flow>Project rates → Asset consumption → Calculate costs</calculation-flow>
+    </overview>
+
+    <project-cost-fields>
+      <!-- PROJECT-LEVEL TCO FIELDS - Essential for asset management -->
+      
+      <!-- Capital Costs -->
+      <field name="totalFirstCost" type="decimal" required="false" description="Total initial capital investment">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(15,2)</database-type>
+        <calculation>SUM of all asset purchase + installation costs</calculation>
+      </field>
+
+      <!-- Operating Costs -->
+      <field name="annualMaintenanceCost" type="decimal" required="false" description="Total annual maintenance">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>SUM of all asset maintenance costs</calculation>
+      </field>
+
+      <field name="annualOperatingCost" type="decimal" required="false" description="Total annual operating cost">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>Energy + maintenance + other operating</calculation>
+      </field>
+
+      <!-- Replacement Planning -->
+      <field name="estimatedAnnualReplacementCost" type="decimal" required="false" description="Annualized replacement reserve">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+        <calculation>Based on asset lifecycle and replacement costs</calculation>
+      </field>
+
+      <field name="totalReplacementValue" type="decimal" required="false" description="Cost to replace all assets today">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(15,2)</database-type>
+        <calculation>SUM of current replacement costs for all assets</calculation>
+      </field>
+
+      <!-- TCO Summary -->
+      <field name="totalCostOfOwnership" type="decimal" required="false" description="Full lifecycle TCO">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(15,2)</database-type>
+        <calculation>First cost + (annual costs × years) + disposal - salvage</calculation>
+      </field>
+
+      <field name="tcoYears" type="integer" required="false" description="Years used for TCO calculation">
+        <prisma-type>Int? @default(20)</prisma-type>
+        <database-type>INTEGER</database-type>
+      </field>
+
+      <!-- Budget Tracking -->
+      <field name="annualBudget" type="decimal" required="false" description="Annual budget allocation">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+
+      <field name="actualYtdCost" type="decimal" required="false" description="Actual year-to-date spending">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(12,2)</database-type>
+      </field>
+    </project-cost-fields>
+
+    <project-energy-fields>
+      <!-- These fields need to be added to the Project model -->
+      
+      <!-- Electricity Rates -->
+      <field name="electricityRatePerKwh" type="decimal" required="false" description="Project-wide electricity rate per kWh">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(6,4)</database-type>
+      </field>
+
+      <field name="demandChargePerKw" type="decimal" required="false" description="Project-wide demand charge per kW">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(6,2)</database-type>
+      </field>
+
+      <field name="timeOfUseRates" type="json" required="false" description="Time-of-use rate structure for project">
+        <prisma-type>Json?</prisma-type>
+        <database-type>JSONB</database-type>
+        <example>{"peak": 0.25, "offPeak": 0.10, "shoulder": 0.15, "peakHours": "14:00-20:00"}</example>
+      </field>
+
+      <!-- Gas Rates -->
+      <field name="gasRatePerTherm" type="decimal" required="false" description="Project-wide gas rate per therm">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(6,4)</database-type>
+      </field>
+
+      <field name="gasRatePerCuFt" type="decimal" required="false" description="Project-wide gas rate per cubic foot">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(6,4)</database-type>
+      </field>
+
+      <!-- Carbon Emissions -->
+      <field name="carbonEmissionFactor" type="decimal" required="false" description="Regional CO2 emissions factor (kg CO2/kWh)">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(6,4)</database-type>
+      </field>
+
+      <!-- Utility Provider Info -->
+      <field name="utilityProvider" type="string" required="false" description="Utility company name">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(255)</database-type>
+      </field>
+
+      <field name="rateSchedule" type="string" required="false" description="Utility rate schedule/tariff">
+        <prisma-type>String?</prisma-type>
+        <database-type>VARCHAR(100)</database-type>
+      </field>
+
+      <field name="lastRateUpdate" type="date" required="false" description="Last time rates were updated">
+        <prisma-type>DateTime?</prisma-type>
+        <database-type>DATE</database-type>
+      </field>
+
+      <!-- Project-level Energy Totals (Calculated from Assets) -->
+      <field name="totalProjectKwhAnnual" type="decimal" required="false" description="Sum of all asset kWh consumption">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(15,2)</database-type>
+        <calculation>SUM(assets.estimatedAnnualKwh)</calculation>
+      </field>
+
+      <field name="totalProjectPeakDemandKw" type="decimal" required="false" description="Project peak demand">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(10,3)</database-type>
+        <calculation>SUM(assets.peakDemandKw) or MAX depending on diversity factor</calculation>
+      </field>
+
+      <field name="totalProjectEnergyCostAnnual" type="decimal" required="false" description="Total annual energy cost for project">
+        <prisma-type>Decimal?</prisma-type>
+        <database-type>DECIMAL(15,2)</database-type>
+        <calculation>Calculated using project rates × asset consumption</calculation>
+      </field>
+    </project-energy-fields>
+
+    <energy-calculation-logic>
+      <note>Asset energy costs should be calculated dynamically using:</note>
+      <formula>
+        Asset.estimatedAnnualElectricityCost = 
+          Asset.estimatedAnnualKwh * Project.electricityRatePerKwh + 
+          (Asset.peakDemandKw * Project.demandChargePerKw * 12)
+      </formula>
+      <benefits>
+        - Single source of truth for rates
+        - Easy to update rates project-wide
+        - Consistent calculations across all assets
+        - Can track rate changes over time
+      </benefits>
+    </energy-calculation-logic>
+  </project-schema-updates>
+
+  <!-- ========== PRISMA SCHEMA ========== -->
+  <prisma-model>
+    <model-definition>
+      <![CDATA[
+model Asset {
+  // Core identification
+  id            String   @id @default(uuid())
+  assetTag      String   @unique
+  serialNumber  String?
+  description   String
+  
+  // Status and condition
+  status        AssetStatus      @default(ACTIVE)
+  condition     AssetCondition   @default(GOOD)
+  
+  // TO BE ADDED: User-provided fields will go here
+  // Examples:
+  // manufacturer  String?
+  // model         String?
+  // purchaseDate  DateTime?
+  // purchasePrice Decimal?
+  // location      String?
+  // department    String?
+  
+  // Relationships
+  projectId     String?
+  project       Project?         @relation(fields: [projectId], references: [id])
+  
+  assignedUserId String?
+  assignedUser   User?           @relation("AssignedAssets", fields: [assignedUserId], references: [id])
+  
+  createdById   String
+  createdBy     User            @relation("CreatedAssets", fields: [createdById], references: [id])
+  
+  // Timestamps
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  
+  // Indexes for performance
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([projectId])
+  @@index([createdAt])
+}
+      ]]>
+    </model-definition>
+  </prisma-model>
+
+  <!-- ========== API ENDPOINTS ========== -->
+  <api-endpoints>
+    
+    <controller path="/assets">
+      
+      <endpoint method="GET" path="/">
+        <description>List all assets with pagination and filtering</description>
+        <query-params>
+          <param name="page" type="number" default="1"/>
+          <param name="limit" type="number" default="20"/>
+          <param name="status" type="AssetStatus" required="false"/>
+          <param name="assignedUserId" type="uuid" required="false"/>
+          <param name="projectId" type="uuid" required="false"/>
+          <param name="search" type="string" required="false" description="Search in tag, serial, description"/>
+        </query-params>
+        <response>Paginated list of assets</response>
+      </endpoint>
+      
+      <endpoint method="GET" path="/:id">
+        <description>Get single asset by ID</description>
+        <params>
+          <param name="id" type="uuid"/>
+        </params>
+        <response>Asset with all relationships</response>
+      </endpoint>
+      
+      <endpoint method="POST" path="/">
+        <description>Create new asset</description>
+        <body>CreateAssetDto</body>
+        <response>Created asset</response>
+      </endpoint>
+      
+      <endpoint method="PUT" path="/:id">
+        <description>Update asset</description>
+        <params>
+          <param name="id" type="uuid"/>
+        </params>
+        <body>UpdateAssetDto</body>
+        <response>Updated asset</response>
+      </endpoint>
+      
+      <endpoint method="DELETE" path="/:id">
+        <description>Soft delete asset (set status to DISPOSED)</description>
+        <params>
+          <param name="id" type="uuid"/>
+        </params>
+        <response>Success message</response>
+      </endpoint>
+      
+      <endpoint method="POST" path="/bulk">
+        <description>Bulk create assets</description>
+        <body>Array of CreateAssetDto</body>
+        <response>Created assets with any errors</response>
+      </endpoint>
+      
+      <endpoint method="PUT" path="/bulk">
+        <description>Bulk update assets</description>
+        <body>Array of UpdateAssetDto with IDs</body>
+        <response>Updated assets with any errors</response>
+      </endpoint>
+      
+      <endpoint method="POST" path="/:id/assign">
+        <description>Assign asset to user</description>
+        <params>
+          <param name="id" type="uuid"/>
+        </params>
+        <body>{ userId: uuid }</body>
+        <response>Updated asset</response>
+      </endpoint>
+      
+      <endpoint method="POST" path="/:id/transfer">
+        <description>Transfer asset to different project</description>
+        <params>
+          <param name="id" type="uuid"/>
+        </params>
+        <body>{ projectId: uuid }</body>
+        <response>Updated asset</response>
+      </endpoint>
+      
+      <endpoint method="GET" path="/export">
+        <description>Export assets to CSV/Excel</description>
+        <query-params>
+          <param name="format" type="string" enum="csv,xlsx" default="csv"/>
+          <param name="status" type="AssetStatus" required="false"/>
+          <param name="projectId" type="uuid" required="false"/>
+        </query-params>
+        <response>File download</response>
+      </endpoint>
+      
+    </controller>
+  </api-endpoints>
+
+  <!-- ========== DTOs ========== -->
+  <dto-definitions>
+    
+    <dto name="CreateAssetDto">
+      <fields>
+        <field name="assetTag" type="string" required="true">
+          <validation>@IsString() @IsNotEmpty() @MaxLength(50)</validation>
+        </field>
+        <field name="serialNumber" type="string" required="false">
+          <validation>@IsString() @IsOptional() @MaxLength(100)</validation>
+        </field>
+        <field name="description" type="string" required="true">
+          <validation>@IsString() @IsNotEmpty()</validation>
+        </field>
+        <field name="status" type="AssetStatus" required="false">
+          <validation>@IsEnum(AssetStatus) @IsOptional()</validation>
+        </field>
+        <field name="condition" type="AssetCondition" required="false">
+          <validation>@IsEnum(AssetCondition) @IsOptional()</validation>
+        </field>
+        <field name="projectId" type="uuid" required="false">
+          <validation>@IsUUID() @IsOptional()</validation>
+        </field>
+        <field name="assignedUserId" type="uuid" required="false">
+          <validation>@IsUUID() @IsOptional()</validation>
+        </field>
+        <!-- User-provided fields to be added here -->
+      </fields>
+    </dto>
+    
+    <dto name="UpdateAssetDto">
+      <extends>Partial&lt;CreateAssetDto&gt;</extends>
+      <note>All fields optional for updates</note>
+    </dto>
+    
+    <dto name="AssetResponseDto">
+      <includes>All asset fields plus relationships</includes>
+      <relations>
+        - project (if exists)
+        - assignedUser (if exists)
+        - createdBy
+      </relations>
+    </dto>
+    
+  </dto-definitions>
+
+  <!-- ========== SERVICE METHODS ========== -->
+  <service-methods>
+    
+    <method name="findAll">
+      <description>Get paginated list with filters</description>
+      <params>page, limit, filters</params>
+      <returns>PaginatedResult&lt;Asset&gt;</returns>
+    </method>
+    
+    <method name="findOne">
+      <description>Get single asset with relations</description>
+      <params>id: string</params>
+      <returns>Asset</returns>
+    </method>
+    
+    <method name="create">
+      <description>Create new asset</description>
+      <params>createDto: CreateAssetDto, userId: string</params>
+      <returns>Asset</returns>
+    </method>
+    
+    <method name="update">
+      <description>Update existing asset</description>
+      <params>id: string, updateDto: UpdateAssetDto</params>
+      <returns>Asset</returns>
+    </method>
+    
+    <method name="remove">
+      <description>Soft delete by setting status</description>
+      <params>id: string</params>
+      <returns>Asset</returns>
+    </method>
+    
+    <method name="bulkCreate">
+      <description>Create multiple assets in transaction</description>
+      <params>createDtos: CreateAssetDto[], userId: string</params>
+      <returns>BulkOperationResult</returns>
+    </method>
+    
+    <method name="assignToUser">
+      <description>Assign asset to a user</description>
+      <params>assetId: string, userId: string</params>
+      <returns>Asset</returns>
+    </method>
+    
+    <method name="transferToProject">
+      <description>Transfer asset to different project</description>
+      <params>assetId: string, projectId: string</params>
+      <returns>Asset</returns>
+    </method>
+    
+    <method name="exportAssets">
+      <description>Export filtered assets to file</description>
+      <params>format: string, filters: AssetFilters</params>
+      <returns>Buffer</returns>
+    </method>
+    
+  </service-methods>
+
+  <!-- ========== TRACER BULLET IMPLEMENTATION ========== -->
+  <tracer-bullet>
+    <overview>
+      <philosophy>Get ONE asset from database to screen with absolute minimum code</philosophy>
+      <goal>Prove the pipeline works end-to-end, then iterate</goal>
+      <time>2 hours maximum for full stack</time>
+    </overview>
+
+    <phase-1-minimal-slice>
+      <step-1-database>
+        <description>Minimal schema - just 3 fields</description>
+        <schema>
+          <![CDATA[
+model Asset {
+  id        String   @id @default(uuid())
+  assetTag  String   @unique
+  name      String
+  
+  // That's it! No relations, no extra fields yet
+  
+  @@map("assets")
+}
+          ]]>
+        </schema>
+        <commands>
+          cd apps/backend
+          npx prisma migrate dev --name add_minimal_assets
+        </commands>
+      </step-1-database>
+
+      <step-2-backend>
+        <description>Simplest possible API</description>
+        <generate>
+          npx nest g module assets
+          npx nest g controller assets
+          npx nest g service assets
+        </generate>
+        <service>
+          <![CDATA[
+@Injectable()
+export class AssetsService {
+  constructor(private prisma: PrismaService) {}
+
+  async findAll() {
+    return this.prisma.asset.findMany();
+  }
+
+  async create(assetTag: string, name: string) {
+    return this.prisma.asset.create({
+      data: { assetTag, name }
+    });
+  }
+}
+          ]]>
+        </service>
+        <controller>
+          <![CDATA[
+@Controller('api/assets')
+export class AssetsController {
+  constructor(private service: AssetsService) {}
+
+  @Get()
+  async findAll() {
+    return this.service.findAll();
+  }
+
+  @Post()
+  async create(@Body() body: { assetTag: string; name: string }) {
+    return this.service.create(body.assetTag, body.name);
+  }
+}
+          ]]>
+        </controller>
+      </step-2-backend>
+
+      <step-3-test-api>
+        <description>Verify backend works</description>
+        <commands>
+          # Start backend
+          npm run start:dev
+
+          # Test GET
+          curl http://localhost:3000/api/assets
+
+          # Test POST
+          curl -X POST http://localhost:3000/api/assets \
+            -H "Content-Type: application/json" \
+            -d '{"assetTag":"A001","name":"Test Asset"}'
+        </commands>
+      </step-3-test-api>
+
+      <step-4-frontend>
+        <description>Minimal UI to prove it works</description>
+        <component>
+          <![CDATA[
+export function Assets() {
+  const [assets, setAssets] = useState([]);
+  const [tag, setTag] = useState('');
+  const [name, setName] = useState('');
+
+  useEffect(() => {
+    fetch('/api/assets')
+      .then(res => res.json())
+      .then(setAssets);
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await fetch('/api/assets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assetTag: tag, name })
+    });
+    window.location.reload(); // Simple refresh
+  };
+
+  return (
+    <div>
+      <h1>Assets</h1>
+      <form onSubmit={handleSubmit}>
+        <input value={tag} onChange={(e) => setTag(e.target.value)} required />
+        <input value={name} onChange={(e) => setName(e.target.value)} required />
+        <button>Add</button>
+      </form>
+      <ul>
+        {assets.map(a => <li key={a.id}>{a.assetTag} - {a.name}</li>)}
+      </ul>
+    </div>
+  );
+}
+          ]]>
+        </component>
+      </step-4-frontend>
+    </phase-1-minimal-slice>
+
+    <phase-2-incremental>
+      <description>Add features one at a time, always keeping it working</description>
+      
+      <increment-1>
+        <name>Add status field</name>
+        <schema>status String? @default("ACTIVE")</schema>
+        <migrate>npx prisma migrate dev --name add_status</migrate>
+      </increment-1>
+
+      <increment-2>
+        <name>Add project relationship</name>
+        <schema>
+          projectId String?
+          project Project? @relation(fields: [projectId], references: [id])
+        </schema>
+        <migrate>npx prisma migrate dev --name add_project_relation</migrate>
+      </increment-2>
+
+      <increment-3>
+        <name>Add first cost field</name>
+        <schema>purchaseCost Decimal?</schema>
+        <migrate>npx prisma migrate dev --name add_purchase_cost</migrate>
+      </increment-3>
+
+      <increment-4>
+        <name>Add location fields</name>
+        <schema>
+          buildingName String?
+          floor String?
+          roomNumber String?
+        </schema>
+        <migrate>npx prisma migrate dev --name add_location</migrate>
+      </increment-4>
+
+      <increment-5>
+        <name>Add energy fields (subset)</name>
+        <schema>
+          ratedPowerKw Decimal?
+          dailyOperatingHours Decimal?
+        </schema>
+        <migrate>npx prisma migrate dev --name add_energy_fields</migrate>
+      </increment-5>
+
+      <continue>Keep adding field bundles until all 130+ fields are added</continue>
+    </phase-2-incremental>
+
+    <phase-3-complete-roadmap>
+      <description>Full implementation roadmap after tracer bullet works</description>
+      
+      <milestone-1>
+        <name>Core Fields & CRUD (Week 1)</name>
+        <goal>Basic asset management working</goal>
+        <tasks>
+          - Add 10-15 most important fields (serial, model, manufacturer, etc.)
+          - Add proper DTOs with validation
+          - Add update endpoint (PUT /api/assets/:id)
+          - Add soft delete (status = DISPOSED)
+          - Add basic pagination
+          - Simple edit form in UI
+        </tasks>
+      </milestone-1>
+
+      <milestone-2>
+        <name>Relationships & Categories (Week 2)</name>
+        <goal>Assets connected to projects and users</goal>
+        <tasks>
+          - Add project relationship and enforce it
+          - Add assigned user relationship
+          - Add asset categories (minimum 5-10 key ones)
+          - Add filtering by project/user/category
+          - Update UI to show relationships
+          - Add project selector in create/edit forms
+        </tasks>
+      </milestone-2>
+
+      <milestone-3>
+        <name>Location & Organization (Week 3)</name>
+        <goal>Know where assets are</goal>
+        <tasks>
+          - Add all location fields (building, floor, room)
+          - Add all categorization fields (systems, subsystems)
+          - Create location hierarchy in UI
+          - Add location-based search
+          - Visual location indicators
+        </tasks>
+      </milestone-3>
+
+      <milestone-4>
+        <name>Financial Fields (Week 4)</name>
+        <goal>Track costs and TCO</goal>
+        <tasks>
+          - Add all cost fields to assets
+          - Add energy rate fields to projects
+          - Implement cost calculations
+          - Create TCO summary views
+          - Add budget vs actual reporting
+        </tasks>
+      </milestone-4>
+
+      <milestone-5>
+        <name>Technical Specifications (Week 5)</name>
+        <goal>Complete technical details</goal>
+        <tasks>
+          - Add all technical fields (power, refrigerant, filters, etc.)
+          - Add energy consumption fields
+          - Implement energy calculations
+          - Create specification views (tabbed UI?)
+          - Add technical search capabilities
+        </tasks>
+      </milestone-5>
+
+      <milestone-6>
+        <name>Bulk Operations (Week 6)</name>
+        <goal>Handle many assets efficiently</goal>
+        <tasks>
+          - Bulk create endpoint
+          - Bulk update endpoint
+          - CSV export functionality
+          - Basic CSV import (prepare for full ETL)
+          - Bulk assignment operations
+        </tasks>
+      </milestone-6>
+
+      <milestone-7>
+        <name>Polish & Performance (Week 7)</name>
+        <goal>Production ready</goal>
+        <tasks>
+          - Add all remaining fields
+          - Optimize database indexes
+          - Add caching where needed
+          - Comprehensive error handling
+          - Full test coverage
+          - Performance testing
+        </tasks>
+      </milestone-7>
+
+      <milestone-8>
+        <name>Data Import ETL (Week 8+)</name>
+        <goal>Import legacy data</goal>
+        <tasks>
+          - Implement data-extraction-guide.xml
+          - Column mapping UI
+          - Validation and cleaning
+          - Import preview
+          - Rollback capability
+        </tasks>
+      </milestone-8>
+    </phase-3-complete-roadmap>
+
+    <benefits>
+      - Working software in under 2 hours
+      - Can demo immediately  
+      - Never in broken state
+      - Each addition is small and testable
+      - Can stop at any point with value
+    </benefits>
+  </tracer-bullet>
+
+  <!-- ========== DETAILED IMPLEMENTATION STEPS ========== -->
+  <implementation-steps>
+    
+    <step order="1">
+      <name>Database Schema Setup</name>
+      <estimated-time>2-3 hours</estimated-time>
+      <detailed-tasks>
+        <task>1.1 Update Project model in schema.prisma:
+          - Add energy rate fields (electricityRatePerKwh, demandChargePerKw, etc.)
+          - Add TCO fields (totalFirstCost, annualMaintenanceCost, etc.)
+          - Add relation: assets Asset[]</task>
+        <task>1.2 Create Asset model in schema.prisma:
+          - Copy flattened schema from this guide
+          - Only 3 required fields: id, assetTag, name
+          - Add indexes for: assetTag, status, projectId, createdAt
+          - Add relations to Project and User</task>
+        <task>1.3 Create enums:
+          - AssetStatus (ACTIVE, INACTIVE, MAINTENANCE, RETIRED, DISPOSED)
+          - AssetCondition (NEW, EXCELLENT, GOOD, FAIR, POOR)</task>
+        <task>1.4 Generate and apply migration:
+          ```bash
+          cd apps/backend
+          npx prisma migrate dev --name add_assets_and_project_costs
+          npx prisma generate
+          ```</task>
+      </detailed-tasks>
+      <deliverable>Database with Asset and updated Project tables</deliverable>
+    </step>
+    
+    <step order="2">
+      <name>Backend Module Setup</name>
+      <estimated-time>1 hour</estimated-time>
+      <detailed-tasks>
+        <task>2.1 Generate NestJS scaffolding:
+          ```bash
+          cd apps/backend
+          npx nest g module assets
+          npx nest g controller assets/controllers/assets
+          npx nest g service assets/services/assets
+          ```</task>
+        <task>2.2 Create service files:
+          - src/assets/services/asset-query.service.ts (read operations)
+          - src/assets/services/asset-command.service.ts (write operations)
+          - src/assets/repositories/asset.repository.ts (database access)</task>
+        <task>2.3 Create DTOs:
+          - src/assets/dto/create-asset.dto.ts (only assetTag and name required!)
+          - src/assets/dto/update-asset.dto.ts (all fields optional)
+          - src/assets/dto/asset-response.dto.ts (safe output)
+          - src/assets/dto/asset-filters.dto.ts (search/pagination)</task>
+        <task>2.4 Wire up module dependencies:
+          - Import PrismaService
+          - Export services
+          - Add to app.module.ts</task>
+      </detailed-tasks>
+      <deliverable>Basic module structure ready</deliverable>
+    </step>
+    
+    <step order="3">
+      <name>Core CRUD Implementation</name>
+      <estimated-time>3-4 hours</estimated-time>
+      <detailed-tasks>
+        <task>3.1 Implement repository methods:
+          - findMany(filters, pagination)
+          - findById(id) 
+          - create(data)
+          - update(id, data)
+          - softDelete(id) - set status to DISPOSED</task>
+        <task>3.2 Implement service methods:
+          - Use repository, add business logic
+          - Calculate energy costs using Project rates
+          - Handle relationships (project, assignedUser)</task>
+        <task>3.3 Implement controller endpoints:
+          - GET /api/assets (with pagination, filters)
+          - GET /api/assets/:id
+          - POST /api/assets (minimal required fields!)
+          - PUT /api/assets/:id  
+          - DELETE /api/assets/:id (soft delete)</task>
+        <task>3.4 Add Swagger documentation:
+          - @ApiTags('assets')
+          - @ApiOperation() for each endpoint
+          - Document DTOs with @ApiProperty()</task>
+      </detailed-tasks>
+      <deliverable>Working CRUD API</deliverable>
+    </step>
+    
+    <step order="4">
+      <name>Advanced Features</name>
+      <estimated-time>2-3 hours</estimated-time>
+      <detailed-tasks>
+        <task>4.1 Bulk operations:
+          - POST /api/assets/bulk (create multiple)
+          - PUT /api/assets/bulk (update multiple)</task>
+        <task>4.2 Asset assignment:
+          - POST /api/assets/:id/assign (assign to user)
+          - POST /api/assets/:id/transfer (move to project)</task>
+        <task>4.3 Search and filtering:
+          - Search by tag, serial, name, description
+          - Filter by status, category, project, user
+          - Sort by any indexed field</task>
+        <task>4.4 Energy cost calculations:
+          - Calculate costs using Project rates
+          - Handle override rates if specified
+          - Sum project totals</task>
+      </detailed-tasks>
+      <deliverable>Full-featured asset API</deliverable>
+    </step>
+    
+    <step order="5">
+      <name>Update Project Endpoints</name>
+      <estimated-time>1-2 hours</estimated-time>
+      <detailed-tasks>
+        <task>5.1 Update Project DTOs:
+          - Add energy rate fields to UpdateProjectDto
+          - Add cost fields to ProjectResponseDto</task>
+        <task>5.2 Add Project calculations:
+          - GET /api/projects/:id/energy-summary
+          - GET /api/projects/:id/tco-summary  
+          - Calculate totals from child assets</task>
+        <task>5.3 Update Project service:
+          - Calculate total project costs from assets
+          - Update TCO when rates change</task>
+      </detailed-tasks>
+      <deliverable>Projects with cost/energy tracking</deliverable>
+    </step>
+    
+    <step order="6">
+      <name>Testing & Validation</name>
+      <estimated-time>2 hours</estimated-time>
+      <detailed-tasks>
+        <task>6.1 Fix linting issues:
+          ```bash
+          npm run lint --workspace=backend
+          ```</task>
+        <task>6.2 Fix TypeScript issues:
+          ```bash
+          npm run typecheck --workspace=backend
+          ```</task>
+        <task>6.3 Write basic tests:
+          - Asset creation with minimal fields
+          - Unique constraint on assetTag
+          - Soft delete functionality
+          - Energy cost calculations</task>
+        <task>6.4 Manual testing:
+          - Create asset with just tag and name
+          - Update with additional fields
+          - Test search and filters
+          - Verify calculations</task>
+      </detailed-tasks>
+      <deliverable>Tested, working API</deliverable>
+    </step>
+    
+    <step order="7">
+      <name>Frontend Integration</name>
+      <estimated-time>4-5 hours</estimated-time>
+      <detailed-tasks>
+        <task>7.1 Create API client:
+          - src/services/assetService.ts
+          - Types from backend DTOs</task>
+        <task>7.2 Asset list page:
+          - Table with pagination
+          - Search and filters
+          - Sort by columns</task>
+        <task>7.3 Asset form:
+          - Create with minimal fields
+          - Edit with all fields (tabbed interface?)
+          - Handle large number of fields gracefully</task>
+        <task>7.4 Project enhancements:
+          - Show energy rates in project details
+          - Display project TCO summary
+          - Asset count and total value</task>
+      </detailed-tasks>
+      <deliverable>Complete asset management UI</deliverable>
+    </step>
+    
+    <step order="8">
+      <name>Data Import Preparation</name>
+      <estimated-time>1 hour</estimated-time>
+      <detailed-tasks>
+        <task>8.1 Create import template:
+          - CSV with all field headers
+          - Example data row
+          - Instructions document</task>
+        <task>8.2 Implement export:
+          - GET /api/assets/export?format=csv
+          - Include all flattened fields</task>
+        <task>8.3 Document field mappings:
+          - Map CSV headers to database fields
+          - Note required vs optional
+          - Document validation rules</task>
+      </detailed-tasks>
+      <deliverable>Ready for Phase 2 (Import feature)</deliverable>
+    </step>
+    
+  </implementation-steps>
+  
+  <!-- ========== QUICK START COMMANDS ========== -->
+  <quick-start>
+    <title>Copy-Paste Commands to Get Started</title>
+    <commands>
+      ```bash
+      # 1. Start fresh from backend directory
+      cd apps/backend
+      
+      # 2. Generate Asset module structure
+      npx nest g module assets
+      npx nest g controller assets/controllers/assets  
+      npx nest g service assets/services/assets
+      
+      # 3. After updating schema.prisma, migrate
+      npx prisma migrate dev --name add_assets_and_project_costs
+      npx prisma generate
+      
+      # 4. Run quality checks frequently
+      npm run lint
+      npm run typecheck
+      npm test
+      
+      # 5. Start dev server
+      npm run start:dev
+      
+      # 6. View API docs
+      open http://localhost:3000/api-docs
+      ```
+    </commands>
+  </quick-start>
+
+  <!-- ========== FIELD RECONCILIATION TEMPLATE ========== -->
+  <field-reconciliation>
+    <instructions>
+      When user provides field list, we will:
+      1. Map each field to appropriate Prisma/PostgreSQL types
+      2. Identify required vs optional fields
+      3. Determine which fields need indexes
+      4. Define validation rules
+      5. Identify any calculated/derived fields
+      6. Determine enum values for categorical fields
+    </instructions>
+    
+    <mapping-template>
+      <!-- Template for field mapping -->
+      <field-map>
+        <source-field></source-field>
+        <proposed-name></proposed-name>
+        <data-type></data-type>
+        <prisma-type></prisma-type>
+        <required></required>
+        <indexed></indexed>
+        <validation></validation>
+        <notes></notes>
+      </field-map>
+    </mapping-template>
+  </field-reconciliation>
+
+  <!-- ========== NOTES AND CONSIDERATIONS ========== -->
+  <considerations>
+    
+    <security>
+      - All endpoints require authentication
+      - Users can only see assets in their projects
+      - Role-based permissions for create/update/delete
+      - Audit trail for all changes
+    </security>
+    
+    <performance>
+      - Index frequently queried fields
+      - Use pagination for list endpoints
+      - Include only necessary relations
+      - Consider caching for read-heavy operations
+    </performance>
+    
+    <business-rules>
+      - Asset tags must be unique system-wide
+      - Assets can only be assigned to active users
+      - Disposed assets cannot be modified
+      - Maintain history of asset assignments
+    </business-rules>
+    
+    <future-enhancements>
+      - Asset maintenance scheduling
+      - Depreciation tracking
+      - QR code generation for asset tags
+      - Mobile app for asset scanning
+      - Integration with procurement system
+    </future-enhancements>
+    
+  </considerations>
+
+</asset-feature-guide>

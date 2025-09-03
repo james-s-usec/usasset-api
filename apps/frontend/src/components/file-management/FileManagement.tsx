@@ -20,6 +20,8 @@ interface MainContentProps {
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview: (fileId: string) => Promise<string>;
+  getFileContent: (fileId: string) => Promise<string>;
   onRefresh: () => Promise<void>;
   onErrorClose: () => void;
 }
@@ -31,6 +33,8 @@ const MainContent: React.FC<MainContentProps> = ({
   onFileUpload,
   onDownload,
   onDelete,
+  onPreview,
+  getFileContent,
   onRefresh,
   onErrorClose
 }) => (
@@ -44,6 +48,8 @@ const MainContent: React.FC<MainContentProps> = ({
       files={files}
       onDownload={onDownload}
       onDelete={onDelete}
+      onPreview={onPreview}
+      getFileContent={getFileContent}
       onRefresh={onRefresh}
     />
   </Box>
@@ -67,6 +73,8 @@ export const FileManagement: React.FC = () => {
       onFileUpload={state.handleFileUpload}
       onDownload={state.handleDownload}
       onDelete={state.handleDelete}
+      onPreview={state.handlePreview}
+      getFileContent={state.getFileContent}
       onRefresh={state.loadFiles}
       onErrorClose={() => state.setError(null)}
     />

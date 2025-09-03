@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, act } from '@testing-library/react';
 import App from './App';
 import { renderWithProviders } from './test/test-utils';
 import { waitForDbReady, expectElementByRole, expectElementByText } from './test/test-helpers';
@@ -25,7 +25,9 @@ describe('App Component', () => {
     const viewUsersButton = screen.getByRole('button', { name: 'View Users' });
     expectElementByRole('button', 'View Users');
     
-    fireEvent.click(viewUsersButton);
+    await act(async () => {
+      fireEvent.click(viewUsersButton);
+    });
     expectElementByText('User Management');
   });
 
