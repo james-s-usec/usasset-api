@@ -121,3 +121,25 @@ enum ProjectRole {
   MEMBER
   VIEWER
 }
+
+model File {
+  id            String   @id @default(uuid())
+  filename      String
+  original_name String
+  mimetype      String
+  size          Int
+  blob_url      String
+  container_name String
+  blob_name     String
+  is_deleted    Boolean  @default(false)
+  created_at    DateTime @default(now())
+  created_by    String?
+  updated_at    DateTime @updatedAt
+  updated_by    String?
+  deleted_at    DateTime?
+  deleted_by    String?
+  
+  @@index([created_at])
+  @@index([is_deleted])
+  @@map("files")
+}

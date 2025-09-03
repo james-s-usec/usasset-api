@@ -39,6 +39,20 @@ export const validationSchema = Joi.object({
   }),
 
   API_KEY: Joi.string().optional(),
+
+  // File upload configuration
+  AZURE_STORAGE_CONNECTION_STRING: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required().messages({
+      'any.required':
+        'AZURE_STORAGE_CONNECTION_STRING is required in production (should be injected from Azure Key Vault)',
+    }),
+    otherwise: Joi.optional(),
+  }),
+
+  AZURE_STORAGE_CONTAINER_NAME: Joi.string().default('uploads').messages({
+    'string.base': 'AZURE_STORAGE_CONTAINER_NAME must be a string',
+  }),
 }).options({
   abortEarly: false, // Show all validation errors, not just the first one
 });

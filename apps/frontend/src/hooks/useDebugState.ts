@@ -18,6 +18,36 @@ interface UseDebugStateOptions<T> {
   compareFunction?: (prev: T, next: T) => boolean;
 }
 
+// Helper function for creating debug state setter
+function createDebugStateSetter<T>(
+  setValueInternal: React.Dispatch<React.SetStateAction<T>>,
+  refs: {
+    prevValue: React.MutableRefObject<T>;
+    logOnlyChanged: React.MutableRefObject<boolean>;
+    compareFunction: React.MutableRefObject<((prev: T, next: T) => boolean) | undefined>;
+    logStats: React.MutableRefObject<(hasChanged: boolean, prev: unknown, next: unknown, isFunc: boolean) => void>;
+  }
+) {
+  return (newValue: T | ((prev: T) => T)): void => {
+    setValueInternal((prev: T) => {
+      const isFunc = typeof newValue === 'function';
+      const next = isFunc ? (newValue as (prev: T) => T)(prev) : newValue;
+      
+      const hasChanged = refs.compareFunction.current ? 
+        !refs.compareFunction.current(prev, next) :
+        prev !== next;
+
+      if (!hasChanged && refs.logOnlyChanged.current) return prev;
+      
+      if (hasChanged || !refs.logOnlyChanged.current) {
+        refs.logStats.current(hasChanged, prev, next, isFunc);
+      }
+      refs.prevValue.current = next;
+      return next;
+    });
+  };
+}
+
 export function useDebugState<T>(
   initialValue: T,
   options: UseDebugStateOptions<T>
@@ -27,52 +57,30 @@ export function useDebugState<T>(
   const shouldDebug = config.debug.enabled && config.debug.consoleEnabled;
   const [value, setValueInternal] = useState<T>(initialValue);
   
-  // Always call hooks - React requirement
   const prevValueRef = useRef<T>(initialValue);
-  const { logStats } = useDebugStateLogger({
-    componentName,
-    name,
-    initialValue,
-    logAllChanges,
-    disabled: !shouldDebug
-  });
-
-  // Early return after all hooks are called
-  if (!shouldDebug) {
-    return [value, setValueInternal];
-  }
-
-  // Use refs to keep stable references
   const logOnlyChangedRef = useRef(logOnlyChanged);
   const compareFunctionRef = useRef(compareFunction);
+  const { logStats } = useDebugStateLogger({
+    componentName, name, initialValue, logAllChanges, disabled: !shouldDebug
+  });
   const logStatsRef = useRef(logStats);
   
-  // Update refs when dependencies change
   useEffect(() => {
     logOnlyChangedRef.current = logOnlyChanged;
     compareFunctionRef.current = compareFunction;
     logStatsRef.current = logStats;
   }, [logOnlyChanged, compareFunction, logStats]);
 
-  const setValue = useCallback((newValue: T | ((prev: T) => T)): void => {
-    setValueInternal((prev: T) => {
-      const isFunc = typeof newValue === 'function';
-      const next = isFunc ? (newValue as (prev: T) => T)(prev) : newValue;
-      
-      const hasChanged = compareFunctionRef.current ? 
-        !compareFunctionRef.current(prev, next) :
-        prev !== next;
+  const setValue = useCallback(() => createDebugStateSetter(setValueInternal, {
+    prevValue: prevValueRef,
+    logOnlyChanged: logOnlyChangedRef,
+    compareFunction: compareFunctionRef,
+    logStats: logStatsRef
+  }), []);
 
-      if (!hasChanged && logOnlyChangedRef.current) return prev;
-      
-      // Only log if actually changing
-      if (hasChanged || !logOnlyChangedRef.current) {
-        logStatsRef.current(hasChanged, prev, next, isFunc);
-      }
-      prevValueRef.current = next;
-      return next;
-    });
-  }, []); // Empty deps - stable reference!
+  if (!shouldDebug) {
+    return [value, setValueInternal];
+  }
 
   return [value, setValue];
 }

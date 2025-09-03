@@ -14,21 +14,23 @@ interface ProjectMemberItemProps {
   onRemoveMember: (memberId: string) => Promise<void>;
 }
 
+// Helper component for unknown user case
+const UnknownUserItem: React.FC = () => (
+  <ListItem divider>
+    <ListItemText
+      primary="Unknown User"
+      secondary="User data not available"
+    />
+  </ListItem>
+);
+
 export const ProjectMemberItem: React.FC<ProjectMemberItemProps> = ({
   member,
   onUpdateRole,
   onRemoveMember,
 }) => {
-  // Handle case where user data is not populated
   if (!member.user) {
-    return (
-      <ListItem divider>
-        <ListItemText
-          primary="Unknown User"
-          secondary="User data not available"
-        />
-      </ListItem>
-    );
+    return <UnknownUserItem />;
   }
 
   return (

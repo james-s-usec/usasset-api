@@ -13,6 +13,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 import { LogsModule } from './logs/logs.module';
 import { ProjectModule } from './features/projects/project.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ProjectModule } from './features/projects/project.module';
     HealthModule,
     LogsModule,
     ProjectModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [AppService, GlobalExceptionFilter, ResponseTransformInterceptor],

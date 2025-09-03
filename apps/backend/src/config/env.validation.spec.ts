@@ -26,6 +26,8 @@ function getProdConfig(): Record<string, unknown> {
     DATABASE_URL: 'postgresql://server.postgres.database.azure.com/usasset',
     CORS_ORIGIN: 'https://frontend.azurecontainerapps.io',
     JWT_SECRET: 'from-key-vault',
+    AZURE_STORAGE_CONNECTION_STRING:
+      'DefaultEndpointsProtocol=https;AccountName=test',
   };
 }
 
@@ -38,6 +40,8 @@ function getAzureConfig(): Record<string, unknown> {
     CORS_ORIGIN: 'https://frontend.azurecontainerapps.io',
     JWT_SECRET: 'secretref:jwt-secret', // Key Vault reference
     API_KEY: 'secretref:api-key', // Key Vault reference
+    AZURE_STORAGE_CONNECTION_STRING:
+      'secretref:azure-storage-connection-string',
   };
 }
 

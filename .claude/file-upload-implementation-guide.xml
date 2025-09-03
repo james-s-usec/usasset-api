@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<file-upload-feature-implementation version="1.0" date="2025-09-03">
+  
+  <feature-overview>
+    <name>Azure Blob Storage File Upload</name>
+    <description>Generic file upload system with Azure Blob Storage backend and database metadata tracking</description>
+    <tech-stack>NestJS backend, React frontend, Azure Blob Storage, PostgreSQL</tech-stack>
+    <architecture-pattern>Clean architecture with interface boundaries</architecture-pattern>
+  </feature-overview>
+
+  <yagni-boundaries>
+    
+    <concrete-implementation priority="CRITICAL">
+      <service>AzureBlobStorageService</service>
+      <purpose>Upload/download files, save metadata to database</purpose>
+      <methods>
+        - upload(file: Express.Multer.File): Promise&lt;FileEntity&gt;
+        - getDownloadUrl(fileId: string): Promise&lt;string&gt;
+        - delete(fileId: string): Promise&lt;void&gt;
+      </methods>
+      <no-abstraction>Direct implementation - add interfaces when second storage needed</no-abstraction>
+    </concrete-implementation>
+
+    <configuration priority="HIGH">
+      <source>Environment variables (development) + Azure Key Vault (production)</source>
+      <validation>Joi schema in existing env.validation.ts</validation>
+      <required-vars>
+        - AZURE_STORAGE_CONNECTION_STRING
+        - AZURE_STORAGE_CONTAINER_NAME
+      </required-vars>
+    </configuration>
+
+  </yagni-boundaries>
+
+  <secrets-and-keys-management>
+    
+    <development-secrets>
+      <location>.env file (local development only)</location>
+      <required-variables>
+        - AZURE_STORAGE_CONNECTION_STRING
+        - AZURE_STORAGE_CONTAINER_NAME=uploads
+        - MAX_FILE_SIZE_MB=10
+        - ALLOWED_MIME_TYPES=image/jpeg,image/png,application/pdf
+      </required-variables>
+      <security-note>Never commit .env to repository</security-note>
+    </development-secrets>
+
+    <production-secrets>
+      <location>Azure Key Vault</location>
+      <vault-name>usasset-kv-yf2eqktewmxp2</vault-name>
+      <secret-names>
+        - azure-storage-connection-string
+        - azure-storage-container-name
+      </secret-names>
+      <access-method>Container Apps managed identity</access-method>
+      <setup-commands>
+        # Create storage account
+        az storage account create --name usassetstorageaccount --resource-group useng-usasset-api-rg --location eastus --sku Standard_LRS --kind StorageV2
+        
+        # Create blob container
+        az storage container create --name uploads --account-name usassetstorageaccount --public-access off
+        
+        # Get connection string and add to Key Vault
+        CONN_STRING=$(az storage account show-connection-string --name usassetstorageaccount --resource-group useng-usasset-api-rg --output tsv)
+        az keyvault secret set --vault-name usasset-kv-yf2eqktewmxp2 --name azure-storage-connection-string --value "$CONN_STRING"
+        az keyvault secret set --vault-name usasset-kv-yf2eqktewmxp2 --name azure-storage-container-name --value "uploads"
+        
+        # Update Container App
+        az containerapp update --name backend --resource-group useng-usasset-api-rg --set-env-vars "AZURE_STORAGE_CONNECTION_STRING=secretref:azure-storage-connection-string" "AZURE_STORAGE_CONTAINER_NAME=secretref:azure-storage-container-name"
+      </setup-commands>
+    </production-secrets>
+
+    <configuration-validation>
+      <validator>Joi schema in env.validation.ts</validator>
+      <fail-fast>Application fails to start if secrets missing</fail-fast>
+      <logging>Logs [SET]/[NOT SET] status without revealing values</logging>
+    </configuration-validation>
+
+  </secrets-and-keys-management>
+
+  <implementation-checklist>
+    
+    <phase name="backend-foundation" priority="1">
+      <tasks>
+        <task>Add @azure/storage-blob and multer dependencies</task>
+        <task>Create File entity in Prisma schema</task>
+        <task>Generate and run database migration</task>
+        <task>Add storage config to env.validation.ts</task>
+        <task>Update .env.example with storage variables</task>
+      </tasks>
+      <verification>npm run ci passes, migration applies cleanly</verification>
+    </phase>
+
+    <phase name="storage-layer" priority="2">
+      <tasks>
+        <task>Create IFileStorageService interface</task>
+        <task>Implement AzureBlobStorageService</task>
+        <task>Create storage configuration module</task>
+        <task>Add file validation utilities</task>
+        <task>Create file repository with Prisma</task>
+      </tasks>
+      <verification>Unit tests pass, configuration validates</verification>
+    </phase>
+
+    <phase name="api-layer" priority="3">
+      <tasks>
+        <task>Create files module with controller/service</task>
+        <task>Add multer configuration for uploads</task>
+        <task>Implement POST /api/files endpoint</task>
+        <task>Implement GET /api/files/:id/download endpoint</task>
+        <task>Implement DELETE /api/files/:id endpoint</task>
+        <task>Add Swagger documentation</task>
+      </tasks>
+      <verification>API endpoints work with Postman/curl</verification>
+    </phase>
+
+    <phase name="frontend-integration" priority="4">
+      <tasks>
+        <task>Create file upload hook (useFileUpload)</task>
+        <task>Create drag-drop upload component</task>
+        <task>Add progress indicator for uploads</task>
+        <task>Add file list component with download/delete</task>
+        <task>Integrate with existing forms</task>
+      </tasks>
+      <verification>End-to-end upload/download works in browser</verification>
+    </phase>
+
+    <phase name="production-deployment" priority="5">
+      <tasks>
+        <task>Create Azure Storage Account</task>
+        <task>Add secrets to Azure Key Vault</task>
+        <task>Update Container Apps environment config</task>
+        <task>Test upload/download in production</task>
+        <task>Add monitoring and error logging</task>
+      </tasks>
+      <verification>Production upload works, logs show success</verification>
+    </phase>
+
+  </implementation-checklist>
+
+  <file-structure-template>
+    <backend>
+      src/files/
+      ├── interfaces/
+      │   ├── file-storage.interface.ts
+      │   ├── file-repository.interface.ts
+      │   └── storage-config.interface.ts
+      ├── services/
+      │   ├── azure-blob-storage.service.ts
+      │   ├── file-validation.service.ts
+      │   └── files.service.ts
+      ├── repositories/
+      │   └── prisma-file.repository.ts
+      ├── controllers/
+      │   └── files.controller.ts
+      ├── dto/
+      │   ├── upload-file.dto.ts
+      │   ├── file-response.dto.ts
+      │   └── file-metadata.dto.ts
+      ├── config/
+      │   └── storage.config.ts
+      └── files.module.ts
+    </backend>
+    <frontend>
+      src/components/files/
+      ├── FileUpload.tsx
+      ├── FileDragDrop.tsx
+      ├── FileList.tsx
+      ├── FileProgress.tsx
+      └── index.ts
+      src/hooks/
+      ├── useFileUpload.ts
+      ├── useFileList.ts
+      └── useFileOperations.ts
+      src/services/
+      └── files.api.ts
+    </frontend>
+  </file-structure-template>
+
+  <error-handling-strategy>
+    
+    <validation-errors>
+      <file-size>413 Payload Too Large</file-size>
+      <mime-type>415 Unsupported Media Type</mime-type>
+      <malformed-upload>400 Bad Request</malformed-upload>
+    </validation-errors>
+
+    <storage-errors>
+      <connection-failed>503 Service Unavailable</connection-failed>
+      <quota-exceeded>507 Insufficient Storage</quota-exceeded>
+      <blob-not-found>404 Not Found</blob-not-found>
+    </storage-errors>
+
+    <security-measures>
+      <virus-scanning>Future enhancement</virus-scanning>
+      <content-type-validation>Required - check magic bytes</content-type-validation>
+      <filename-sanitization>Required - remove path traversal</filename-sanitization>
+    </security-measures>
+
+  </error-handling-strategy>
+
+  <testing-strategy>
+    
+    <unit-tests>
+      <storage-service>Mock Azure SDK, test upload/download logic</storage-service>
+      <validation-service>Test file type/size validation</validation-service>
+      <repository>Test database operations with test DB</repository>
+    </unit-tests>
+
+    <integration-tests>
+      <api-endpoints>Test with real file uploads using supertest</api-endpoints>
+      <azure-integration>Test with Azure Storage Emulator (Azurite)</azure-integration>
+    </integration-tests>
+
+    <e2e-tests>
+      <frontend-upload>Cypress test for drag-drop upload</frontend-upload>
+      <download-flow>Test file upload → download → delete workflow</download-flow>
+    </e2e-tests>
+
+  </testing-strategy>
+
+  <deployment-considerations>
+    
+    <azure-resources-required>
+      <storage-account>General Purpose v2, Standard performance</storage-account>
+      <blob-container>Private access, configured for uploads</blob-container>
+      <key-vault-secrets>Connection string and container name</key-vault-secrets>
+    </azure-resources-required>
+
+    <container-configuration>
+      <volume-mounts>Not required - files stored in Azure Blob</volume-mounts>
+      <memory-limits>Consider file upload size for memory allocation</memory-limits>
+      <timeout-settings>Increase request timeout for large file uploads</timeout-settings>
+    </container-configuration>
+
+    <monitoring-and-logging>
+      <azure-insights>Track upload success/failure rates</azure-insights>
+      <custom-metrics>File size distribution, upload duration</custom-metrics>
+      <error-tracking>Correlation IDs for failed uploads</error-tracking>
+    </monitoring-and-logging>
+
+  </deployment-considerations>
+
+  <success-criteria>
+    
+    <functionality>
+      <upload>Users can upload files via drag-drop or file picker</upload>
+      <download>Users can download files with secure URLs</download>
+      <metadata>File metadata correctly stored in database</metadata>
+      <validation>Invalid files rejected with clear error messages</validation>
+    </functionality>
+
+    <performance>
+      <upload-speed>10MB file uploads in under 30 seconds</upload-speed>
+      <concurrent-uploads>Handle 10+ simultaneous uploads</concurrent-uploads>
+      <memory-usage>No memory leaks during file processing</memory-usage>
+    </performance>
+
+    <security>
+      <access-control>Only authenticated users can upload/download</access-control>
+      <file-validation>Malicious files detected and rejected</file-validation>
+      <secure-urls>Download URLs expire and cannot be shared</secure-urls>
+    </security>
+
+  </success-criteria>
+
+</file-upload-feature-implementation>
