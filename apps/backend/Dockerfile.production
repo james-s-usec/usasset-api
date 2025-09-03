@@ -132,8 +132,8 @@ COPY --chown=root:root apps/backend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Security: Set proper permissions
-# Ensure the nodejs user owns the app directory
-RUN chown -R nodejs:nodejs /app
+# Individual files already copied with correct ownership via --chown flags
+# No need for recursive chown which can hang on large node_modules
 
 # Security: Switch to non-root user
 USER nodejs

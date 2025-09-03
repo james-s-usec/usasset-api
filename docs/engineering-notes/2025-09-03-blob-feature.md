@@ -76,6 +76,8 @@
 - **CORS deep understanding**: Browser `fetch()` to external domains triggers CORS, but `<img src="">` doesn't #learned
 - **TypeScript stream handling**: Azure Blob `readableStreamBody` can be `undefined`, requires null checking #learned
 - **Response format consistency**: Backend has global response wrapper - all endpoints return `{success, data}` format #learned
+- **Production sync issue**: Blob storage and database can get out of sync during deployments - refresh should always sync first #learned
+- **Debugging methodology**: Always test API directly with curl before debugging frontend - isolates the issue layer #learned
 
 ### 16:30 - CSV Preview Feature Implementation #solution #learned
 **What**: Completed full CSV preview functionality with secure content fetching
@@ -101,10 +103,21 @@
 **Solution**: Created backend proxy endpoint that fetches content server-side and returns to frontend
 **Prevention**: Always proxy external service calls through backend API for security and CORS compliance
 
+### 17:00 - Production Refresh Button Bug #problem #solution  
+**Issue**: Production refresh button not showing all uploaded files (only 1 of 5 files visible)
+**Debugging**:
+  1. API test showed backend healthy, returning 1 file from database
+  2. Manual sync endpoint returned: `{"added": 4, "marked_deleted": 0, "already_synced": 1}`
+  3. Root cause: Refresh button only calls `GET /api/files` (database query), doesn't sync blob storage
+**Solution**: Modified `fetchFiles()` to automatically call sync endpoint before database query
+**Prevention**: Refresh operations should always reconcile external storage with database
+**Learned**: Production blob storage can get out of sync with database during deployments #learned
+
 ## Tomorrow's Priority
-1. Add PDF preview capability (using embedded viewer or PDF.js) 
-2. Add XLSX preview with sheet navigation
-3. Test CSV preview with larger files and edge cases
+1. **Deploy frontend fix to Azure** - refresh button blob storage sync
+2. Add PDF preview capability (using embedded viewer or PDF.js) 
+3. Add XLSX preview with sheet navigation
+4. Test CSV preview with larger files and edge cases
 
 ## Technical Details for Next Session
 

@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<claude-code-feature-prompt version="1.0" date="2025-09-03" feature="file-metadata-organization">
+  
+  <feature-identity>
+    <name>File Metadata and Project Organization System</name>
+    <purpose>Add flexible metadata fields and project linking to the file management system</purpose>
+    <scope>Backend API, Frontend UI, Database schema extensions</scope>
+    <complexity>Medium - requires database changes, API extensions, and UI enhancements</complexity>
+  </feature-identity>
+
+  <current-state>
+    <implemented>
+      <item>Basic file management (upload, download, delete, list)</item>
+      <item>Image preview with secure SAS URLs</item>
+      <item>CSV preview with backend content proxy</item>
+      <item>Azure Blob Storage integration</item>
+      <item>File table with mimetype, size, dates</item>
+    </implemented>
+    
+    <missing>
+      <item>File metadata storage and management</item>
+      <item>Project association for files</item>
+      <item>Tag system for categorization</item>
+      <item>Custom fields for domain-specific data</item>
+      <item>Filtering and search by metadata</item>
+      <item>Metadata editing UI</item>
+    </missing>
+  </current-state>
+
+  <technical-approach>
+    
+    <database-design priority="FIRST">
+      <approach>JSON metadata column + project foreign key</approach>
+      <rationale>
+        - PostgreSQL JSONB provides flexibility and performance
+        - Single column addition minimizes schema complexity
+        - Project FK enables relational queries
+        - Can query JSON fields: WHERE metadata->>'department' = 'Engineering'
+      </rationale>
+      
+      <schema-changes>
+        <prisma-update>
+          <![CDATA[
+          model File {
+            id            String   @id @default(uuid())
+            // ... existing fields
+            metadata      Json     @default("{}")
+            project_id    String?
+            project       Project? @relation(fields: [project_id], references: [id])
+            
+            @@index([project_id])
+            @@index([(metadata->>department)])  // Example JSON index
+            @@map("files")
+          }
+          
+          model Project {
+            id          String @id @default(uuid())
+            name        String @unique
+            description String?
+            files       File[]
+            created_at  DateTime @default(now())
+            updated_at  DateTime @updatedAt
+            
+            @@map("projects")  
+          }
+          ]]>
+        </prisma-update>
+      </schema-changes>
+      
+      <metadata-structure>
+        <![CDATA[
+        {
+          "tags": ["equipment", "hvac", "maintenance"],
+          "department": "Engineering", 
+          "asset_category": "Mechanical",
+          "custom_fields": {
+            "equipment_id": "HVAC-001",
+            "location": "Building A, Floor 2",
+            "last_updated_by": "john.doe@company.com",
+            "priority": "high",
+            "status": "active"
+          },
+          "approval_status": "pending",
+          "version": "1.2",
+          "created_by": "user-id",
+          "last_modified": "2025-09-03T10:30:00Z"
+        }
+        ]]>
+      </metadata-structure>
+    </database-design>
+
+    <backend-api priority="SECOND">
+      <new-endpoints>
+        <endpoint method="GET" path="/api/projects" description="List all projects"/>
+        <endpoint method="POST" path="/api/projects" description="Create new project"/>
+        <endpoint method="GET" path="/api/projects/:id/files" description="Get files for project"/>
+        <endpoint method="PUT" path="/api/files/:id/metadata" description="Update file metadata"/>
+        <endpoint method="GET" path="/api/files?project_id=xxx" description="Filter files by project"/>
+        <endpoint method="GET" path="/api/files?tags=tag1,tag2" description="Filter by tags"/>
+        <endpoint method="GET" path="/api/files?metadata[department]=Engineering" description="Filter by metadata fields"/>
+      </new-endpoints>
+      
+      <dto-updates>
+        <![CDATA[
+        export class UpdateFileMetadataDto {
+          project_id?: string;
+          metadata?: {
+            tags?: string[];
+            department?: string;
+            asset_category?: string;
+            custom_fields?: Record<string, any>;
+            approval_status?: 'pending' | 'approved' | 'rejected';
+            [key: string]: any;
+          };
+        }
+        
+        export class FileResponseDto {
+          // ... existing fields
+          metadata: Record<string, any>;
+          project_id?: string;
+          project?: { id: string; name: string; };
+        }
+        
+        export class CreateProjectDto {
+          name: string;
+          description?: string;
+        }
+        ]]>
+      </dto-updates>
+    </backend-api>
+
+    <frontend-ui priority="THIRD">
+      <components-needed>
+        <component name="FileMetadataDialog" purpose="Edit file metadata and project assignment"/>
+        <component name="ProjectSelector" purpose="Dropdown for selecting projects"/>
+        <component name="TagInput" purpose="Add/remove tags with autocomplete"/>
+        <component name="MetadataDisplay" purpose="Show file metadata in table row"/>
+        <component name="FileFilters" purpose="Filter files by project, tags, metadata"/>
+      </components-needed>
+      
+      <ui-enhancements>
+        <enhancement location="FileTableRow" description="Add metadata column and edit button"/>
+        <enhancement location="FileTable" description="Add filtering controls above table"/>
+        <enhancement location="FileUploadSection" description="Add project selection during upload"/>
+        <enhancement location="FileManagement" description="Add project creation/management"/>
+      </ui-enhancements>
+    </frontend-ui>
+
+  </technical-approach>
+
+  <tracer-bullet approach="RECOMMENDED" estimated-effort="35 minutes">
+    
+    <concept>
+      <name>Tag a File with a Project</name>
+      <path>Upload CSV → Assign to "Engineering" project → Filter by project → See tagged file</path>
+      <rationale>
+        - Minimal viable slice through all layers (DB → API → UI)
+        - Immediate user value for basic file organization
+        - Proves core architecture (JSON metadata + project linking)
+        - Builds on existing CSV preview feature
+        - Fast feedback loop for validation
+      </rationale>
+    </concept>
+
+    <implementation-sequence>
+      
+      <step number="1" duration="5 minutes" layer="DATABASE">
+        <name>Add Core Columns</name>
+        <actions>
+          <action>ALTER TABLE files ADD COLUMN project_id STRING;</action>
+          <action>ALTER TABLE files ADD COLUMN metadata JSONB DEFAULT '{}';</action>
+          <action>CREATE TABLE projects (id STRING PRIMARY KEY, name STRING);</action>
+          <action>INSERT INTO projects VALUES ('eng-001', 'Engineering');</action>
+        </actions>
+        <validation>Query database to confirm columns exist and project inserted</validation>
+      </step>
+
+      <step number="2" duration="10 minutes" layer="BACKEND">
+        <name>Project Assignment API</name>
+        <actions>
+          <action>Add PUT /api/files/:id/project-assignment endpoint</action>
+          <action>Create DTO: { project_id: string, metadata?: object }</action>
+          <action>Update file service to handle project assignment</action>
+          <action>Add project_id to file response DTOs</action>
+        </actions>
+        <validation>Test endpoint with curl: assign file to Engineering project</validation>
+      </step>
+
+      <step number="3" duration="15 minutes" layer="FRONTEND">
+        <name>Project Assignment UI</name>
+        <actions>
+          <action>Add project column to FileTable</action>
+          <action>Create simple ProjectAssignButton component</action>
+          <action>Add project dropdown (hardcoded "Engineering" option)</action>
+          <action>Wire up project assignment API call</action>
+        </actions>
+        <validation>Click button, select project, see project name appear in table</validation>
+      </step>
+
+      <step number="4" duration="5 minutes" layer="INTEGRATION">
+        <name>End-to-End Validation</name>
+        <actions>
+          <action>Upload existing CSV file</action>
+          <action>Assign to Engineering project via UI</action>
+          <action>Verify persistence with page refresh</action>
+          <action>Test basic filtering (show only Engineering files)</action>
+        </actions>
+        <validation>Complete user workflow works without errors</validation>
+      </step>
+
+    </implementation-sequence>
+
+    <success-criteria priority="CRITICAL">
+      <criterion>✅ Can assign any file to "Engineering" project</criterion>
+      <criterion>✅ File table shows project name in new column</criterion>
+      <criterion>✅ Can filter to show only "Engineering" files</criterion>
+      <criterion>✅ Metadata persists in database as JSON</criterion>
+      <criterion>✅ Assignment survives page refresh</criterion>
+      <criterion>✅ No breaking changes to existing functionality</criterion>
+    </success-criteria>
+
+    <what-this-proves>
+      <proof>JSON metadata storage architecture works</proof>
+      <proof>Project relationships function correctly</proof>
+      <proof>UI integration is smooth and intuitive</proof>
+      <proof>Database filtering/querying performs adequately</proof>
+      <proof>Foundation is ready for tags, custom fields, advanced features</proof>
+    </what-this-proves>
+
+  </tracer-bullet>
+
+  <implementation-phases note="FULL FEATURE - Use after tracer bullet validates approach">
+    
+    <phase number="1" priority="CRITICAL" estimated-effort="2-3 hours">
+      <name>Database Foundation</name>
+      <deliverables>
+        <item>Complete Prisma schema updates (File + Project models)</item>
+        <item>Database migration for all metadata fields</item>
+        <item>Seed data for multiple projects and categories</item>
+        <item>JSON indexing for performance</item>
+      </deliverables>
+      <success-criteria>
+        <item>Migration runs cleanly</item>
+        <item>Can create projects and link files</item>
+        <item>JSON metadata queries work in database</item>
+        <item>Performance acceptable with 1000+ files</item>
+      </success-criteria>
+    </phase>
+
+    <phase number="2" priority="HIGH" estimated-effort="3-4 hours">
+      <name>Backend API Extensions</name>
+      <deliverables>
+        <item>Full Project CRUD endpoints and services</item>
+        <item>Complete metadata management endpoints</item>
+        <item>Advanced filtering with multiple criteria</item>
+        <item>Bulk operations for metadata updates</item>
+        <item>Updated DTOs and Swagger documentation</item>
+      </deliverables>
+      <success-criteria>
+        <item>All endpoints documented in Swagger</item>
+        <item>Can filter files by project_id and metadata fields</item>
+        <item>Metadata updates persist correctly</item>
+        <item>Bulk operations work efficiently</item>
+        <item>All quality gates pass (lint, typecheck, tests)</item>
+      </success-criteria>
+    </phase>
+
+    <phase number="3" priority="MEDIUM" estimated-effort="4-5 hours">
+      <name>Frontend UI Implementation</name>
+      <deliverables>
+        <item>Full FileMetadataDialog component for editing</item>
+        <item>ProjectSelector and TagInput components</item>
+        <item>Enhanced FileTableRow with all metadata display</item>
+        <item>Advanced filtering controls in FileManagement</item>
+        <item>Bulk selection and metadata operations</item>
+      </deliverables>
+      <success-criteria>
+        <item>Can edit file metadata through comprehensive UI</item>
+        <item>Can filter files by project, tags, and custom fields</item>
+        <item>Upload flow includes project selection</item>
+        <item>Bulk operations work through UI</item>
+        <item>UI matches existing design patterns</item>
+      </success-criteria>
+    </phase>
+
+  </implementation-phases>
+
+  <architectural-decisions>
+    
+    <decision name="json-vs-relational-metadata">
+      <chosen>JSON metadata column</chosen>
+      <alternatives>
+        <option>Separate metadata tables (FileTag, FileMetadata)</option>
+        <option>EAV (Entity-Attribute-Value) pattern</option>
+      </alternatives>
+      <rationale>
+        - JSONB provides flexibility for varying metadata schemas
+        - Single column reduces join complexity  
+        - PostgreSQL JSONB has excellent query performance and indexing
+        - Easier to evolve metadata structure over time
+      </rationale>
+      <trade-offs>
+        - Less rigid validation than separate tables
+        - Need to handle JSON parsing in application layer
+      </trade-offs>
+    </decision>
+
+    <decision name="project-relationship">
+      <chosen>Optional foreign key to Project table</chosen>
+      <alternatives>
+        <option>Project as metadata field only</option>
+        <option>Many-to-many relationship</option>
+      </alternatives>
+      <rationale>
+        - Enables referential integrity and cascading deletes
+        - Allows for project-based queries and statistics
+        - Simple one-to-many covers most use cases
+        - Can be extended to many-to-many if needed later
+      </rationale>
+      <trade-offs>
+        - Requires additional table and migration
+        - Files can only belong to one project initially
+      </trade-offs>
+    </decision>
+
+  </architectural-decisions>
+
+  <quality-gates>
+    
+    <code-quality>
+      <requirement>All new functions under 30 lines</requirement>
+      <requirement>TypeScript strict mode compliance</requirement>
+      <requirement>ESLint passing with project rules</requirement>
+      <requirement>No broken windows - fix issues immediately</requirement>
+    </code-quality>
+
+    <testing>
+      <requirement>API endpoints tested with valid/invalid metadata</requirement>
+      <requirement>JSON query filtering tested</requirement>
+      <requirement>Project association tested</requirement>
+      <requirement>Frontend metadata editing flow tested</requirement>
+    </testing>
+
+    <performance>
+      <requirement>Metadata queries under 100ms for 1000+ files</requirement>
+      <requirement>JSON indexing for common filter fields</requirement>
+      <requirement>Pagination for project file listings</requirement>
+    </performance>
+
+  </quality-gates>
+
+  <potential-challenges>
+    
+    <challenge name="metadata-schema-evolution" risk="MEDIUM">
+      <description>Handling changes to metadata structure over time</description>
+      <mitigation>Version metadata objects, provide migration utilities</mitigation>
+    </challenge>
+
+    <challenge name="json-query-complexity" risk="MEDIUM">  
+      <description>Complex filtering across JSON fields may impact performance</description>
+      <mitigation>Create indexes on commonly queried JSON paths, use view caching</mitigation>
+    </challenge>
+
+    <challenge name="ui-flexibility-vs-structure" risk="LOW">
+      <description>Balancing flexible metadata with structured UI forms</description>
+      <mitigation>Provide both structured fields and free-form custom_fields section</mitigation>
+    </challenge>
+
+  </potential-challenges>
+
+  <success-metrics>
+    
+    <functional>
+      <metric>Files can be assigned to projects through UI</metric>
+      <metric>Metadata can be added/edited through dialog</metric>
+      <metric>Files can be filtered by project, tags, and custom fields</metric>
+      <metric>Bulk operations work with metadata-filtered selections</metric>
+    </functional>
+
+    <technical>
+      <metric>Database queries perform within 100ms for 1000+ files</metric>
+      <metric>All API endpoints documented and tested</metric>
+      <metric>Frontend components follow existing design system</metric>
+      <metric>No performance regression in file listing</metric>
+    </technical>
+
+    <user-experience>
+      <metric>Metadata editing is intuitive and validates input</metric>
+      <metric>Project selection is available during upload flow</metric>
+      <metric>Filtering provides immediate visual feedback</metric>
+      <metric>Bulk metadata updates work efficiently</metric>
+    </user-experience>
+
+  </success-metrics>
+
+  <ideal-context-for-implementation>
+    
+    <setup>
+      <item>USAsset project open with working backend/frontend dev servers</item>
+      <item>Database running locally with existing file data</item>
+      <item>Quality gates (lint, typecheck) currently passing</item>
+      <item>Recent file management features (upload, preview) tested and working</item>
+    </setup>
+
+    <example-kickoff-prompt>
+      "Working on USAsset (NestJS/React monorepo). Need to implement file metadata system with project linking and flexible JSON fields. Follow the XML prompt at .claude/file-metadata-feature-prompt.xml. Start with Phase 1 (database foundation). Current status: CSV preview feature complete, all quality gates passing."
+    </example-kickoff-prompt>
+
+  </ideal-context-for-implementation>
+
+  <file-references>
+    <key-files>
+      <file path="apps/backend/prisma/schema.prisma" purpose="Database schema updates"/>
+      <file path="apps/backend/src/files/" purpose="File management API - extend for metadata"/>
+      <file path="apps/frontend/src/components/file-management/" purpose="File UI components"/>
+      <file path="docs/engineering-notes/2025-09-03-blob-feature.md" purpose="Previous session context"/>
+    </key-files>
+  </file-references>
+
+</claude-code-feature-prompt>

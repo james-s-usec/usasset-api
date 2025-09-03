@@ -96,6 +96,6 @@ export const FileTable: React.FC<FileTableProps> = ({
       onPreview={onPreview}
       getFileContent={getFileContent}
     />
-    {files.length > 0 && <FileSummary count={files.length} onRefresh={onRefresh} />}
+    <FileSummary count={files.length} onRefresh={onRefresh} />
   </>
 );

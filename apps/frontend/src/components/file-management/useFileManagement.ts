@@ -24,10 +24,15 @@ const loadFilesImpl = async (
   setLoading: (v: boolean) => void
 ): Promise<void> => {
   try {
+    console.log('🔍 loadFilesImpl: Starting file load');
     setError(null);
     const fileList = await fetchFiles();
+    console.log('🔍 loadFilesImpl: Received fileList:', fileList);
+    console.log('🔍 loadFilesImpl: Setting files state with:', fileList);
     setFiles(fileList);
-  } catch {
+    console.log('🔍 loadFilesImpl: Files state updated successfully');
+  } catch (error) {
+    console.error('🔍 loadFilesImpl: Error caught:', error);
     setError('Network error loading files');
   } finally {
     setLoading(false);

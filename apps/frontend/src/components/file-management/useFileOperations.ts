@@ -4,13 +4,36 @@ import config from '../../config';
 
 const API_BASE = config.api.baseUrl;
 
-const fetchFiles = async (): Promise<FileData[]> => {
-  const response = await fetch(`${API_BASE}/api/files`);
+const syncFiles = async (): Promise<void> => {
+  console.log('🔍 syncFiles: Running blob storage sync');
+  const response = await fetch(`${API_BASE}/api/files/sync`, {
+    method: 'POST',
+  });
   const result = await response.json();
+  console.log('🔍 syncFiles: Sync result:', result);
+};
+
+const fetchFiles = async (): Promise<FileData[]> => {
+  console.log('🔍 fetchFiles: Starting with sync first');
+  
+  // Always sync blob storage with database before fetching
+  try {
+    await syncFiles();
+  } catch (error) {
+    console.warn('🔍 fetchFiles: Sync failed, continuing with fetch:', error);
+  }
+  
+  console.log('🔍 fetchFiles: Starting API call to:', `${API_BASE}/api/files`);
+  const response = await fetch(`${API_BASE}/api/files`);
+  console.log('🔍 fetchFiles: Response status:', response.status);
+  const result = await response.json();
+  console.log('🔍 fetchFiles: Response data:', result);
   
   if (result.success) {
+    console.log('🔍 fetchFiles: Returning files:', result.data.files);
     return result.data.files;
   }
+  console.error('🔍 fetchFiles: API response not successful:', result);
   throw new Error('Failed to load files');
 };
 
