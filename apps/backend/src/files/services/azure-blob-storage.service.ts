@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
 import { PrismaService } from '../../database/prisma.service';
 import { File } from '@prisma/client';
-import type multer from 'multer';
+import { MulterFile } from '../interfaces/file.interface';
 
 @Injectable()
 export class AzureBlobStorageService {
@@ -35,7 +35,7 @@ export class AzureBlobStorageService {
     );
   }
 
-  public async upload(file: multer.File): Promise<File> {
+  public async upload(file: MulterFile): Promise<File> {
     const blobName = `${Date.now()}-${file.originalname}`;
     const blockBlobClient = this.containerClient.getBlockBlobClient(blobName);
 
@@ -74,6 +74,37 @@ export class AzureBlobStorageService {
       file.blob_name,
     );
     return blockBlobClient.url;
+  }
+
+  public async findMany(
+    page: number,
+    limit: number,
+  ): Promise<{
+    files: File[];
+    pagination: { page: number; limit: number; total: number };
+  }> {
+    const skip = (page - 1) * limit;
+
+    const [files, total] = await Promise.all([
+      this.prisma.file.findMany({
+        where: { is_deleted: false },
+        skip,
+        take: limit,
+        orderBy: { created_at: 'desc' },
+      }),
+      this.prisma.file.count({
+        where: { is_deleted: false },
+      }),
+    ]);
+
+    return {
+      files,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
   }
 
   public async delete(fileId: string): Promise<void> {

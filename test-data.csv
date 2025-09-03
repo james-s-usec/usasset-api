@@ -1,0 +1,6 @@
+id,name,category,value,status
+1,Asset-001,Equipment,25000.00,Active
+2,Asset-002,Equipment,15000.00,Active
+3,Asset-003,Software,5000.00,Active
+4,Asset-004,Vehicle,45000.00,Maintenance
+5,Asset-005,Building,500000.00,Active

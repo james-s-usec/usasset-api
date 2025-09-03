@@ -2,12 +2,13 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
+  Query,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type multer from 'multer';
 import {
   ApiTags,
   ApiOperation,
@@ -16,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { AzureBlobStorageService } from '../services/azure-blob-storage.service';
 import { FileResponseDto } from '../dto/file-response.dto';
+import { MulterFile } from '../interfaces/file.interface';
 
 @ApiTags('files')
 @Controller('api/files')
@@ -23,6 +25,25 @@ export class FilesController {
   public constructor(
     private readonly storageService: AzureBlobStorageService,
   ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List all files with pagination' })
+  @ApiResponse({ status: 200, description: 'Files retrieved successfully' })
+  public async listFiles(
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ): Promise<{
+    files: FileResponseDto[];
+    pagination: { page: number; limit: number; total: number };
+  }> {
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const result = await this.storageService.findMany(pageNum, limitNum);
+    return {
+      files: result.files.map((file) => this.mapToResponseDto(file)),
+      pagination: result.pagination,
+    };
+  }
 
   @Post()
   @ApiOperation({ summary: 'Upload a file to Azure Blob Storage' })
@@ -34,7 +55,7 @@ export class FilesController {
   })
   @UseInterceptors(FileInterceptor('file'))
   public async uploadFile(
-    @UploadedFile() file: multer.File,
+    @UploadedFile() file: MulterFile,
   ): Promise<FileResponseDto> {
     const uploadedFile = await this.storageService.upload(file);
     return this.mapToResponseDto(uploadedFile);
@@ -66,5 +87,15 @@ export class FilesController {
   ): Promise<{ url: string }> {
     const url = await this.storageService.getDownloadUrl(id);
     return { url };
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a file from Azure Blob Storage' })
+  @ApiResponse({ status: 200, description: 'File deleted successfully' })
+  public async deleteFile(
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    await this.storageService.delete(id);
+    return { message: 'File deleted successfully' };
   }
 }

@@ -12,11 +12,13 @@ import { useDebug } from './hooks/useDebugHook'
 import { useSettings } from './hooks/useSettings'
 import { FloatingDebugConsole } from './components/FloatingDebugConsole'
 import { ProjectsPage } from './pages/ProjectsPage'
+import { FilesPage } from './pages/FilesPage'
 
 const NavigationBar = (): React.ReactElement => {
   const navItems = [
     { label: 'Users', path: '/users' },
     { label: 'Projects', path: '/projects' },
+    { label: 'Files', path: '/files' },
     { label: 'Debug', path: '/debug' },
     { label: 'Settings', path: '/settings' }
   ]
@@ -98,6 +100,7 @@ const AppContent = (): React.ReactElement => {
           <Route path="/" element={<HomePage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/files" element={<FilesPage />} />
           <Route path="/debug" element={<DebugPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
