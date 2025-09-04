@@ -1,8 +1,10 @@
 import React from 'react';
-import { Card, CardContent, Typography, Button, Alert, Box } from '@mui/material';
+import { Card, CardContent, Typography } from '@mui/material';
+import { LoadPhaseActions } from '../components/LoadPhaseActions';
+import type { JobStatus } from '../types';
 
 interface LoadPhaseProps {
-  jobStatus: any;
+  jobStatus: JobStatus | null;
   onApprove: () => void;
   onReject: () => void;
 }
@@ -21,28 +23,11 @@ export const LoadPhase: React.FC<LoadPhaseProps> = ({
         Review staged data and decide to import or reject
       </Typography>
       
-      <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-        <Button 
-          variant="contained" 
-          color="success"
-          onClick={onApprove}
-        >
-          Approve & Import to Assets Table
-        </Button>
-        <Button 
-          variant="outlined" 
-          color="error"
-          onClick={onReject}
-        >
-          Reject & Clear Staging
-        </Button>
-      </Box>
-      
-      {jobStatus?.progress && (
-        <Alert severity="info" sx={{ mt: 2 }}>
-          Ready to import {jobStatus.progress.processed} valid rows
-        </Alert>
-      )}
+      <LoadPhaseActions 
+        jobStatus={jobStatus}
+        onApprove={onApprove}
+        onReject={onReject}
+      />
     </CardContent>
   </Card>
 );

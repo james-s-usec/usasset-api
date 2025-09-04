@@ -17,6 +17,21 @@ export interface JobStatus {
   errors?: string[];
 }
 
+interface StagedDataRow {
+  rowNumber: number;
+  isValid: boolean;
+  willImport: boolean;
+  rawData: Record<string, unknown>;
+  mappedData: Record<string, unknown>;
+  errors: string[] | null;
+}
+
+interface StagedDataResponse {
+  data: StagedDataRow[];
+  validCount: number;
+  invalidCount: number;
+}
+
 export const pipelineApi = {
   listFiles: async (): Promise<FileInfo[]> => {
     const response = await apiService.get<{ success: boolean; data: { files: FileInfo[] } }>('/api/pipeline/files');
@@ -25,8 +40,11 @@ export const pipelineApi = {
   },
 
   startImport: async (fileId: string): Promise<{ jobId: string; message: string }> => {
-    const response = await apiService.post<{ jobId: string; message: string }>(`/api/pipeline/import/${fileId}`);
-    return response;
+    console.log(`[PipelineAPI] Starting import for file: ${fileId}`);
+    const response = await apiService.post<{ success: boolean; data: { jobId: string; message: string } }>(`/api/pipeline/import/${fileId}`);
+    console.log('[PipelineAPI] Raw response:', response);
+    console.log('[PipelineAPI] Response data:', response.data);
+    return response.data;
   },
 
   getJobStatus: async (jobId: string): Promise<JobStatus> => {
@@ -34,19 +52,8 @@ export const pipelineApi = {
     return response.data;
   },
 
-  getStagedData: async (jobId: string): Promise<{
-    data: Array<{
-      rowNumber: number;
-      isValid: boolean;
-      willImport: boolean;
-      rawData: any;
-      mappedData: any;
-      errors: any;
-    }>;
-    validCount: number;
-    invalidCount: number;
-  }> => {
-    const response = await apiService.get<{ success: boolean; data: any }>(`/api/pipeline/staging/${jobId}`);
+  getStagedData: async (jobId: string): Promise<StagedDataResponse> => {
+    const response = await apiService.get<{ success: boolean; data: StagedDataResponse }>(`/api/pipeline/staging/${jobId}`);
     return response.data;
   },
 };

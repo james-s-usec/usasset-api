@@ -9,14 +9,12 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Chip,
   CircularProgress,
   Alert,
-  Checkbox,
-  Tooltip,
 } from '@mui/material';
-import { Check, Warning, Error } from '@mui/icons-material';
 import { pipelineApi } from '../../services/pipelineApi';
+import { StagingDataStats } from './components/StagingDataStats';
+import { StagingTableRow } from './components/StagingTableRow';
 
 interface StagingDataPreviewProps {
   jobId: string;
@@ -26,12 +24,18 @@ interface StagedRow {
   rowNumber: number;
   isValid: boolean;
   willImport: boolean;
-  rawData: any;
-  mappedData: any;
+  rawData: Record<string, unknown>;
+  mappedData: Record<string, unknown>;
   errors: string[] | null;
 }
 
-export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId }) => {
+const useStagedData = (jobId: string): {
+  loading: boolean;
+  data: StagedRow[];
+  validCount: number;
+  invalidCount: number;
+  error: string | null;
+} => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<StagedRow[]>([]);
   const [validCount, setValidCount] = useState(0);
@@ -39,7 +43,7 @@ export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId })
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchStagedData = async () => {
+    const fetchStagedData = async (): Promise<void> => {
       setLoading(true);
       try {
         const result = await pipelineApi.getStagedData(jobId);
@@ -57,6 +61,12 @@ export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId })
       fetchStagedData();
     }
   }, [jobId]);
+
+  return { loading, data, validCount, invalidCount, error };
+};
+
+export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId }) => {
+  const { loading, data, validCount, invalidCount, error } = useStagedData(jobId);
 
   if (loading) {
     return (
@@ -81,28 +91,11 @@ export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId })
 
   return (
     <Box>
-      <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <Typography variant="subtitle1">
-          Staged Data Preview
-        </Typography>
-        <Chip 
-          icon={<Check />}
-          label={`${validCount} Valid`} 
-          color="success" 
-          size="small" 
-        />
-        {invalidCount > 0 && (
-          <Chip 
-            icon={<Warning />}
-            label={`${invalidCount} Invalid`} 
-            color="error" 
-            size="small" 
-          />
-        )}
-        <Typography variant="caption" color="text.secondary">
-          (Showing first {data.length} rows)
-        </Typography>
-      </Box>
+      <StagingDataStats 
+        validCount={validCount}
+        invalidCount={invalidCount}
+        dataLength={data.length}
+      />
 
       <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
         <Table stickyHeader size="small">
@@ -120,46 +113,11 @@ export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId })
           </TableHead>
           <TableBody>
             {data.map((row) => (
-              <TableRow 
+              <StagingTableRow 
                 key={row.rowNumber}
-                sx={{ 
-                  backgroundColor: !row.isValid ? 'error.50' : 'inherit',
-                  '&:hover': { backgroundColor: !row.isValid ? 'error.100' : 'action.hover' }
-                }}
-              >
-                <TableCell padding="checkbox">
-                  <Checkbox 
-                    checked={row.willImport}
-                    disabled={!row.isValid}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>{row.rowNumber}</TableCell>
-                <TableCell>
-                  {row.isValid ? (
-                    <Chip 
-                      icon={<Check />} 
-                      label="Valid" 
-                      color="success" 
-                      size="small" 
-                    />
-                  ) : (
-                    <Tooltip title={row.errors?.join(', ') || 'Validation failed'}>
-                      <Chip 
-                        icon={<Error />} 
-                        label="Invalid" 
-                        color="error" 
-                        size="small" 
-                      />
-                    </Tooltip>
-                  )}
-                </TableCell>
-                {columns.map(col => (
-                  <TableCell key={col}>
-                    {row.mappedData?.[col] || '-'}
-                  </TableCell>
-                ))}
-              </TableRow>
+                row={row}
+                columns={columns}
+              />
             ))}
           </TableBody>
         </Table>

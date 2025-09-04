@@ -2,13 +2,15 @@ import React from 'react';
 import { Card, CardContent, Typography, Button, Alert } from '@mui/material';
 
 interface ExtractPhaseProps {
-  selectedFileName: string | null;
-  onSelectFile: () => void;
+  onStartImport: () => void;
+  isProcessing: boolean;
+  currentJobId: string | null;
 }
 
 export const ExtractPhase: React.FC<ExtractPhaseProps> = ({
-  selectedFileName,
-  onSelectFile,
+  onStartImport,
+  isProcessing,
+  currentJobId,
 }) => (
   <Card sx={{ mb: 3 }}>
     <CardContent>
@@ -16,16 +18,26 @@ export const ExtractPhase: React.FC<ExtractPhaseProps> = ({
         Phase 1: EXTRACT
       </Typography>
       <Typography variant="body2" color="text.secondary" gutterBottom>
-        Select CSV file from blob storage
+        Extract data from CSV file
       </Typography>
       
-      {!selectedFileName ? (
-        <Button variant="contained" onClick={onSelectFile} sx={{ mt: 2 }}>
-          Select CSV File
-        </Button>
+      {!currentJobId ? (
+        <>
+          <Button 
+            variant="contained" 
+            onClick={onStartImport}
+            disabled={isProcessing}
+            sx={{ mt: 2 }}
+          >
+            Start Import Process
+          </Button>
+          <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+            This will parse the CSV and extract the data for transformation
+          </Typography>
+        </>
       ) : (
-        <Alert severity="success" sx={{ mt: 2 }}>
-          Selected: {selectedFileName}
+        <Alert severity="info" sx={{ mt: 2 }}>
+          Extraction started - processing CSV file...
         </Alert>
       )}
     </CardContent>

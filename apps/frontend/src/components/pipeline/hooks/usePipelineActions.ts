@@ -1,6 +1,9 @@
 import { useCallback } from 'react';
 
-export const usePipelineActions = (jobId: string | null) => {
+export const usePipelineActions = (jobId: string | null): {
+  handleApprove: () => Promise<void>;
+  handleReject: () => Promise<void>;
+} => {
   const handleApprove = useCallback(async () => {
     if (!jobId) return;
     // TODO: Implement approve endpoint

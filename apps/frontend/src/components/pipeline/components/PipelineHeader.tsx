@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, LinearProgress } from '@mui/material';
-import { JobStatus } from '../types';
+import type { JobStatus } from '../types';
 
 interface PipelineHeaderProps {
   jobStatus: JobStatus | null;

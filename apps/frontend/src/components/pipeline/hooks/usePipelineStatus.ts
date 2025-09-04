@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { pipelineApi } from '../../../services/pipelineApi';
-import { JobStatus } from '../types';
+import type { JobStatus } from '../types';
 
-export const usePipelineStatus = (jobId: string | null) => {
+export const usePipelineStatus = (jobId: string | null): {
+  jobStatus: JobStatus | null;
+  isProcessing: boolean;
+} => {
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -12,7 +15,7 @@ export const usePipelineStatus = (jobId: string | null) => {
       return;
     }
 
-    const fetchStatus = async () => {
+    const fetchStatus = async (): Promise<void> => {
       try {
         const status = await pipelineApi.getJobStatus(jobId);
         setJobStatus(status);

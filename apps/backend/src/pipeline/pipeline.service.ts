@@ -100,7 +100,7 @@ export class PipelineService {
         try {
           // Basic field mapping - will be configurable in future phases
           const assetData = this.mapRowToAsset(row);
-          
+
           // Validate required fields
           const validationErrors = [];
           if (!assetData.assetTag) {
@@ -109,20 +109,21 @@ export class PipelineService {
           if (!assetData.name) {
             validationErrors.push('Missing required field: Name');
           }
-          
+
           const isValid = validationErrors.length === 0;
-          
+
           // Create staging record
           stagingAssets.push({
             import_job_id: jobId,
             row_number: i + 2, // +2 because row 1 is headers, arrays are 0-indexed
             raw_data: row,
             mapped_data: assetData,
-            validation_errors: validationErrors.length > 0 ? validationErrors : null,
+            validation_errors:
+              validationErrors.length > 0 ? validationErrors : undefined,
             is_valid: isValid,
             will_import: isValid, // Default to true if valid
           });
-          
+
           if (isValid) {
             processedCount++;
           } else {
@@ -226,7 +227,7 @@ export class PipelineService {
     });
 
     return {
-      data: stagingAssets.map(asset => ({
+      data: stagingAssets.map((asset) => ({
         rowNumber: asset.row_number,
         isValid: asset.is_valid,
         willImport: asset.will_import,
