@@ -2,6 +2,15 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AzureBlobStorageService } from '../files/services/azure-blob-storage.service';
 import { CsvParserService } from './services/csv-parser.service';
 import { PrismaService } from '../database/prisma.service';
+import { RuleEngineService } from './services/rule-engine.service';
+import { RuleProcessorFactory } from './services/rule-processor.factory';
+import { PipelineOrchestrator } from './orchestrator/pipeline-orchestrator.service';
+import { ExtractPhaseProcessor } from './phases/extract/extract-phase.processor';
+import { ValidatePhaseProcessor } from './phases/validate/validate-phase.processor';
+import { CleanPhaseProcessor } from './phases/clean/clean-phase.processor';
+import { TransformPhaseProcessor } from './phases/transform/transform-phase.processor';
+import { MapPhaseProcessor } from './phases/map/map-phase.processor';
+import { LoadPhaseProcessor } from './phases/load/load-phase.processor';
 import {
   JobStatus as PrismaJobStatus,
   AssetStatus,
@@ -74,11 +83,16 @@ interface StagedDataRowResponse {
 export class PipelineService {
   private readonly logger = new Logger(PipelineService.name);
 
+  private readonly ruleEngine: RuleEngineService;
+
   public constructor(
     private readonly blobStorageService: AzureBlobStorageService,
     private readonly csvParser: CsvParserService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) {
+    const ruleProcessorFactory = new RuleProcessorFactory();
+    this.ruleEngine = new RuleEngineService(this.prisma, ruleProcessorFactory);
+  }
 
   public async listCsvFiles(): Promise<FileInfo[]> {
     // Use the same approach as the files page - get all files and filter
@@ -447,12 +461,17 @@ export class PipelineService {
     });
 
     // Debug: Log what we're trying to insert
-    this.logger.log(`[DEBUG] Attempting to insert ${assets.length} assets. Sample tags: ${assets.map(a => a.assetTag).slice(0, 3).join(', ')}`);
+    this.logger.log(
+      `[DEBUG] Attempting to insert ${assets.length} assets. Sample tags: ${assets
+        .map((a) => a.assetTag)
+        .slice(0, 3)
+        .join(', ')}`,
+    );
 
     // Bulk insert assets with individual error tracking
     let successCount = 0;
     const errors: string[] = [];
-    
+
     // Bulk insert assets (no more unique constraint issues)
     try {
       const result = await this.prisma.asset.createMany({
@@ -460,10 +479,14 @@ export class PipelineService {
         // No skipDuplicates needed - duplicate assetTags are now allowed
       });
       successCount = result.count;
-      this.logger.log(`[DEBUG] Bulk insert successful: ${result.count} assets inserted`);
+      this.logger.log(
+        `[DEBUG] Bulk insert successful: ${result.count} assets inserted`,
+      );
     } catch (error) {
       // Fallback to individual inserts if bulk fails
-      this.logger.warn('Bulk insert failed, falling back to individual inserts');
+      this.logger.warn(
+        'Bulk insert failed, falling back to individual inserts',
+      );
       for (const asset of assets) {
         try {
           await this.prisma.asset.create({ data: asset });
@@ -476,9 +499,13 @@ export class PipelineService {
       }
     }
 
-    this.logger.log(`[DEBUG] Individual insert result: ${successCount} inserted, ${errors.length} failed out of ${assets.length} attempted`);
+    this.logger.log(
+      `[DEBUG] Individual insert result: ${successCount} inserted, ${errors.length} failed out of ${assets.length} attempted`,
+    );
     if (errors.length > 0) {
-      this.logger.error(`[DEBUG] Insert errors: ${errors.slice(0, 5).join('; ')}${errors.length > 5 ? ` (and ${errors.length - 5} more)` : ''}`);
+      this.logger.error(
+        `[DEBUG] Insert errors: ${errors.slice(0, 5).join('; ')}${errors.length > 5 ? ` (and ${errors.length - 5} more)` : ''}`,
+      );
     }
 
     const result = { count: successCount };
@@ -493,7 +520,9 @@ export class PipelineService {
     });
 
     // TODO: Add metadata tracking - need to add metadata field to ImportJob schema
-    this.logger.log(`[METADATA] Import completed - Attempted: ${assets.length}, Success: ${successCount}, Failed: ${errors.length}`);
+    this.logger.log(
+      `[METADATA] Import completed - Attempted: ${assets.length}, Success: ${successCount}, Failed: ${errors.length}`,
+    );
 
     // Clear staging data after successful import
     await this.prisma.stagingAsset.deleteMany({
@@ -721,5 +750,289 @@ export class PipelineService {
       sampleValidData: validData,
       sampleInvalidData: invalidData,
     };
+  }
+
+  public async testETLRules(): Promise<{
+    success: boolean;
+    testData: {
+      before: any;
+      after: any;
+    };
+    rulesApplied: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>;
+    processing: {
+      errors: string[];
+      warnings: string[];
+    };
+  }> {
+    this.logger.debug('Testing ETL rules with sample data');
+
+    // Create test data with whitespace that needs trimming
+    const testData = {
+      name: '   HVAC Unit 001   \t\n',
+      assetTag: 'TEST-001',
+      manufacturer: '  TestCorp  ',
+      description: '\tTest Description\n',
+    };
+
+    const context = {
+      rowNumber: 1,
+      jobId: 'test-rules-job',
+      correlationId: 'test-correlation-' + Date.now(),
+      metadata: { source: 'api-test' },
+    };
+
+    try {
+      // Get all active rules for ALL phases
+      const allActiveRules = await this.prisma.pipelineRule.findMany({
+        where: { is_active: true },
+        orderBy: [{ phase: 'asc' }, { priority: 'asc' }, { name: 'asc' }],
+      });
+
+      // If no rules exist, create a demo TRIM rule
+      if (allActiveRules.length === 0) {
+        this.logger.debug(
+          'No active CLEAN rules found, creating demo TRIM rule',
+        );
+        await this.ruleEngine.createRule({
+          name: 'Demo TRIM Rule',
+          description: 'Automatically created for testing',
+          phase: 'CLEAN',
+          type: 'TRIM',
+          target: 'name',
+          config: {
+            sides: 'both',
+            customChars: ' \t\n\r',
+          },
+          priority: 1,
+        });
+      }
+
+      // Process through all phases like orchestrator
+      const phases = ['CLEAN', 'TRANSFORM', 'VALIDATE', 'MAP'] as const;
+      let currentData = testData;
+      const allRulesApplied: any[] = [];
+
+      for (const phase of phases) {
+        const phaseRules = allActiveRules.filter(
+          (rule) => rule.phase === phase,
+        );
+        if (phaseRules.length > 0) {
+          const result = await this.ruleEngine.processDataWithRules(
+            currentData,
+            phase,
+            context,
+          );
+          currentData = result.data;
+
+          // Add applied rules from this phase
+          phaseRules.forEach((rule) => {
+            allRulesApplied.push({
+              name: rule.name,
+              type: rule.type,
+              phase: rule.phase,
+              target: rule.target,
+            });
+          });
+        }
+      }
+
+      this.logger.debug(
+        `ETL rules test completed. Applied ${allRulesApplied.length} rules`,
+      );
+
+      return {
+        success: true,
+        testData: {
+          before: testData,
+          after: currentData,
+        },
+        rulesApplied: allRulesApplied,
+        processing: {
+          errors: [],
+          warnings: [],
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`ETL rules test failed: ${errorMessage}`);
+
+      return {
+        success: false,
+        testData: {
+          before: testData,
+          after: testData, // Return original data on failure
+        },
+        rulesApplied: [],
+        processing: {
+          errors: [`Test failed: ${errorMessage}`],
+          warnings: [],
+        },
+      };
+    }
+  }
+
+  public async testPipelineOrchestrator(): Promise<any> {
+    this.logger.debug('Testing pipeline orchestrator with all phases');
+
+    try {
+      // Create orchestrator and register all phase processors
+      const orchestrator = new PipelineOrchestrator(this);
+
+      // Register all phase processors
+      orchestrator.registerProcessor(new ExtractPhaseProcessor(this));
+      orchestrator.registerProcessor(new ValidatePhaseProcessor());
+      orchestrator.registerProcessor(new CleanPhaseProcessor(this.prisma)); // This has the REAL rules engine!
+      orchestrator.registerProcessor(new TransformPhaseProcessor());
+      orchestrator.registerProcessor(new MapPhaseProcessor());
+      orchestrator.registerProcessor(new LoadPhaseProcessor());
+
+      // Run the full orchestration with test data
+      const result = await orchestrator.testAllPhases();
+
+      this.logger.debug(
+        `Pipeline orchestrator test completed. Success: ${result.success}`,
+      );
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Pipeline orchestrator test failed: ${errorMessage}`);
+
+      return {
+        success: false,
+        error: errorMessage,
+        data: null,
+      };
+    }
+  }
+
+  public async getRules(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+      config: any;
+      is_active: boolean;
+      priority: number;
+      created_at: Date;
+      updated_at: Date;
+    }>
+  > {
+    this.logger.debug('Getting all pipeline rules');
+    const rules = await this.prisma.pipelineRule.findMany({
+      orderBy: [{ phase: 'asc' }, { priority: 'asc' }, { name: 'asc' }],
+    });
+    return rules;
+  }
+
+  public async createRule(createRuleDto: {
+    name: string;
+    type: string;
+    phase: string;
+    target: string;
+    config: any;
+    is_active?: boolean;
+    priority?: number;
+  }): Promise<any> {
+    this.logger.debug(`Creating pipeline rule: ${createRuleDto.name}`);
+    const rule = await this.prisma.pipelineRule.create({
+      data: {
+        name: createRuleDto.name,
+        type: createRuleDto.type as any,
+        phase: createRuleDto.phase as any,
+        target: createRuleDto.target,
+        config: createRuleDto.config,
+        is_active: createRuleDto.is_active ?? true,
+        priority: createRuleDto.priority ?? 1,
+      },
+    });
+    return rule;
+  }
+
+  public async updateRule(
+    ruleId: string,
+    updateRuleDto: {
+      name?: string;
+      type?: string;
+      phase?: string;
+      target?: string;
+      config?: any;
+      is_active?: boolean;
+      priority?: number;
+    },
+  ): Promise<any> {
+    this.logger.debug(`Updating pipeline rule: ${ruleId}`);
+    const updateData: any = {};
+    if (updateRuleDto.name !== undefined) updateData.name = updateRuleDto.name;
+    if (updateRuleDto.type !== undefined)
+      updateData.type = updateRuleDto.type as any;
+    if (updateRuleDto.phase !== undefined)
+      updateData.phase = updateRuleDto.phase as any;
+    if (updateRuleDto.target !== undefined)
+      updateData.target = updateRuleDto.target;
+    if (updateRuleDto.config !== undefined)
+      updateData.config = updateRuleDto.config;
+    if (updateRuleDto.is_active !== undefined)
+      updateData.is_active = updateRuleDto.is_active;
+    if (updateRuleDto.priority !== undefined)
+      updateData.priority = updateRuleDto.priority;
+
+    const rule = await this.prisma.pipelineRule.update({
+      where: { id: ruleId },
+      data: updateData,
+    });
+    return rule;
+  }
+
+  public async deleteRule(ruleId: string): Promise<void> {
+    this.logger.debug(`Deleting pipeline rule: ${ruleId}`);
+    await this.prisma.pipelineRule.delete({
+      where: { id: ruleId },
+    });
+  }
+
+  public async listJobs(): Promise<Array<{
+    id: string;
+    file_id: string;
+    status: string;
+    total_rows: number | null;
+    processed_rows: number | null;
+    error_rows: number | null;
+    errors: string[] | null;
+    started_at: Date;
+    completed_at: Date | null;
+    created_by: string | null;
+  }>> {
+    this.logger.debug('Getting recent import jobs');
+    const jobs = await this.prisma.importJob.findMany({
+      orderBy: { started_at: 'desc' },
+      take: 50, // Limit to recent 50 jobs
+    });
+    
+    // Map Prisma response to expected interface
+    return jobs.map(job => ({
+      id: job.id,
+      file_id: job.file_id,
+      status: job.status.toString(),
+      total_rows: job.total_rows,
+      processed_rows: job.processed_rows,
+      error_rows: job.error_rows,
+      errors: Array.isArray(job.errors) ? job.errors as string[] : null,
+      started_at: job.started_at,
+      completed_at: job.completed_at,
+      created_by: job.created_by,
+    }));
   }
 }

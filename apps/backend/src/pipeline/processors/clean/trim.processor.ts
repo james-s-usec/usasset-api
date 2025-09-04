@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { RuleType, PipelinePhase } from '@prisma/client';
-import { 
-  RuleProcessor, 
-  ValidationResult, 
-  ProcessingResult, 
-  ProcessingContext 
+import {
+  RuleProcessor,
+  ValidationResult,
+  ProcessingResult,
+  ProcessingContext,
 } from '../../interfaces/rule-processor.interface';
 
 export interface TrimConfig {
@@ -17,29 +17,31 @@ export class TrimProcessor implements RuleProcessor<TrimConfig> {
   public readonly type = RuleType.TRIM;
   public readonly phase = PipelinePhase.CLEAN;
 
-  public async validateConfig(config: unknown): Promise<ValidationResult<TrimConfig>> {
+  public async validateConfig(
+    config: unknown,
+  ): Promise<ValidationResult<TrimConfig>> {
     try {
       // Basic validation - in production would use a schema validator like Joi
       if (typeof config !== 'object' || config === null) {
         return {
           success: false,
-          errors: ['Config must be an object']
+          errors: ['Config must be an object'],
         };
       }
 
       const typedConfig = config as any;
-      
+
       // Set defaults
       const trimConfig: TrimConfig = {
         sides: typedConfig.sides || 'both',
-        customChars: typedConfig.customChars || ' \t\n\r'
+        customChars: typedConfig.customChars || ' \t\n\r',
       };
 
       // Validate sides
       if (!['both', 'left', 'right'].includes(trimConfig.sides)) {
         return {
           success: false,
-          errors: ['sides must be "both", "left", or "right"']
+          errors: ['sides must be "both", "left", or "right"'],
         };
       }
 
@@ -47,34 +49,42 @@ export class TrimProcessor implements RuleProcessor<TrimConfig> {
       if (typeof trimConfig.customChars !== 'string') {
         return {
           success: false,
-          errors: ['customChars must be a string']
+          errors: ['customChars must be a string'],
         };
       }
 
       return {
         success: true,
-        data: trimConfig
+        data: trimConfig,
       };
     } catch (error) {
       return {
         success: false,
-        errors: [`Config validation failed: ${error instanceof Error ? error.message : String(error)}`]
+        errors: [
+          `Config validation failed: ${error instanceof Error ? error.message : String(error)}`,
+        ],
       };
     }
   }
 
-  public async process(data: any, config: TrimConfig, context: ProcessingContext): Promise<ProcessingResult> {
+  public async process(
+    data: any,
+    config: TrimConfig,
+    context: ProcessingContext,
+  ): Promise<ProcessingResult> {
     try {
       if (typeof data !== 'string') {
         return {
           success: true,
           data: data, // Return unchanged for non-string data
-          warnings: [`Row ${context.rowNumber}: Trim processor received non-string data, skipping`]
+          warnings: [
+            `Row ${context.rowNumber}: Trim processor received non-string data, skipping`,
+          ],
         };
       }
 
       let result = data;
-      
+
       switch (config.sides) {
         case 'left':
           result = this.trimLeft(data, config.customChars);
@@ -95,14 +105,16 @@ export class TrimProcessor implements RuleProcessor<TrimConfig> {
           originalLength: data.length,
           trimmedLength: result.length,
           charactersRemoved: data.length - result.length,
-          operation: `trim-${config.sides}`
-        }
+          operation: `trim-${config.sides}`,
+        },
       };
     } catch (error) {
       return {
         success: false,
         data: data,
-        errors: [`Trim processing failed: ${error instanceof Error ? error.message : String(error)}`]
+        errors: [
+          `Trim processing failed: ${error instanceof Error ? error.message : String(error)}`,
+        ],
       };
     }
   }

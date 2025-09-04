@@ -20,6 +20,8 @@ interface RequestLogContext<T> {
   responseData: ApiSuccessResponse<T>;
 }
 
+const MAX_LOG_LENGTH = 1000;
+
 @Injectable()
 export class ResponseTransformInterceptor<T>
   implements NestInterceptor<T, ApiSuccessResponse<T>>
@@ -106,12 +108,12 @@ export class ResponseTransformInterceptor<T>
   private safeStringify(data: unknown): string {
     try {
       const jsonString = JSON.stringify(data);
-      // If the stringified data is larger than 1000 chars, truncate it
-      if (jsonString.length > 1000) {
-        return jsonString.substring(0, 1000) + '... [TRUNCATED]';
+      // If the stringified data is larger than max length, truncate it
+      if (jsonString.length > MAX_LOG_LENGTH) {
+        return jsonString.substring(0, MAX_LOG_LENGTH) + '... [TRUNCATED]';
       }
       return jsonString;
-    } catch (error) {
+    } catch {
       return '[SERIALIZATION_ERROR]';
     }
   }

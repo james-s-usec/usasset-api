@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Container, Box } from '@mui/material';
+import { Box } from '@mui/material';
 import { FileSelectionModal } from '../components/pipeline/FileSelectionModal';
-import { PipelineFlow } from '../components/pipeline/PipelineFlow';
+import { PipelineWithRules } from '../components/pipeline/PipelineWithRules';
 import { pipelineApi } from '../services/pipelineApi';
 
 const useFileSelection = (): {
@@ -100,23 +100,21 @@ export const PipelinePage: React.FC = () => {
   const pipelineState = usePipelineState();
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
-        <PipelineFlow 
-          selectedFile={pipelineState.selectedFile}
-          selectedFileName={pipelineState.selectedFileName}
-          currentJobId={pipelineState.currentJobId}
-          importError={pipelineState.importError}
-          onSelectFile={pipelineState.onOpenFileModal}
-          onStartImport={pipelineState.onStartImport}
-        />
-        
-        <FileSelectionModal 
-          open={pipelineState.fileModalOpen}
-          onClose={pipelineState.onCloseFileModal}
-          onSelect={pipelineState.onFileSelect}
-        />
-      </Box>
-    </Container>
+    <Box sx={{ minHeight: '100vh', p: 2 }}>
+      <PipelineWithRules 
+        selectedFile={pipelineState.selectedFile}
+        selectedFileName={pipelineState.selectedFileName}
+        currentJobId={pipelineState.currentJobId}
+        importError={pipelineState.importError}
+        onSelectFile={pipelineState.onOpenFileModal}
+        onStartImport={pipelineState.onStartImport}
+      />
+      
+      <FileSelectionModal 
+        open={pipelineState.fileModalOpen}
+        onClose={pipelineState.onCloseFileModal}
+        onSelect={pipelineState.onFileSelect}
+      />
+    </Box>
   );
 };

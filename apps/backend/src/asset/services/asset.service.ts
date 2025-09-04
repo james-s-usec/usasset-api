@@ -108,7 +108,10 @@ export class AssetService {
     );
   }
 
-  public async clearAllAssets(): Promise<{ message: string; deletedCount: number }> {
+  public async clearAllAssets(): Promise<{
+    message: string;
+    deletedCount: number;
+  }> {
     const result = await this.prisma.asset.deleteMany({});
     return {
       message: `Cleared all assets from database`,

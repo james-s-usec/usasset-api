@@ -14,7 +14,7 @@ async function testHotReload() {
   try {
     // Clean up any existing test rules
     await prisma.pipelineRule.deleteMany({
-      where: { name: 'Test Trim Rule' }
+      where: { name: 'Test Trim Rule' },
     });
 
     // 1. Create a TRIM rule in the database
@@ -27,9 +27,9 @@ async function testHotReload() {
       target: 'name',
       config: {
         sides: 'both',
-        customChars: ' \t\n\r'
+        customChars: ' \t\n\r',
       },
-      priority: 1
+      priority: 1,
     });
     console.log('✅ Rule created:', rule.name);
 
@@ -37,22 +37,26 @@ async function testHotReload() {
     console.log('\n2️⃣  Testing data processing with TRIM rule...');
     const testData = {
       name: '  John Doe  \t\n',
-      assetTag: 'A001'
+      assetTag: 'A001',
     };
-    
+
     const context = {
       rowNumber: 1,
       jobId: 'test-job',
       correlationId: 'test-correlation',
-      metadata: {}
+      metadata: {},
     };
 
-    const result1 = await ruleEngine.processDataWithRules(testData, 'CLEAN', context);
+    const result1 = await ruleEngine.processDataWithRules(
+      testData,
+      'CLEAN',
+      context,
+    );
     console.log('📊 Input data:', JSON.stringify(testData));
     console.log('📊 Processed data:', JSON.stringify(result1.data));
     console.log('✅ Success:', result1.success);
     console.log('⚠️  Warnings:', result1.warnings);
-    
+
     if (result1.errors.length > 0) {
       console.log('❌ Errors:', result1.errors);
     }
@@ -64,15 +68,21 @@ async function testHotReload() {
       data: {
         config: {
           sides: 'left',
-          customChars: ' \t\n\r'
-        }
-      }
+          customChars: ' \t\n\r',
+        },
+      },
     });
     console.log('✅ Rule configuration updated');
 
     // 4. Test that the change takes effect immediately
-    console.log('\n4️⃣  Testing hot-reload - processing same data with updated rule...');
-    const result2 = await ruleEngine.processDataWithRules(testData, 'CLEAN', context);
+    console.log(
+      '\n4️⃣  Testing hot-reload - processing same data with updated rule...',
+    );
+    const result2 = await ruleEngine.processDataWithRules(
+      testData,
+      'CLEAN',
+      context,
+    );
     console.log('📊 Input data:', JSON.stringify(testData));
     console.log('📊 Processed data:', JSON.stringify(result2.data));
     console.log('✅ Success:', result2.success);
@@ -86,14 +96,18 @@ async function testHotReload() {
     console.log('\n5️⃣  Comparing results...');
     const name1 = result1.data.name;
     const name2 = result2.data.name;
-    
+
     console.log(`First result (both): "${name1}"`);
     console.log(`Second result (left): "${name2}"`);
-    
+
     if (name1 !== name2) {
-      console.log('🎉 HOT-RELOAD SUCCESS: Rules loaded dynamically from database!');
+      console.log(
+        '🎉 HOT-RELOAD SUCCESS: Rules loaded dynamically from database!',
+      );
     } else {
-      console.log('❌ HOT-RELOAD FAILED: Results are identical when they should differ');
+      console.log(
+        '❌ HOT-RELOAD FAILED: Results are identical when they should differ',
+      );
     }
 
     // 6. Test supported rule types
@@ -104,13 +118,15 @@ async function testHotReload() {
     // Cleanup
     console.log('\n🧹 Cleaning up test data...');
     await prisma.pipelineRule.deleteMany({
-      where: { name: 'Test Trim Rule' }
+      where: { name: 'Test Trim Rule' },
     });
 
     console.log('\n✅ Hot-reload test completed successfully!');
-    
   } catch (error) {
-    console.error('❌ Test failed:', error instanceof Error ? error.message : String(error));
+    console.error(
+      '❌ Test failed:',
+      error instanceof Error ? error.message : String(error),
+    );
     throw error;
   } finally {
     await prisma.$disconnect();

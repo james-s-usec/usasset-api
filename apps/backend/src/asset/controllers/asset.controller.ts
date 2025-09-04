@@ -291,7 +291,10 @@ export class AssetController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Clear all assets (development only)' })
   @ApiResponse({ status: 200, description: 'All assets cleared successfully' })
-  public async clearAllAssets(): Promise<{ message: string; deletedCount: number }> {
+  public async clearAllAssets(): Promise<{
+    message: string;
+    deletedCount: number;
+  }> {
     const result = await this.assetService.clearAllAssets();
     return result;
   }

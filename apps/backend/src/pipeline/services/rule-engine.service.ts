@@ -2,13 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RuleProcessorFactory } from './rule-processor.factory';
 import { PipelinePhase, RuleType } from '@prisma/client';
-import { ProcessingContext, ProcessingResult } from '../interfaces/rule-processor.interface';
+import {
+  ProcessingContext,
+  ProcessingResult,
+} from '../interfaces/rule-processor.interface';
 
 @Injectable()
 export class RuleEngineService {
   private readonly logger = new Logger(RuleEngineService.name);
 
-  constructor(
+  public constructor(
     private readonly prisma: PrismaService,
     private readonly processorFactory: RuleProcessorFactory,
   ) {}
@@ -17,7 +20,12 @@ export class RuleEngineService {
     data: any,
     phase: PipelinePhase,
     context: ProcessingContext,
-  ): Promise<{ success: boolean; data: any; errors: string[]; warnings: string[] }> {
+  ): Promise<{
+    success: boolean;
+    data: any;
+    errors: string[];
+    warnings: string[];
+  }> {
     const errors: string[] = [];
     const warnings: string[] = [];
     let processedData = data;
@@ -34,7 +42,9 @@ export class RuleEngineService {
         },
       });
 
-      this.logger.debug(`Found ${rules.length} active rules for phase ${phase}`);
+      this.logger.debug(
+        `Found ${rules.length} active rules for phase ${phase}`,
+      );
 
       // Process each rule in order
       for (const rule of rules) {
@@ -48,16 +58,25 @@ export class RuleEngineService {
           // Validate rule configuration
           const configValidation = await processor.validateConfig(rule.config);
           if (!configValidation.success) {
-            errors.push(`Rule "${rule.name}" has invalid config: ${configValidation.errors?.join(', ')}`);
+            errors.push(
+              `Rule "${rule.name}" has invalid config: ${configValidation.errors?.join(', ')}`,
+            );
             continue;
           }
 
           // Apply the rule if it targets this field or all fields
-          const shouldApply = rule.target === '*' || (typeof data === 'object' && data && rule.target in data);
-          
+          const shouldApply =
+            rule.target === '*' ||
+            (typeof data === 'object' && data && rule.target in data);
+
           if (shouldApply) {
-            const targetData = rule.target === '*' ? processedData : processedData[rule.target];
-            const result = await processor.process(targetData, configValidation.data!, context);
+            const targetData =
+              rule.target === '*' ? processedData : processedData[rule.target];
+            const result = await processor.process(
+              targetData,
+              configValidation.data,
+              context,
+            );
 
             if (result.success) {
               if (rule.target === '*') {
@@ -65,20 +84,23 @@ export class RuleEngineService {
               } else {
                 processedData[rule.target] = result.data;
               }
-              
+
               if (result.warnings) {
                 warnings.push(...result.warnings);
               }
-              
+
               this.logger.debug(`Applied rule "${rule.name}" successfully`);
             } else {
               if (result.errors) {
-                errors.push(...result.errors.map(err => `Rule "${rule.name}": ${err}`));
+                errors.push(
+                  ...result.errors.map((err) => `Rule "${rule.name}": ${err}`),
+                );
               }
             }
           }
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           errors.push(`Failed to apply rule "${rule.name}": ${errorMessage}`);
         }
       }
@@ -90,7 +112,8 @@ export class RuleEngineService {
         warnings,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         success: false,
         data: data,

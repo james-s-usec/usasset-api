@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PipelineService } from './pipeline.service';
 
@@ -120,6 +128,27 @@ export class PipelineController {
     return result;
   }
 
+  @Get('jobs')
+  @ApiOperation({ summary: 'List recent import jobs' })
+  @ApiResponse({ status: 200, description: 'Jobs retrieved successfully' })
+  public async listJobs(): Promise<{
+    jobs: Array<{
+      id: string;
+      file_id: string;
+      status: string;
+      total_rows: number | null;
+      processed_rows: number | null;
+      error_rows: number | null;
+      errors: string[] | null;
+      started_at: Date;
+      completed_at: Date | null;
+      created_by: string | null;
+    }>;
+  }> {
+    const jobs = await this.pipelineService.listJobs();
+    return { jobs };
+  }
+
   @Post('validate/:fileId')
   @ApiOperation({
     summary: 'Validate CSV data without importing (development)',
@@ -143,5 +172,118 @@ export class PipelineController {
   }> {
     const result = await this.pipelineService.validateCsvFile(fileId);
     return result;
+  }
+
+  @Post('test-rules')
+  @ApiOperation({ summary: 'Test ETL rules with sample data (development)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Rule test results with before/after data',
+  })
+  public async testRules(): Promise<{
+    success: boolean;
+    testData: {
+      before: any;
+      after: any;
+    };
+    rulesApplied: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>;
+    processing: {
+      errors: string[];
+      warnings: string[];
+    };
+  }> {
+    const result = await this.pipelineService.testETLRules();
+    return result;
+  }
+
+  @Post('test-orchestrator')
+  @ApiOperation({
+    summary: 'Test pipeline orchestrator with all phases (development)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Full orchestration results with phase-by-phase breakdown',
+  })
+  public async testOrchestrator(): Promise<any> {
+    const result = await this.pipelineService.testPipelineOrchestrator();
+    return result;
+  }
+
+  @Get('rules')
+  @ApiOperation({ summary: 'Get all pipeline rules' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pipeline rules retrieved successfully',
+  })
+  public async getRules(): Promise<{
+    rules: Array<{
+      id: string;
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+      config: any;
+      is_active: boolean;
+      priority: number;
+      created_at: Date;
+      updated_at: Date;
+    }>;
+  }> {
+    const rules = await this.pipelineService.getRules();
+    return { rules };
+  }
+
+  @Post('rules')
+  @ApiOperation({ summary: 'Create a new pipeline rule' })
+  @ApiResponse({ status: 201, description: 'Rule created successfully' })
+  public async createRule(
+    @Body()
+    createRuleDto: {
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+      config: any;
+      is_active?: boolean;
+      priority?: number;
+    },
+  ): Promise<{ rule: any; message: string }> {
+    const rule = await this.pipelineService.createRule(createRuleDto);
+    return { rule, message: 'Rule created successfully' };
+  }
+
+  @Patch('rules/:ruleId')
+  @ApiOperation({ summary: 'Update an existing pipeline rule' })
+  @ApiResponse({ status: 200, description: 'Rule updated successfully' })
+  public async updateRule(
+    @Param('ruleId') ruleId: string,
+    @Body()
+    updateRuleDto: {
+      name?: string;
+      type?: string;
+      phase?: string;
+      target?: string;
+      config?: any;
+      is_active?: boolean;
+      priority?: number;
+    },
+  ): Promise<{ rule: any; message: string }> {
+    const rule = await this.pipelineService.updateRule(ruleId, updateRuleDto);
+    return { rule, message: 'Rule updated successfully' };
+  }
+
+  @Delete('rules/:ruleId')
+  @ApiOperation({ summary: 'Delete a pipeline rule' })
+  @ApiResponse({ status: 200, description: 'Rule deleted successfully' })
+  public async deleteRule(@Param('ruleId') ruleId: string): Promise<{
+    message: string;
+  }> {
+    await this.pipelineService.deleteRule(ruleId);
+    return { message: 'Rule deleted successfully' };
   }
 }
