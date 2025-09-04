@@ -1,0 +1,520 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tracer-bullet-pipeline-plan version="1.0" date="2025-09-04">
+  
+  <plan-overview>
+    <name>Asset Import Pipeline - Tracer Bullet Implementation</name>
+    <description>Minimal viable ETL pipeline for CSV to Asset import with extensible architecture</description>
+    <approach>Layer by layer implementation following pragmatic principles</approach>
+    <tech-stack>NestJS, React, AG-Grid, Prisma, Azure Blob Storage</tech-stack>
+    <pragmatic-rules>YAGNI, One Thing Per File, Simple Data Flow, No Clever Code</pragmatic-rules>
+  </plan-overview>
+
+  <architectural-principles>
+    <rule name="One Thing Per File">Controllers handle HTTP only, Services contain business logic, Repositories talk to database</rule>
+    <rule name="Feature Boundaries">Pipeline module independent, communicates via shared services</rule>
+    <rule name="Simple Data Flow">Request → Controller → Service → Repository → Database</rule>
+    <rule name="Complexity Budget">Max 3-5 public methods per service, max 20-30 lines per method</rule>
+    <rule name="No Clever Code">Explicit over implicit, boring code over smart code</rule>
+  </architectural-principles>
+
+  <!-- ========== PHASE 1: FOUNDATION (MINIMAL VIABLE PIPELINE) ========== -->
+  <phase number="1" name="Foundation - Minimal Viable Pipeline">
+    <description>Get basic CSV → Asset import working with file selection</description>
+    <estimated-effort>Week 1</estimated-effort>
+    <current-status>IN PROGRESS - BLOCKER ENCOUNTERED</current-status>
+    
+    <implementation-progress>
+      <completed>
+        <item>Pipeline route added to React Router (/pipeline)</item>
+        <item>Basic PipelinePage.tsx created with layout</item>
+        <item>FileSelectionModal component created</item>
+        <item>Backend pipeline module generated (NestJS)</item>
+        <item>Pipeline controller with 3 endpoints created</item>
+        <item>Pipeline service with mock implementations</item>
+        <item>Pipeline API service created for frontend</item>
+        <item>Fixed TypeScript issues and API import errors</item>
+      </completed>
+      
+      <current-blocker>
+        <issue>CSV files not showing in FileSelectionModal despite being visible on main Files page</issue>
+        <description>Pipeline service calls same blob storage API but returns empty results</description>
+        <symptoms>
+          - Files page shows "assets_columns Shaw.csv" (12.08 KB, CSV type)
+          - Pipeline modal shows "No CSV files found. Upload some CSV files first to import assets."
+          - API integration appears correct but filtering logic may be faulty
+        </symptoms>
+        <attempted-fixes>
+          - Fixed API response structure to match files page format
+          - Added multiple mimetype checks (text/csv, application/csv, etc.)
+          - Simplified filtering to use original_name.endsWith('.csv')
+          - Added null safety checks
+        </attempted-fixes>
+        <next-steps>
+          - Add debugging to see actual API response in pipeline service
+          - Compare exact API calls between files page and pipeline
+          - Verify blob storage service integration
+        </next-steps>
+      </current-blocker>
+    </implementation-progress>
+    
+    <frontend-tasks>
+      <task id="1.1.1" priority="high">
+        <name>Create Pipeline Route and Page</name>
+        <description>Add /pipeline route, basic PipelinePage.tsx with Material-UI layout</description>
+        <files>
+          <file>apps/frontend/src/pages/PipelinePage.tsx</file>
+          <file>apps/frontend/src/App.tsx (add route)</file>
+        </files>
+        <acceptance-criteria>
+          - Pipeline page accessible at /pipeline
+          - Basic layout with header and content area
+          - Navigation from main menu
+        </acceptance-criteria>
+      </task>
+      
+      <task id="1.1.2" priority="high">
+        <name>File Selection Modal Component</name>
+        <description>Modal to select CSV files from blob storage for import</description>
+        <files>
+          <file>apps/frontend/src/components/pipeline/FileSelectionModal.tsx</file>
+          <file>apps/frontend/src/services/pipelineApi.ts</file>
+        </files>
+        <acceptance-criteria>
+          - Lists CSV files with metadata (name, size, date)
+          - Single file selection with preview
+          - Cancel/Select actions
+        </acceptance-criteria>
+      </task>
+      
+      <task id="1.1.3" priority="medium">
+        <name>Import Status Display</name>
+        <description>Show import progress and results</description>
+        <files>
+          <file>apps/frontend/src/components/pipeline/ImportStatusCard.tsx</file>
+        </files>
+        <acceptance-criteria>
+          - Progress indicator during import
+          - Success/error summary
+          - Import results (rows processed, errors)
+        </acceptance-criteria>
+      </task>
+    </frontend-tasks>
+
+    <backend-tasks>
+      <task id="1.2.1" priority="high">
+        <name>Pipeline Module Structure</name>
+        <description>Create NestJS pipeline module following architectural rules</description>
+        <files>
+          <file>apps/backend/src/pipeline/pipeline.module.ts</file>
+          <file>apps/backend/src/pipeline/controllers/pipeline.controller.ts</file>
+          <file>apps/backend/src/pipeline/services/pipeline.service.ts</file>
+        </files>
+        <acceptance-criteria>
+          - Module exports controller and service
+          - Controller handles HTTP only
+          - Service contains business logic only
+        </acceptance-criteria>
+      </task>
+      
+      <task id="1.2.2" priority="high">
+        <name>Core Pipeline API Endpoints</name>
+        <description>Essential endpoints for file listing and import</description>
+        <endpoints>
+          <endpoint method="GET" path="/api/pipeline/files">List CSV files available for import</endpoint>
+          <endpoint method="POST" path="/api/pipeline/import/:fileId">Start import process</endpoint>
+          <endpoint method="GET" path="/api/pipeline/status/:jobId">Check import status</endpoint>
+        </endpoints>
+        <acceptance-criteria>
+          - All endpoints documented with Swagger
+          - Proper error handling with correlation IDs
+          - Input validation with DTOs
+        </acceptance-criteria>
+      </task>
+      
+      <task id="1.2.3" priority="high">
+        <name>Basic CSV Parser Service</name>
+        <description>Parse CSV using existing file service, simple field mapping</description>
+        <files>
+          <file>apps/backend/src/pipeline/services/csv-parser.service.ts</file>
+          <file>apps/backend/src/pipeline/dto/import-result.dto.ts</file>
+        </files>
+        <acceptance-criteria>
+          - Uses existing AzureBlobStorageService.getFileContentAsText
+          - Basic CSV header detection
+          - Row-by-row processing with error collection
+        </acceptance-criteria>
+      </task>
+    </backend-tasks>
+    
+    <database-tasks>
+      <task id="1.3.1" priority="medium">
+        <name>Import Job Tracking Schema</name>
+        <description>Basic job status tracking</description>
+        <prisma-model>
+          <![CDATA[
+          model ImportJob {
+            id          String     @id @default(uuid())
+            file_id     String
+            status      JobStatus  @default(PENDING)
+            total_rows  Int?
+            processed_rows Int     @default(0)
+            error_rows  Int        @default(0)
+            errors      Json[]     @default([])
+            started_at  DateTime   @default(now())
+            completed_at DateTime?
+            created_by  String?
+            
+            file        File       @relation(fields: [file_id], references: [id])
+          }
+          
+          enum JobStatus {
+            PENDING
+            RUNNING
+            COMPLETED
+            FAILED
+          }
+          ]]>
+        </prisma-model>
+      </task>
+    </database-tasks>
+  </phase>
+
+  <!-- ========== PHASE 2: DATA CLEANING FOUNDATION ========== -->
+  <phase number="2" name="Data Cleaning Foundation">
+    <description>Add orchestrator pattern with basic cleaning rules</description>
+    <estimated-effort>Week 2</estimated-effort>
+    
+    <backend-tasks>
+      <task id="2.1.1" priority="high">
+        <name>Data Cleaning Orchestrator</name>
+        <description>Pipeline pattern for data transformation stages</description>
+        <files>
+          <file>apps/backend/src/pipeline/services/data-cleaning-orchestrator.service.ts</file>
+          <file>apps/backend/src/pipeline/interfaces/cleaning-stage.interface.ts</file>
+        </files>
+        <pattern-implementation>
+          <![CDATA[
+          interface CleaningStage {
+            name: string;
+            execute(data: RawDataRow[]): Promise<CleaningResult>;
+          }
+          
+          class ValidationStage implements CleaningStage
+          class NormalizationStage implements CleaningStage  
+          class MappingStage implements CleaningStage
+          ]]>
+        </pattern-implementation>
+      </task>
+      
+      <task id="2.1.2" priority="high">
+        <name>Rules Database Schema</name>
+        <description>Flexible rule storage for different cleaning operations</description>
+        <prisma-model>
+          <![CDATA[
+          model CleaningRule {
+            id          String    @id @default(uuid())
+            name        String
+            description String?
+            type        RuleType
+            field_name  String
+            pattern     String?
+            replacement String?
+            priority    Int       @default(100)
+            is_active   Boolean   @default(true)
+            created_at  DateTime  @default(now())
+            updated_at  DateTime  @updatedAt
+            
+            @@index([type, field_name])
+            @@index([priority, is_active])
+          }
+          
+          enum RuleType {
+            TRIM
+            REGEX_REPLACE
+            EXACT_MATCH
+            FUZZY_MATCH
+            REQUIRED_FIELD
+            DATA_TYPE_CHECK
+          }
+          ]]>
+        </prisma-model>
+      </task>
+      
+      <task id="2.1.3" priority="high">
+        <name>Strategy Pattern Rule Processors</name>
+        <description>Individual processors for each rule type</description>
+        <files>
+          <file>apps/backend/src/pipeline/processors/trim.processor.ts</file>
+          <file>apps/backend/src/pipeline/processors/regex-replace.processor.ts</file>
+          <file>apps/backend/src/pipeline/processors/exact-match.processor.ts</file>
+          <file>apps/backend/src/pipeline/services/rule-processor.factory.ts</file>
+        </files>
+        <acceptance-criteria>
+          - Each processor handles one rule type only
+          - Factory pattern for processor instantiation
+          - Processors are stateless and testable
+        </acceptance-criteria>
+      </task>
+    </backend-tasks>
+  </phase>
+
+  <!-- ========== PHASE 3: RULES MANAGEMENT INTERFACE ========== -->
+  <phase number="3" name="Rules Management Interface">
+    <description>UI for CRUD operations on cleaning rules with hot reload</description>
+    <estimated-effort>Week 3</estimated-effort>
+    
+    <frontend-tasks>
+      <task id="3.1.1" priority="high">
+        <name>Rules Management Tab</name>
+        <description>AG-Grid based rules editor on pipeline page</description>
+        <files>
+          <file>apps/frontend/src/components/pipeline/RulesManagementTab.tsx</file>
+          <file>apps/frontend/src/components/pipeline/RuleEditor.tsx</file>
+        </files>
+        <acceptance-criteria>
+          - AG-Grid with inline editing
+          - Add/Edit/Delete operations
+          - Rule priority drag & drop ordering
+          - Rule type dropdown with validation
+        </acceptance-criteria>
+      </task>
+      
+      <task id="3.1.2" priority="medium">
+        <name>Rule Testing Interface</name>
+        <description>Test rules against sample data before applying</description>
+        <files>
+          <file>apps/frontend/src/components/pipeline/RuleTester.tsx</file>
+        </files>
+        <acceptance-criteria>
+          - Input sample text for testing
+          - Preview transformation results
+          - Show which rules were applied
+        </acceptance-criteria>
+      </task>
+    </frontend-tasks>
+    
+    <backend-tasks>
+      <task id="3.2.1" priority="high">
+        <name>Rules CRUD API</name>
+        <description>Complete CRUD operations for cleaning rules</description>
+        <endpoints>
+          <endpoint method="GET" path="/api/pipeline/rules">List all rules with pagination</endpoint>
+          <endpoint method="POST" path="/api/pipeline/rules">Create new rule</endpoint>
+          <endpoint method="PATCH" path="/api/pipeline/rules/:id">Update rule</endpoint>
+          <endpoint method="DELETE" path="/api/pipeline/rules/:id">Delete rule</endpoint>
+          <endpoint method="PATCH" path="/api/pipeline/rules/reorder">Update rule priorities</endpoint>
+          <endpoint method="POST" path="/api/pipeline/rules/test">Test rule against sample data</endpoint>
+        </endpoints>
+      </task>
+      
+      <task id="3.2.2" priority="medium">
+        <name>Rules Cache and Hot Reload</name>
+        <description>Cache rules in memory with invalidation on updates</description>
+        <files>
+          <file>apps/backend/src/pipeline/services/rules-cache.service.ts</file>
+        </files>
+        <acceptance-criteria>
+          - Rules loaded into memory on startup
+          - Cache invalidation on rule CRUD operations
+          - No database hits during import processing
+        </acceptance-criteria>
+      </task>
+    </backend-tasks>
+  </phase>
+
+  <!-- ========== PHASE 4: REFERENCE TABLES ========== -->
+  <phase number="4" name="Reference Tables">
+    <description>Lookup tables for data normalization and fuzzy matching</description>
+    <estimated-effort>Week 4</estimated-effort>
+    
+    <database-tasks>
+      <task id="4.1.1" priority="high">
+        <name>Reference Tables Schema</name>
+        <description>Flexible reference data storage</description>
+        <prisma-model>
+          <![CDATA[
+          model ReferenceTable {
+            id          String @id @default(uuid())
+            name        String @unique
+            description String?
+            entries     ReferenceEntry[]
+            created_at  DateTime @default(now())
+            updated_at  DateTime @updatedAt
+          }
+          
+          model ReferenceEntry {
+            id         String @id @default(uuid())
+            table_id   String
+            key        String
+            value      String
+            metadata   Json?
+            is_active  Boolean @default(true)
+            table      ReferenceTable @relation(fields: [table_id], references: [id], onDelete: Cascade)
+            
+            @@unique([table_id, key])
+            @@index([table_id, is_active])
+          }
+          ]]>
+        </prisma-model>
+      </task>
+    </database-tasks>
+    
+    <frontend-tasks>
+      <task id="4.2.1" priority="high">
+        <name>Reference Tables Management UI</name>
+        <description>CRUD interface for reference data</description>
+        <files>
+          <file>apps/frontend/src/components/pipeline/ReferenceTablesTab.tsx</file>
+          <file>apps/frontend/src/components/pipeline/ReferenceTableEditor.tsx</file>
+        </files>
+        <acceptance-criteria>
+          - Table selection and entry management
+          - Bulk import/export via CSV
+          - Search and filter entries
+        </acceptance-criteria>
+      </task>
+    </frontend-tasks>
+    
+    <backend-tasks>
+      <task id="4.3.1" priority="high">
+        <name>Reference Lookup Processor</name>
+        <description>Fuzzy matching against reference tables</description>
+        <files>
+          <file>apps/backend/src/pipeline/processors/reference-lookup.processor.ts</file>
+          <file>apps/backend/src/pipeline/services/fuzzy-match.service.ts</file>
+        </files>
+        <acceptance-criteria>
+          - String similarity matching with confidence scores
+          - Configurable match thresholds per table
+          - Performance optimized for large datasets
+        </acceptance-criteria>
+      </task>
+    </backend-tasks>
+  </phase>
+
+  <!-- ========== PHASE 5: DYNAMIC TESTING & MONITORING ========== -->
+  <phase number="5" name="Dynamic Testing & Pipeline Monitoring">
+    <description>Live testing interface and comprehensive import monitoring</description>
+    <estimated-effort>Week 5</estimated-effort>
+    
+    <frontend-tasks>
+      <task id="5.1.1" priority="high">
+        <name>Live Import Preview</name>
+        <description>Test import transformation before executing</description>
+        <files>
+          <file>apps/frontend/src/components/pipeline/ImportPreviewModal.tsx</file>
+          <file>apps/frontend/src/components/pipeline/TransformationTrace.tsx</file>
+        </files>
+        <acceptance-criteria>
+          - Before/after data comparison
+          - Rule execution trace visualization
+          - Sample data testing (first 10 rows)
+        </acceptance-criteria>
+      </task>
+      
+      <task id="5.1.2" priority="medium">
+        <name>Import Job Dashboard</name>
+        <description>Real-time monitoring of import jobs</description>
+        <files>
+          <file>apps/frontend/src/components/pipeline/ImportDashboard.tsx</file>
+        </files>
+        <acceptance-criteria>
+          - Job status updates with progress bars
+          - Error details with row numbers
+          - Import history with rollback options
+        </acceptance-criteria>
+      </task>
+    </frontend-tasks>
+    
+    <backend-tasks>
+      <task id="5.2.1" priority="high">
+        <name>Enhanced Job Management</name>
+        <description>Detailed tracking and rollback capabilities</description>
+        <files>
+          <file>apps/backend/src/pipeline/services/job-manager.service.ts</file>
+          <file>apps/backend/src/pipeline/services/rollback.service.ts</file>
+        </files>
+        <acceptance-criteria>
+          - Real-time progress updates via WebSocket/SSE
+          - Detailed error collection per row
+          - Rollback capability for failed imports
+        </acceptance-criteria>
+      </task>
+      
+      <task id="5.2.2" priority="medium">
+        <name>Audit Trail Implementation</name>
+        <description>Track all changes for compliance</description>
+        <files>
+          <file>apps/backend/src/pipeline/services/audit.service.ts</file>
+        </files>
+        <acceptance-criteria>
+          - Rule change history
+          - Import job snapshots with applied rules
+          - Data lineage for imported assets
+        </acceptance-criteria>
+      </task>
+    </backend-tasks>
+  </phase>
+
+  <!-- ========== FUTURE EXTENSIONS ========== -->
+  <future-extensions>
+    <extension name="Field Mapping UI">
+      <description>Visual mapper for CSV columns to Asset fields</description>
+      <priority>low</priority>
+    </extension>
+    
+    <extension name="Advanced Validation">
+      <description>Business rule validation and cross-field checks</description>
+      <priority>medium</priority>
+    </extension>
+    
+    <extension name="Bulk Operations">
+      <description>Multiple file import and scheduled processing</description>
+      <priority>low</priority>
+    </extension>
+    
+    <extension name="File Format Support">
+      <description>Excel, JSON, XML format support</description>
+      <priority>low</priority>
+    </extension>
+  </future-extensions>
+
+  <!-- ========== TESTING STRATEGY ========== -->
+  <testing-strategy>
+    <unit-tests>
+      <description>Test business logic in services, rule processors</description>
+      <focus>Data transformation logic, rule application, error handling</focus>
+    </unit-tests>
+    
+    <integration-tests>
+      <description>Test full request flow from API to database</description>
+      <focus>Import job lifecycle, file processing pipeline</focus>
+    </integration-tests>
+    
+    <e2e-tests>
+      <description>Test complete user workflows</description>
+      <focus>File selection → rule configuration → import execution</focus>
+    </e2e-tests>
+  </testing-strategy>
+
+  <!-- ========== DEPLOYMENT NOTES ========== -->
+  <deployment-considerations>
+    <performance>
+      <item>Process large CSV files in chunks to avoid memory issues</item>
+      <item>Use database transactions for atomic import operations</item>
+      <item>Implement job queues for concurrent import processing</item>
+    </performance>
+    
+    <monitoring>
+      <item>Log all import operations with correlation IDs</item>
+      <item>Track performance metrics (rows/second, error rates)</item>
+      <item>Alert on failed imports or high error rates</item>
+    </monitoring>
+    
+    <scalability>
+      <item>Design for horizontal scaling of import workers</item>
+      <item>Use Azure Service Bus for job queuing in production</item>
+      <item>Implement circuit breakers for external dependencies</item>
+    </scalability>
+  </deployment-considerations>
+</tracer-bullet-pipeline-plan>

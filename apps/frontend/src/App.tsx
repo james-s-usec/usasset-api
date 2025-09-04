@@ -15,11 +15,13 @@ import { ProjectsPage } from './pages/ProjectsPage'
 import { FilesPage } from './pages/FilesPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { DocumentsPage } from './components/documents/DocumentsPage'
+import { PipelinePage } from './pages/PipelinePage'
 
 const navItems = [
   { label: 'Users', path: '/users' },
   { label: 'Projects', path: '/projects' },
   { label: 'Assets', path: '/assets' },
+  { label: 'Pipeline', path: '/pipeline' },
   { label: 'Files', path: '/files' },
   { label: 'Documents', path: '/documents' },
   { label: 'Debug', path: '/debug' },
@@ -91,6 +93,20 @@ const VersionFooter = (): React.ReactElement => {
   )
 }
 
+const AppRoutes = (): React.ReactElement => (
+  <Routes>
+    <Route path="/" element={<HomePage />} />
+    <Route path="/users" element={<UsersPage />} />
+    <Route path="/projects" element={<ProjectsPage />} />
+    <Route path="/assets" element={<AssetsPage />} />
+    <Route path="/pipeline" element={<PipelinePage />} />
+    <Route path="/files" element={<FilesPage />} />
+    <Route path="/documents" element={<DocumentsPage />} />
+    <Route path="/debug" element={<DebugPage />} />
+    <Route path="/settings" element={<SettingsPage />} />
+  </Routes>
+)
+
 const AppContent = (): React.ReactElement => {
   const { messages, clearMessages, copyAllDebugInfo, clearDatabaseLogs } = useDebug()
   const { settings } = useSettings()
@@ -99,16 +115,7 @@ const AppContent = (): React.ReactElement => {
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <NavigationBar />
       <Box sx={{ flexGrow: 1 }}>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/assets" element={<AssetsPage />} />
-          <Route path="/files" element={<FilesPage />} />
-          <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/debug" element={<DebugPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
+        <AppRoutes />
       </Box>
       {settings.debugConsole && (
         <FloatingDebugConsole 

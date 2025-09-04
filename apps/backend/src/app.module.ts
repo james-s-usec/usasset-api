@@ -16,6 +16,7 @@ import { ProjectModule } from './features/projects/project.module';
 import { FilesModule } from './files/files.module';
 import { AssetModule } from './asset/asset.module';
 import { FolderModule } from './folder/folder.module';
+import { PipelineModule } from './pipeline/pipeline.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { FolderModule } from './folder/folder.module';
     FilesModule,
     AssetModule,
     FolderModule,
+    PipelineModule,
   ],
   controllers: [AppController],
   providers: [AppService, GlobalExceptionFilter, ResponseTransformInterceptor],
