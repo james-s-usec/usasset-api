@@ -1,4 +1,4 @@
-// Filter component extracted from FileFilterBar
+// Filter components extracted from FileFilterBar
 import React from 'react';
 import {
   Box,
@@ -18,8 +18,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
-import { FolderMenuItem } from './FileFilterBar.helpers';
-import type { FileFilters } from './FileFilterBar';
 
 interface Folder {
   id: string;
@@ -35,6 +33,21 @@ interface Project {
   description?: string;
   status: string;
 }
+
+// Folder menu item component
+export const FolderMenuItem: React.FC<{ folder: Folder }> = ({ folder }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <Box
+      sx={{
+        width: 8,
+        height: 8,
+        borderRadius: 1,
+        bgcolor: folder.color || '#gray',
+      }}
+    />
+    {folder.name}
+  </Box>
+);
 
 // Search field component
 export const SearchField: React.FC<{
@@ -140,3 +153,79 @@ export const AdvancedFilterSelect: React.FC<{
     </Select>
   </FormControl>
 );
+
+// Filter chip component
+export const FilterChip: React.FC<{ label: string }> = ({ label }) => (
+  <Chip label={label} size="small" sx={{ ml: 1, mb: 0.5 }} />
+);
+
+// File type menu items
+export const FileTypeMenuItems: React.FC<{ 
+  fileTypes: Array<{ value: string; label: string; count: number }> 
+}> = ({ fileTypes }) => (
+  <>
+    <MenuItem value="">All Types</MenuItem>
+    {fileTypes.map((type) => (
+      <MenuItem key={type.value} value={type.value}>
+        {type.label} ({type.count})
+      </MenuItem>
+    ))}
+  </>
+);
+
+// Date range menu items
+export const DateRangeMenuItems: React.FC = () => (
+  <>
+    <MenuItem value="all">All Time</MenuItem>
+    <MenuItem value="today">Today</MenuItem>
+    <MenuItem value="week">This Week</MenuItem>
+    <MenuItem value="month">This Month</MenuItem>
+    <MenuItem value="quarter">This Quarter</MenuItem>
+  </>
+);
+
+// Size range menu items
+export const SizeRangeMenuItems: React.FC = () => (
+  <>
+    <MenuItem value="all">All Sizes</MenuItem>
+    <MenuItem value="small">Small (&lt; 1MB)</MenuItem>
+    <MenuItem value="medium">Medium (1-10MB)</MenuItem>
+    <MenuItem value="large">Large (&gt; 10MB)</MenuItem>
+  </>
+);
+
+// Filter summary component
+interface FilterSummaryProps {
+  filters: {
+    search: string;
+    projectId: string;
+    folderId: string;
+    fileType: string;
+    dateRange: string;
+    sizeRange: string;
+  };
+  projects: Project[];
+  folders: Folder[];
+}
+
+export const FilterSummary: React.FC<FilterSummaryProps> = ({ filters, projects, folders }) => {
+  const getProjectName = (id: string): string => projects.find(p => p.id === id)?.name || 'Unknown';
+  const getFolderName = (id: string): string => {
+    if (id === 'unorganized') return 'Unorganized';
+    return folders.find(f => f.id === id)?.name || 'Unknown';
+  };
+  
+  return (
+    <Box component="div">
+      <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
+        Filters applied:
+      </Box>
+      {filters.search && <FilterChip label={`Search: "${filters.search}"`} />}
+      {filters.projectId && <FilterChip label={`Project: ${getProjectName(filters.projectId)}`} />}
+      {filters.folderId && <FilterChip label={`Folder: ${getFolderName(filters.folderId)}`} />}
+      {filters.fileType && <FilterChip label={`Type: ${filters.fileType}`} />}
+      {filters.dateRange !== 'all' && <FilterChip label={`Date: ${filters.dateRange}`} />}
+      {filters.sizeRange !== 'all' && <FilterChip label={`Size: ${filters.sizeRange}`} />}
+    </Box>
+  );
+};

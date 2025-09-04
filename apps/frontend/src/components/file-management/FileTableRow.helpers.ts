@@ -35,6 +35,27 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/webp': 'WEBP',
 };
 
+// Pattern definitions
+const OFFICE_PATTERNS: Array<[string, string]> = [
+  ['wordprocessingml.document', 'DOCX'],
+  ['presentationml.presentation', 'PPTX'],
+  ['spreadsheetml.sheet', 'XLSX'],
+];
+
+const DATA_PATTERNS: Array<[string, string]> = [
+  ['csv', 'CSV'],
+  ['json', 'JSON'],
+  ['xml', 'XML'],
+  ['text/plain', 'TXT'],
+  ['text/html', 'HTML'],
+];
+
+const ARCHIVE_PATTERNS: Array<[string, string]> = [
+  ['zip', 'ZIP'],
+  ['rar', 'RAR'],
+  ['7z', '7Z'],
+];
+
 // Helper to check mime type patterns
 const checkMimePattern = (mimetype: string, patterns: Array<[string, string]>): string | null => {
   for (const [pattern, label] of patterns) {
@@ -43,45 +64,46 @@ const checkMimePattern = (mimetype: string, patterns: Array<[string, string]>): 
   return null;
 };
 
+// Check specific type categories
+const checkOfficeTypes = (mimetype: string): string | null => 
+  checkMimePattern(mimetype, OFFICE_PATTERNS);
+
+const checkDataTypes = (mimetype: string): string | null => 
+  checkMimePattern(mimetype, DATA_PATTERNS);
+
+const checkArchiveTypes = (mimetype: string): string | null => 
+  checkMimePattern(mimetype, ARCHIVE_PATTERNS);
+
+const checkImageType = (mimetype: string): string | null => {
+  if (IMAGE_EXTENSIONS[mimetype]) return IMAGE_EXTENSIONS[mimetype];
+  if (mimetype.startsWith('image/')) return 'Image';
+  return null;
+};
+
+const checkMediaType = (mimetype: string): string | null => {
+  if (mimetype.startsWith('video/')) return 'Video';
+  if (mimetype.startsWith('audio/')) return 'Audio';
+  return null;
+};
+
 export const getFileTypeLabel = (mimetype: string): string => {
   // Check exact document matches
   if (DOCUMENT_TYPES[mimetype]) return DOCUMENT_TYPES[mimetype];
   
-  // Check Office XML formats
-  const officePatterns: Array<[string, string]> = [
-    ['wordprocessingml.document', 'DOCX'],
-    ['presentationml.presentation', 'PPTX'],
-    ['spreadsheetml.sheet', 'XLSX'],
-  ];
-  const officeMatch = checkMimePattern(mimetype, officePatterns);
+  // Check each type category
+  const officeMatch = checkOfficeTypes(mimetype);
   if (officeMatch) return officeMatch;
   
-  // Check data formats
-  const dataPatterns: Array<[string, string]> = [
-    ['csv', 'CSV'],
-    ['json', 'JSON'],
-    ['xml', 'XML'],
-    ['text/plain', 'TXT'],
-    ['text/html', 'HTML'],
-  ];
-  const dataMatch = checkMimePattern(mimetype, dataPatterns);
+  const dataMatch = checkDataTypes(mimetype);
   if (dataMatch) return dataMatch;
   
-  // Check images
-  if (IMAGE_EXTENSIONS[mimetype]) return IMAGE_EXTENSIONS[mimetype];
-  if (mimetype.startsWith('image/')) return 'Image';
+  const imageMatch = checkImageType(mimetype);
+  if (imageMatch) return imageMatch;
   
-  // Check media
-  if (mimetype.startsWith('video/')) return 'Video';
-  if (mimetype.startsWith('audio/')) return 'Audio';
+  const mediaMatch = checkMediaType(mimetype);
+  if (mediaMatch) return mediaMatch;
   
-  // Check archives
-  const archivePatterns: Array<[string, string]> = [
-    ['zip', 'ZIP'],
-    ['rar', 'RAR'],
-    ['7z', '7Z'],
-  ];
-  const archiveMatch = checkMimePattern(mimetype, archivePatterns);
+  const archiveMatch = checkArchiveTypes(mimetype);
   if (archiveMatch) return archiveMatch;
   
   // Fallback

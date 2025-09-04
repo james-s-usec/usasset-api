@@ -146,25 +146,38 @@ const ActionsCell: React.FC<{
 // Dialog components moved to FileTableRow.dialogs.tsx
 
 // Hook to manage dialog states
-const useDialogStates = () => {
+const useDialogStates = (): {
+  moveDialogOpen: boolean;
+  assignDialogOpen: boolean;
+  openMoveDialog: () => void;
+  closeMoveDialog: () => void;
+  openAssignDialog: () => void;
+  closeAssignDialog: () => void;
+} => {
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   
   return {
     moveDialogOpen,
     assignDialogOpen,
-    openMoveDialog: () => setMoveDialogOpen(true),
-    closeMoveDialog: () => setMoveDialogOpen(false),
-    openAssignDialog: () => setAssignDialogOpen(true),
-    closeAssignDialog: () => setAssignDialogOpen(false),
+    openMoveDialog: (): void => setMoveDialogOpen(true),
+    closeMoveDialog: (): void => setMoveDialogOpen(false),
+    openAssignDialog: (): void => setAssignDialogOpen(true),
+    closeAssignDialog: (): void => setAssignDialogOpen(false),
   };
 };
 
 // Extract file type checks
-const getFileTypes = (file: FileData) => ({
+interface FileTypes {
+  isImage: boolean;
+  isCSV: boolean;
+  isPDF: boolean;
+}
+
+const getFileTypes = (file: FileData): FileTypes => ({
   isImage: file.mimetype.startsWith('image/'),
   isCSV: file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv'),
-  isPDF: file.mimetype === 'application/pdf'),
+  isPDF: file.mimetype === 'application/pdf',
 });
 
 // Row rendering component
@@ -203,34 +216,60 @@ const PreviewDialogs: React.FC<{
   previewState: ReturnType<typeof usePreviewLogic>;
   getFileContent?: (fileId: string) => Promise<string>;
   getPdfInfo?: FileTableRowProps['getPdfInfo'];
-}> = ({ file, previewState, getFileContent, getPdfInfo }) => (
-  <>
-    <ImagePreviewDialog
-      open={previewState.previewOpen}
-      onClose={() => previewState.setPreviewOpen(false)}
-      imageUrl={previewState.previewUrl}
-      fileName={file.original_name}
-      loading={previewState.loading}
-    />
-    <CSVPreviewDialog
-      open={previewState.csvPreviewOpen}
-      onClose={() => previewState.setCsvPreviewOpen(false)}
-      fileName={file.original_name}
-      fileId={file.id}
-      getFileContent={getFileContent || createDefaultGetFileContent()}
-    />
-    <PDFPreviewDialog
-      open={previewState.pdfPreviewOpen}
-      onClose={() => previewState.setPdfPreviewOpen(false)}
-      fileId={file.id}
-      fileName={file.original_name}
-      loading={false}
-      getPdfInfo={getPdfInfo}
-    />
-  </>
-);
+}> = ({ file, previewState, getFileContent, getPdfInfo }) => {
+  const closeImagePreview = (): void => previewState.setPreviewOpen(false);
+  const closeCsvPreview = (): void => previewState.setCsvPreviewOpen(false);
+  const closePdfPreview = (): void => previewState.setPdfPreviewOpen(false);
+  
+  return (
+    <>
+      <ImagePreviewDialog
+        open={previewState.previewOpen}
+        onClose={closeImagePreview}
+        imageUrl={previewState.previewUrl}
+        fileName={file.original_name}
+        loading={previewState.loading}
+      />
+      <CSVPreviewDialog
+        open={previewState.csvPreviewOpen}
+        onClose={closeCsvPreview}
+        fileName={file.original_name}
+        fileId={file.id}
+        getFileContent={getFileContent || createDefaultGetFileContent()}
+      />
+      <PDFPreviewDialog
+        open={previewState.pdfPreviewOpen}
+        onClose={closePdfPreview}
+        fileId={file.id}
+        fileName={file.original_name}
+        loading={false}
+        getPdfInfo={getPdfInfo}
+      />
+    </>
+  );
+};
 
-// Main component - now under 30 lines
+// Helper function for handling folder move
+const handleFolderMove = (
+  fileId: string,
+  onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>
+) => async (folderId: string | null): Promise<void> => {
+  if (onMoveToFolder) {
+    await onMoveToFolder(fileId, folderId);
+  }
+};
+
+// Helper function for handling project assignment
+const handleProjectAssign = (
+  fileId: string,
+  onMoveToProject?: (fileId: string, projectId: string | null) => Promise<void>
+) => async (projectId: string | null): Promise<void> => {
+  if (onMoveToProject) {
+    await onMoveToProject(fileId, projectId);
+  }
+};
+
+// Main component - simplified
 export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
   const { file, selected, onSelectFile, onDownload, onDelete } = props;
   const { onMoveToFolder, folders, onMoveToProject, projects } = props;
@@ -240,14 +279,14 @@ export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
   const dialogState = useDialogStates();
   const fileTypes = getFileTypes(file);
   
-  const handlePreviewClick = createPreviewClickHandler(
-    fileTypes.isCSV,
-    fileTypes.isImage,
-    fileTypes.isPDF,
-    previewState.setCsvPreviewOpen,
-    previewState.setPdfPreviewOpen,
-    previewState.handlePreview
-  );
+  const handlePreviewClick = createPreviewClickHandler({
+    isCSV: fileTypes.isCSV,
+    isImage: fileTypes.isImage,
+    isPDF: fileTypes.isPDF,
+    setCsvPreviewOpen: previewState.setCsvPreviewOpen,
+    setPdfPreviewOpen: previewState.setPdfPreviewOpen,
+    handlePreview: previewState.handlePreview,
+  });
   
   return (
     <>
@@ -261,7 +300,12 @@ export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
         onMove={onMoveToFolder && folders ? dialogState.openMoveDialog : undefined}
         onAssign={onMoveToProject && projects ? dialogState.openAssignDialog : undefined}
       />
-      <PreviewDialogs file={file} previewState={previewState} getFileContent={getFileContent} getPdfInfo={getPdfInfo} />
+      <PreviewDialogs 
+        file={file} 
+        previewState={previewState} 
+        getFileContent={getFileContent} 
+        getPdfInfo={getPdfInfo} 
+      />
       {onMoveToFolder && folders && (
         <FolderMoveDialog
           open={dialogState.moveDialogOpen}
@@ -269,7 +313,7 @@ export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
           fileName={file.original_name}
           currentFolder={file.folder}
           folders={folders}
-          onMove={(id) => onMoveToFolder(file.id, id)}
+          onMove={handleFolderMove(file.id, onMoveToFolder)}
         />
       )}
       {onMoveToProject && projects && (
@@ -279,7 +323,7 @@ export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
           fileName={file.original_name}
           currentProject={file.project}
           projects={projects}
-          onMove={(id) => onMoveToProject(file.id, id)}
+          onMove={handleProjectAssign(file.id, onMoveToProject)}
         />
       )}
     </>

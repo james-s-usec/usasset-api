@@ -108,7 +108,18 @@ const deleteHandlerImpl = async (
 };
 
 // Custom hooks for specific functionality groups
-const useFileManagementState = () => {
+const useFileManagementState = (): {
+  files: FileData[];
+  folders: Folder[];
+  uploading: boolean;
+  loading: boolean;
+  error: string | null;
+  setFiles: (files: FileData[]) => void;
+  setFolders: (folders: Folder[]) => void;
+  setUploading: (uploading: boolean) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+} => {
   const [files, setFiles] = useState<FileData[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -131,14 +142,14 @@ const useFileManagementState = () => {
 
 const useFileLoading = (
   fetchFiles: () => Promise<FileData[]>,
-  fetchFolders: () => Promise<any[]>,
+  fetchFolders: () => Promise<unknown[]>,
   state: {
     setFiles: (files: FileData[]) => void;
     setFolders: (folders: Folder[]) => void;
     setError: (error: string | null) => void;
     setLoading: (loading: boolean) => void;
   }
-) => {
+): { loadFiles: () => Promise<void> } => {
   const { setFiles, setFolders, setError, setLoading } = state;
   
   const loadFolders = useCallback(async (): Promise<void> => {
@@ -164,34 +175,39 @@ const useFileLoading = (
   return { loadFiles };
 };
 
-const useFileActions = (
-  fileOps: {
-    uploadFile: (file: File, folderId?: string, projectId?: string) => Promise<void>;
-    performDelete: (fileId: string, fileName: string) => Promise<void>;
-    moveFile: (fileId: string, folderId: string | null) => Promise<void>;
-    moveFileToProject: (fileId: string, projectId: string | null) => Promise<void>;
-  },
+// Split file actions into smaller hooks
+const useFileUploadAction = (
+  uploadFile: (file: File, folderId?: string, projectId?: string) => Promise<void>,
   loadFiles: () => Promise<void>,
-  state: {
-    setError: (error: string | null) => void;
-    setUploading: (uploading: boolean) => void;
-  }
-) => {
-  const { uploadFile, performDelete, moveFile, moveFileToProject } = fileOps;
-  const { setError, setUploading } = state;
-  
+  setError: (error: string | null) => void,
+  setUploading: (uploading: boolean) => void
+): { handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>, folderId?: string, projectId?: string) => Promise<void> } => {
   const handleFileUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>, folderId?: string, projectId?: string): Promise<void> =>
       uploadHandlerImpl(event, folderId, projectId, { uploadFile, loadFiles, setError, setUploading }),
     [uploadFile, loadFiles, setError, setUploading]
   );
+  
+  return { handleFileUpload };
+};
 
+const useFileDeleteAction = (
+  performDelete: (fileId: string, fileName: string) => Promise<void>,
+  loadFiles: () => Promise<void>
+): { handleDelete: (fileId: string, fileName: string) => Promise<void> } => {
   const handleDelete = useCallback(
     (fileId: string, fileName: string): Promise<void> =>
       deleteHandlerImpl(fileId, fileName, performDelete, loadFiles),
     [performDelete, loadFiles]
   );
+  
+  return { handleDelete };
+};
 
+const useFileMoveAction = (
+  moveFile: (fileId: string, folderId: string | null) => Promise<void>,
+  loadFiles: () => Promise<void>
+): { handleMoveToFolder: (fileId: string, folderId: string | null) => Promise<void> } => {
   const handleMoveToFolder = useCallback(
     async (fileId: string, folderId: string | null): Promise<void> => {
       await moveFile(fileId, folderId);
@@ -199,7 +215,14 @@ const useFileActions = (
     },
     [moveFile, loadFiles]
   );
+  
+  return { handleMoveToFolder };
+};
 
+const useProjectMoveAction = (
+  moveFileToProject: (fileId: string, projectId: string | null) => Promise<void>,
+  loadFiles: () => Promise<void>
+): { handleMoveToProject: (fileId: string, projectId: string | null) => Promise<void> } => {
   const handleMoveToProject = useCallback(
     async (fileId: string, projectId: string | null): Promise<void> => {
       await moveFileToProject(fileId, projectId);
@@ -208,24 +231,13 @@ const useFileActions = (
     [moveFileToProject, loadFiles]
   );
   
-  return {
-    handleFileUpload,
-    handleDelete,
-    handleMoveToFolder,
-    handleMoveToProject
-  };
+  return { handleMoveToProject };
 };
 
-const useBulkOperations = (
-  bulkOps: {
-    handleBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>;
-    handleBulkMoveToFolder: (fileIds: string[], folderId: string | null) => Promise<void>;
-    handleBulkDelete: (fileIds: string[]) => Promise<void>;
-  },
+const useBulkProjectAssignment = (
+  handleBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>,
   loadFiles: () => Promise<void>
-) => {
-  const { handleBulkAssignProject, handleBulkMoveToFolder, handleBulkDelete } = bulkOps;
-  
+): { handleBulkAssignProjectWithRefresh: (fileIds: string[], projectId: string | null) => Promise<void> } => {
   const handleBulkAssignProjectWithRefresh = useCallback(
     async (fileIds: string[], projectId: string | null): Promise<void> => {
       await handleBulkAssignProject(fileIds, projectId);
@@ -233,7 +245,14 @@ const useBulkOperations = (
     },
     [handleBulkAssignProject, loadFiles]
   );
+  
+  return { handleBulkAssignProjectWithRefresh };
+};
 
+const useBulkFolderMove = (
+  handleBulkMoveToFolder: (fileIds: string[], folderId: string | null) => Promise<void>,
+  loadFiles: () => Promise<void>
+): { handleBulkMoveToFolderWithRefresh: (fileIds: string[], folderId: string | null) => Promise<void> } => {
   const handleBulkMoveToFolderWithRefresh = useCallback(
     async (fileIds: string[], folderId: string | null): Promise<void> => {
       await handleBulkMoveToFolder(fileIds, folderId);
@@ -241,7 +260,14 @@ const useBulkOperations = (
     },
     [handleBulkMoveToFolder, loadFiles]
   );
+  
+  return { handleBulkMoveToFolderWithRefresh };
+};
 
+const useBulkDeleteAction = (
+  handleBulkDelete: (fileIds: string[]) => Promise<void>,
+  loadFiles: () => Promise<void>
+): { handleBulkDeleteWithRefresh: (fileIds: string[]) => Promise<void> } => {
   const handleBulkDeleteWithRefresh = useCallback(
     async (fileIds: string[]): Promise<void> => {
       await handleBulkDelete(fileIds);
@@ -250,17 +276,16 @@ const useBulkOperations = (
     [handleBulkDelete, loadFiles]
   );
   
-  return {
-    handleBulkAssignProject: handleBulkAssignProjectWithRefresh,
-    handleBulkMoveToFolder: handleBulkMoveToFolderWithRefresh,
-    handleBulkDelete: handleBulkDeleteWithRefresh
-  };
+  return { handleBulkDeleteWithRefresh };
 };
 
 const useTypedOperations = (
-  fetchFolders: () => Promise<any[]>,
-  fetchProjects: () => Promise<any[]>
-) => {
+  fetchFolders: () => Promise<unknown[]>,
+  fetchProjects: () => Promise<unknown[]>
+): {
+  fetchFoldersTyped: () => Promise<Folder[]>;
+  fetchProjectsTyped: () => Promise<Project[]>;
+} => {
   const fetchFoldersTyped = useCallback(async (): Promise<Folder[]> => {
     const result = await fetchFolders();
     return result as Folder[];
@@ -274,8 +299,99 @@ const useTypedOperations = (
   return { fetchFoldersTyped, fetchProjectsTyped };
 };
 
-export const useFileManagement = (): UseFileManagementReturn => {
-  const state = useFileManagementState();
+// Helper hook for orchestrating all file actions
+const useFileManagementActions = (
+  fileOps: ReturnType<typeof useFileOperations>,
+  loadFiles: () => Promise<void>,
+  state: {
+    setError: (error: string | null) => void;
+    setUploading: (uploading: boolean) => void;
+  }
+): {
+  handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>, folderId?: string, projectId?: string) => Promise<void>;
+  handleDelete: (fileId: string, fileName: string) => Promise<void>;
+  handleMoveToFolder: (fileId: string, folderId: string | null) => Promise<void>;
+  handleMoveToProject: (fileId: string, projectId: string | null) => Promise<void>;
+} => {
+  const { handleFileUpload } = useFileUploadAction(
+    fileOps.uploadFile,
+    loadFiles,
+    state.setError,
+    state.setUploading
+  );
+  
+  const { handleDelete } = useFileDeleteAction(fileOps.performDelete, loadFiles);
+  const { handleMoveToFolder } = useFileMoveAction(fileOps.moveFile, loadFiles);
+  const { handleMoveToProject } = useProjectMoveAction(fileOps.moveFileToProject, loadFiles);
+  
+  return {
+    handleFileUpload,
+    handleDelete,
+    handleMoveToFolder,
+    handleMoveToProject
+  };
+};
+
+// Helper hook for bulk operations
+const useFileManagementBulkActions = (
+  fileOps: ReturnType<typeof useFileOperations>,
+  loadFiles: () => Promise<void>
+): {
+  handleBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>;
+  handleBulkMoveToFolder: (fileIds: string[], folderId: string | null) => Promise<void>;
+  handleBulkDelete: (fileIds: string[]) => Promise<void>;
+} => {
+  const { handleBulkAssignProjectWithRefresh } = useBulkProjectAssignment(
+    fileOps.handleBulkAssignProject,
+    loadFiles
+  );
+  const { handleBulkMoveToFolderWithRefresh } = useBulkFolderMove(
+    fileOps.handleBulkMoveToFolder,
+    loadFiles
+  );
+  const { handleBulkDeleteWithRefresh } = useBulkDeleteAction(
+    fileOps.handleBulkDelete,
+    loadFiles
+  );
+  
+  return {
+    handleBulkAssignProject: handleBulkAssignProjectWithRefresh,
+    handleBulkMoveToFolder: handleBulkMoveToFolderWithRefresh,
+    handleBulkDelete: handleBulkDeleteWithRefresh
+  };
+};
+
+// Main hook assembly - split return object creation into smaller parts
+const assembleFileManagementReturn = (params: {
+  state: ReturnType<typeof useFileManagementState>;
+  loadFiles: () => Promise<void>;
+  actions: ReturnType<typeof useFileManagementActions>;
+  bulkActions: ReturnType<typeof useFileManagementBulkActions>;
+  fileOps: ReturnType<typeof useFileOperations>;
+  fetchFoldersTyped: () => Promise<Folder[]>;
+  fetchProjectsTyped: () => Promise<Project[]>;
+}): UseFileManagementReturn => ({
+  files: params.state.files,
+  folders: params.state.folders,
+  loading: params.state.loading,
+  error: params.state.error,
+  uploading: params.state.uploading,
+  loadFiles: params.loadFiles,
+  ...params.actions,
+  handleDownload: params.fileOps.handleDownload,
+  handlePreview: params.fileOps.handlePreview,
+  getFileContent: params.fileOps.getFileContent,
+  getPdfInfo: params.fileOps.getPdfInfo,
+  fetchFolders: params.fetchFoldersTyped,
+  fetchProjects: params.fetchProjectsTyped,
+  setError: params.state.setError,
+  ...params.bulkActions
+});
+
+// Hook initialization - separate from assembly
+const useInitializeFileManagementHooks = (
+  state: ReturnType<typeof useFileManagementState>
+): { fileOps: ReturnType<typeof useFileOperations>; loadFiles: () => Promise<void> } => {
   const fileOps = useFileOperations(state.setError);
   
   const { loadFiles } = useFileLoading(
@@ -289,51 +405,31 @@ export const useFileManagement = (): UseFileManagementReturn => {
     }
   );
   
-  const fileActions = useFileActions(
-    {
-      uploadFile: fileOps.uploadFile,
-      performDelete: fileOps.performDelete,
-      moveFile: fileOps.moveFile,
-      moveFileToProject: fileOps.moveFileToProject
-    },
-    loadFiles,
-    { setError: state.setError, setUploading: state.setUploading }
-  );
+  return { fileOps, loadFiles };
+};
+
+export const useFileManagement = (): UseFileManagementReturn => {
+  const state = useFileManagementState();
+  const { fileOps, loadFiles } = useInitializeFileManagementHooks(state);
   
-  const bulkOps = useBulkOperations(
-    {
-      handleBulkAssignProject: fileOps.handleBulkAssignProject,
-      handleBulkMoveToFolder: fileOps.handleBulkMoveToFolder,
-      handleBulkDelete: fileOps.handleBulkDelete
-    },
-    loadFiles
-  );
+  const actions = useFileManagementActions(fileOps, loadFiles, {
+    setError: state.setError,
+    setUploading: state.setUploading
+  });
   
+  const bulkActions = useFileManagementBulkActions(fileOps, loadFiles);
   const { fetchFoldersTyped, fetchProjectsTyped } = useTypedOperations(
     fileOps.fetchFolders,
     fileOps.fetchProjects
   );
 
-  return {
-    files: state.files,
-    folders: state.folders,
-    loading: state.loading,
-    error: state.error,
-    uploading: state.uploading,
+  return assembleFileManagementReturn({
+    state,
     loadFiles,
-    handleFileUpload: fileActions.handleFileUpload,
-    handleDownload: fileOps.handleDownload,
-    handleDelete: fileActions.handleDelete,
-    handleMoveToFolder: fileActions.handleMoveToFolder,
-    handleMoveToProject: fileActions.handleMoveToProject,
-    handlePreview: fileOps.handlePreview,
-    getFileContent: fileOps.getFileContent,
-    getPdfInfo: fileOps.getPdfInfo,
-    fetchFolders: fetchFoldersTyped,
-    fetchProjects: fetchProjectsTyped,
-    setError: state.setError,
-    handleBulkAssignProject: bulkOps.handleBulkAssignProject,
-    handleBulkMoveToFolder: bulkOps.handleBulkMoveToFolder,
-    handleBulkDelete: bulkOps.handleBulkDelete
-  };
+    actions,
+    bulkActions,
+    fileOps,
+    fetchFoldersTyped,
+    fetchProjectsTyped
+  });
 };

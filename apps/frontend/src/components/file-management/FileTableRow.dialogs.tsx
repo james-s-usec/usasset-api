@@ -29,6 +29,109 @@ interface Project {
   status: string;
 }
 
+// Folder color box component
+const FolderColorBox: React.FC<{ color: string }> = ({ color }) => (
+  <Box 
+    sx={{ 
+      width: 12, 
+      height: 12, 
+      borderRadius: 1, 
+      bgcolor: color || '#gray',
+    }} 
+  />
+);
+
+// Removed unused DialogHeader component - functionality inlined in dialogs
+
+// Dialog footer component
+const DialogFooter: React.FC<{
+  onClose: () => void;
+  onAction: () => void;
+  actionLabel: string;
+  loading: boolean;
+}> = ({ onClose, onAction, actionLabel, loading }) => (
+  <DialogActions>
+    <Button onClick={onClose} disabled={loading}>
+      Cancel
+    </Button>
+    <Button 
+      onClick={onAction} 
+      variant="contained" 
+      disabled={loading}
+    >
+      {loading ? `${actionLabel}...` : actionLabel}
+    </Button>
+  </DialogActions>
+);
+
+// Folder select component
+const FolderSelect: React.FC<{
+  selectedFolderId: string;
+  folders: Folder[];
+  onChange: (value: string) => void;
+  disabled: boolean;
+}> = ({ selectedFolderId, folders, onChange, disabled }) => (
+  <FormControl fullWidth sx={{ mt: 2 }}>
+    <InputLabel id="folder-move-select-label">Folder</InputLabel>
+    <Select
+      labelId="folder-move-select-label"
+      value={selectedFolderId}
+      label="Folder"
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+    >
+      <MenuItem value="">
+        <em>Unorganized</em>
+      </MenuItem>
+      {folders.map((folder) => (
+        <MenuItem key={folder.id} value={folder.id}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FolderColorBox color={folder.color} />
+            {folder.name}
+          </Box>
+        </MenuItem>
+      ))}
+    </Select>
+  </FormControl>
+);
+
+// Project select component
+const ProjectSelect: React.FC<{
+  selectedProjectId: string;
+  projects: Project[];
+  onChange: (value: string) => void;
+  disabled: boolean;
+}> = ({ selectedProjectId, projects, onChange, disabled }) => (
+  <FormControl fullWidth sx={{ mt: 2 }}>
+    <InputLabel id="project-move-select-label">Project</InputLabel>
+    <Select
+      labelId="project-move-select-label"
+      value={selectedProjectId}
+      label="Project"
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+    >
+      <MenuItem value="">
+        <em>No Project</em>
+      </MenuItem>
+      {projects.map((project) => (
+        <MenuItem key={project.id} value={project.id}>
+          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="body2" fontWeight="medium">
+              {project.name}
+            </Typography>
+            {project.description && (
+              <Typography variant="caption" color="text.secondary">
+                {project.description}
+              </Typography>
+            )}
+          </Box>
+        </MenuItem>
+      ))}
+    </Select>
+  </FormControl>
+);
+
 interface FolderMoveDialogProps {
   open: boolean;
   onClose: () => void;
@@ -68,54 +171,30 @@ export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+    >
       <DialogTitle>Move File</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Move &quot;{fileName}&quot; to a different folder
         </Typography>
-        <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel id="folder-move-select-label">Folder</InputLabel>
-          <Select
-            labelId="folder-move-select-label"
-            value={selectedFolderId}
-            label="Folder"
-            onChange={(e): void => setSelectedFolderId(e.target.value)}
-            disabled={moving}
-          >
-            <MenuItem value="">
-              <em>Unorganized</em>
-            </MenuItem>
-            {folders.map((folder) => (
-              <MenuItem key={folder.id} value={folder.id}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box 
-                    sx={{ 
-                      width: 12, 
-                      height: 12, 
-                      borderRadius: 1, 
-                      bgcolor: folder.color || '#gray',
-                    }} 
-                  />
-                  {folder.name}
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={moving}>
-          Cancel
-        </Button>
-        <Button 
-          onClick={handleMove} 
-          variant="contained" 
+        <FolderSelect
+          selectedFolderId={selectedFolderId}
+          folders={folders}
+          onChange={setSelectedFolderId}
           disabled={moving}
-        >
-          {moving ? 'Moving...' : 'Move'}
-        </Button>
-      </DialogActions>
+        />
+      </DialogContent>
+      <DialogFooter
+        onClose={onClose}
+        onAction={handleMove}
+        actionLabel={moving ? 'Moving' : 'Move'}
+        loading={moving}
+      />
     </Dialog>
   );
 };
@@ -159,53 +238,30 @@ export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+    >
       <DialogTitle>Assign to Project</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Assign &quot;{fileName}&quot; to a project
         </Typography>
-        <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel id="project-move-select-label">Project</InputLabel>
-          <Select
-            labelId="project-move-select-label"
-            value={selectedProjectId}
-            label="Project"
-            onChange={(e): void => setSelectedProjectId(e.target.value)}
-            disabled={moving}
-          >
-            <MenuItem value="">
-              <em>No Project</em>
-            </MenuItem>
-            {projects.map((project) => (
-              <MenuItem key={project.id} value={project.id}>
-                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Typography variant="body2" fontWeight="medium">
-                    {project.name}
-                  </Typography>
-                  {project.description && (
-                    <Typography variant="caption" color="text.secondary">
-                      {project.description}
-                    </Typography>
-                  )}
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={moving}>
-          Cancel
-        </Button>
-        <Button 
-          onClick={handleMove} 
-          variant="contained" 
+        <ProjectSelect
+          selectedProjectId={selectedProjectId}
+          projects={projects}
+          onChange={setSelectedProjectId}
           disabled={moving}
-        >
-          {moving ? 'Assigning...' : 'Assign'}
-        </Button>
-      </DialogActions>
+        />
+      </DialogContent>
+      <DialogFooter
+        onClose={onClose}
+        onAction={handleMove}
+        actionLabel={moving ? 'Assigning' : 'Assign'}
+        loading={moving}
+      />
     </Dialog>
   );
 };

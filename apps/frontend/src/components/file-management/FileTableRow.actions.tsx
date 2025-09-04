@@ -65,6 +65,14 @@ export const AssignButton: React.FC<{ onAssign: () => void }> = ({ onAssign }) =
   </IconButton>
 );
 
+// Helper function to check if file has preview
+const hasPreviewSupport = (file: FileData): boolean => {
+  const isImage = file.mimetype.startsWith('image/');
+  const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
+  const isPDF = file.mimetype === 'application/pdf';
+  return isImage || isCSV || isPDF;
+};
+
 export const FileActions: React.FC<{
   file: FileData;
   onDownload: () => Promise<void>;
@@ -73,14 +81,11 @@ export const FileActions: React.FC<{
   onMove?: () => void;
   onAssign?: () => void;
 }> = ({ file, onDownload, onDelete, onPreview, onMove, onAssign }) => {
-  const isImage = file.mimetype.startsWith('image/');
-  const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
-  const isPDF = file.mimetype === 'application/pdf';
-  const hasPreview = (isImage || isCSV || isPDF) && onPreview;
+  const showPreview = hasPreviewSupport(file) && onPreview;
   
   return (
     <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', flexWrap: 'nowrap' }}>
-      {hasPreview && <PreviewButton onPreview={onPreview} />}
+      {showPreview && <PreviewButton onPreview={onPreview} />}
       <DownloadButton onDownload={onDownload} />
       {onMove && <MoveButton onMove={onMove} />}
       {onAssign && <AssignButton onAssign={onAssign} />}

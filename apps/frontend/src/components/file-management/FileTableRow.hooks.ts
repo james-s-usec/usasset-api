@@ -25,10 +25,22 @@ export const createPreviewHandler = (
   }
 };
 
+interface PreviewLogicReturn {
+  previewOpen: boolean;
+  previewUrl: string;
+  loading: boolean;
+  handlePreview: () => Promise<void>;
+  setPreviewOpen: (open: boolean) => void;
+  csvPreviewOpen: boolean;
+  setCsvPreviewOpen: (open: boolean) => void;
+  pdfPreviewOpen: boolean;
+  setPdfPreviewOpen: (open: boolean) => void;
+}
+
 export const usePreviewLogic = (
   file: FileData, 
   onPreview?: (fileId: string) => Promise<string>
-) => {
+): PreviewLogicReturn => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -52,14 +64,23 @@ export const usePreviewLogic = (
   };
 };
 
-export const createPreviewClickHandler = (
-  isCSV: boolean,
-  isImage: boolean,
-  isPDF: boolean,
-  setCsvPreviewOpen: (open: boolean) => void,
-  setPdfPreviewOpen: (open: boolean) => void,
-  handlePreview: () => Promise<void>
-): (() => Promise<void>) => async (): Promise<void> => {
+interface PreviewHandlerParams {
+  isCSV: boolean;
+  isImage: boolean;
+  isPDF: boolean;
+  setCsvPreviewOpen: (open: boolean) => void;
+  setPdfPreviewOpen: (open: boolean) => void;
+  handlePreview: () => Promise<void>;
+}
+
+export const createPreviewClickHandler = ({
+  isCSV,
+  isImage,
+  isPDF,
+  setCsvPreviewOpen,
+  setPdfPreviewOpen,
+  handlePreview,
+}: PreviewHandlerParams): (() => Promise<void>) => async (): Promise<void> => {
   if (isCSV) {
     setCsvPreviewOpen(true);
   } else if (isPDF) {
@@ -69,5 +90,6 @@ export const createPreviewClickHandler = (
   }
 };
 
-export const createDefaultGetFileContent = (): ((fileId: string) => Promise<string>) => 
-  (): Promise<string> => Promise.reject(new Error('getFileContent not provided'));
+export const createDefaultGetFileContent = (): ((fileId: string) => Promise<string>) => {
+  return (): Promise<string> => Promise.reject(new Error('getFileContent not provided'));
+};

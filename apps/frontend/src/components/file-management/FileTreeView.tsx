@@ -74,7 +74,6 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-
 const getFileIcon = (mimetype: string): React.ReactElement => {
   if (mimetype === 'application/pdf') return <PdfIcon color="error" />;
   if (mimetype.startsWith('image/')) return <ImageIcon color="primary" />;
@@ -82,17 +81,56 @@ const getFileIcon = (mimetype: string): React.ReactElement => {
   return <FileIcon color="action" />;
 };
 
-const FileTreeNode: React.FC<{
+interface FileTreeNodeProps {
   file: FileData;
   level: number;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
-}> = ({ file, level, onDownload, onDelete, onPreview }) => {
+}
+
+const FileActionButtons: React.FC<{
+  file: FileData;
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ file, onDownload, onDelete, onPreview }) => {
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
   const isPDF = file.mimetype === 'application/pdf';
-  
+  const canPreview = (isImage || isCSV || isPDF) && onPreview;
+
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5 }}>
+      {canPreview && (
+        <IconButton
+          size="small"
+          onClick={() => onPreview(file.id)}
+          title="Preview"
+        >
+          <PreviewIcon fontSize="small" />
+        </IconButton>
+      )}
+      <IconButton
+        size="small"
+        onClick={() => onDownload(file.id)}
+        title="Download"
+      >
+        <DownloadIcon fontSize="small" />
+      </IconButton>
+      <IconButton
+        size="small"
+        color="error"
+        onClick={() => onDelete(file.id, file.original_name)}
+        title="Delete"
+      >
+        <DeleteIcon fontSize="small" />
+      </IconButton>
+    </Box>
+  );
+};
+
+const FileTreeNode: React.FC<FileTreeNodeProps> = ({ file, level, onDownload, onDelete, onPreview }) => {
   return (
     <ListItem
       sx={{
@@ -108,80 +146,94 @@ const FileTreeNode: React.FC<{
         secondary={`${file.mimetype} • ${formatFileSize(file.size)}`}
       />
       <ListItemSecondaryAction>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {(isImage || isCSV || isPDF) && onPreview && (
-            <IconButton
-              size="small"
-              onClick={() => onPreview(file.id)}
-              title="Preview"
-            >
-              <PreviewIcon fontSize="small" />
-            </IconButton>
-          )}
-          <IconButton
-            size="small"
-            onClick={() => onDownload(file.id)}
-            title="Download"
-          >
-            <DownloadIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            onClick={() => onDelete(file.id, file.original_name)}
-            title="Delete"
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Box>
+        <FileActionButtons
+          file={file}
+          onDownload={onDownload}
+          onDelete={onDelete}
+          onPreview={onPreview}
+        />
       </ListItemSecondaryAction>
     </ListItem>
   );
 };
 
-const FolderTreeNode: React.FC<{
+interface FolderTreeNodeProps {
   folder: Folder;
   files: FileData[];
   level: number;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
-}> = ({ folder, files, level, onDownload, onDelete, onPreview }) => {
+}
+
+const FolderHeader: React.FC<{
+  folder: Folder;
+  expanded: boolean;
+  fileCount: number;
+  level: number;
+  onClick: () => void;
+}> = ({ folder, expanded, fileCount, level, onClick }) => (
+  <ListItem
+    component="div"
+    onClick={onClick}
+    sx={{
+      pl: level * 2 + 1,
+      cursor: 'pointer',
+      '&:hover': { bgcolor: 'action.hover' },
+    }}
+  >
+    <ListItemIcon>
+      {expanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+    </ListItemIcon>
+    <ListItemIcon>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {expanded ? <FolderOpenIcon color="primary" /> : <FolderIcon color="primary" />}
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: 1,
+            bgcolor: folder.color || '#gray',
+          }}
+        />
+      </Box>
+    </ListItemIcon>
+    <ListItemText
+      primary={folder.name}
+      secondary={`${fileCount} file${fileCount !== 1 ? 's' : ''}`}
+    />
+  </ListItem>
+);
+
+const EmptyFolderMessage: React.FC<{ level: number }> = ({ level }) => (
+  <ListItem sx={{ pl: (level + 1) * 2 + 2 }}>
+    <ListItemText
+      primary={
+        <Typography variant="body2" color="text.secondary" fontStyle="italic">
+          No files in this folder
+        </Typography>
+      }
+    />
+  </ListItem>
+);
+
+const FolderTreeNode: React.FC<FolderTreeNodeProps> = ({ folder, files, level, onDownload, onDelete, onPreview }) => {
   const [expanded, setExpanded] = useState(false);
   const folderFiles = files.filter(file => file.folder?.id === folder.id);
 
+  const toggleExpanded = (): void => {
+    setExpanded(!expanded);
+  };
+
   return (
     <>
-      <ListItem
-        component="div"
-        onClick={() => setExpanded(!expanded)}
-        sx={{
-          pl: level * 2 + 1,
-          cursor: 'pointer',
-          '&:hover': { bgcolor: 'action.hover' },
-        }}
-      >
-        <ListItemIcon>
-          {expanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-        </ListItemIcon>
-        <ListItemIcon>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {expanded ? <FolderOpenIcon color="primary" /> : <FolderIcon color="primary" />}
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: 1,
-                bgcolor: folder.color || '#gray',
-              }}
-            />
-          </Box>
-        </ListItemIcon>
-        <ListItemText
-          primary={folder.name}
-          secondary={`${folderFiles.length} file${folderFiles.length !== 1 ? 's' : ''}`}
-        />
-      </ListItem>
+      <FolderHeader
+        folder={folder}
+        expanded={expanded}
+        fileCount={folderFiles.length}
+        level={level}
+        onClick={toggleExpanded}
+      />
       <Collapse in={expanded} timeout="auto" unmountOnExit>
         <List component="div" disablePadding>
           {folderFiles.map((file) => (
@@ -195,15 +247,7 @@ const FolderTreeNode: React.FC<{
             />
           ))}
           {folderFiles.length === 0 && (
-            <ListItem sx={{ pl: (level + 1) * 2 + 2 }}>
-              <ListItemText
-                primary={
-                  <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                    No files in this folder
-                  </Typography>
-                }
-              />
-            </ListItem>
+            <EmptyFolderMessage level={level} />
           )}
         </List>
       </Collapse>
@@ -211,14 +255,56 @@ const FolderTreeNode: React.FC<{
   );
 };
 
-const ProjectTreeNode: React.FC<{
+interface ProjectTreeNodeProps {
   project: Project;
   files: FileData[];
   folders: Folder[];
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
-}> = ({ project, files, folders, onDownload, onDelete, onPreview }) => {
+}
+
+const ProjectHeader: React.FC<{
+  project: Project;
+  expanded: boolean;
+  fileCount: number;
+  onClick: () => void;
+}> = ({ project, expanded, fileCount, onClick }) => (
+  <ListItem
+    component="div"
+    onClick={onClick}
+    sx={{
+      pl: 1,
+      cursor: 'pointer',
+      '&:hover': { bgcolor: 'action.hover' },
+    }}
+  >
+    <ListItemIcon>
+      {expanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+    </ListItemIcon>
+    <ListItemIcon>
+      <ProjectIcon color="primary" />
+    </ListItemIcon>
+    <ListItemText
+      primary={project.name}
+      secondary={`${fileCount} file${fileCount !== 1 ? 's' : ''} ${project.description ? '• ' + project.description : ''}`}
+    />
+  </ListItem>
+);
+
+const EmptyProjectMessage: React.FC = () => (
+  <ListItem sx={{ pl: 4 }}>
+    <ListItemText
+      primary={
+        <Typography variant="body2" color="text.secondary" fontStyle="italic">
+          No files in this project
+        </Typography>
+      }
+    />
+  </ListItem>
+);
+
+const ProjectTreeNode: React.FC<ProjectTreeNodeProps> = ({ project, files, folders, onDownload, onDelete, onPreview }) => {
   const [expanded, setExpanded] = useState(false);
   const projectFiles = files.filter(file => file.project?.id === project.id);
   const projectFolders = folders.filter(folder => 
@@ -226,28 +312,18 @@ const ProjectTreeNode: React.FC<{
   );
   const unorganizedFiles = projectFiles.filter(file => !file.folder);
 
+  const toggleExpanded = (): void => {
+    setExpanded(!expanded);
+  };
+
   return (
     <>
-      <ListItem
-        component="div"
-        onClick={() => setExpanded(!expanded)}
-        sx={{
-          pl: 1,
-          cursor: 'pointer',
-          '&:hover': { bgcolor: 'action.hover' },
-        }}
-      >
-        <ListItemIcon>
-          {expanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-        </ListItemIcon>
-        <ListItemIcon>
-          <ProjectIcon color="primary" />
-        </ListItemIcon>
-        <ListItemText
-          primary={project.name}
-          secondary={`${projectFiles.length} file${projectFiles.length !== 1 ? 's' : ''} ${project.description ? '• ' + project.description : ''}`}
-        />
-      </ListItem>
+      <ProjectHeader
+        project={project}
+        expanded={expanded}
+        fileCount={projectFiles.length}
+        onClick={toggleExpanded}
+      />
       <Collapse in={expanded} timeout="auto" unmountOnExit>
         <List component="div" disablePadding>
           {projectFolders.map((folder) => (
@@ -272,21 +348,93 @@ const ProjectTreeNode: React.FC<{
             />
           ))}
           {projectFiles.length === 0 && (
-            <ListItem sx={{ pl: 4 }}>
-              <ListItemText
-                primary={
-                  <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                    No files in this project
-                  </Typography>
-                }
-              />
-            </ListItem>
+            <EmptyProjectMessage />
           )}
         </List>
       </Collapse>
     </>
   );
 };
+
+const TreeHeader: React.FC<{ onRefresh?: () => Promise<void> }> = ({ onRefresh }) => (
+  <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <Box>
+      <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <ProjectIcon />
+        File Tree View
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Files organized by Project → Folder hierarchy
+      </Typography>
+    </Box>
+    {onRefresh && (
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<RefreshIcon />}
+        onClick={onRefresh}
+      >
+        Refresh
+      </Button>
+    )}
+  </Box>
+);
+
+const UnassignedSection: React.FC<{
+  folders: Folder[];
+  files: FileData[];
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ folders, files, onDownload, onDelete, onPreview }) => (
+  <>
+    <Divider sx={{ my: 1 }} />
+    <ListItem>
+      <ListItemIcon>
+        <ProjectIcon color="disabled" />
+      </ListItemIcon>
+      <ListItemText
+        primary="Unassigned Files"
+        secondary={`${files.length} file${files.length !== 1 ? 's' : ''} without project assignment`}
+      />
+    </ListItem>
+    
+    {folders.map((folder) => (
+      <FolderTreeNode
+        key={folder.id}
+        folder={folder}
+        files={files}
+        level={1}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    ))}
+    
+    {files.filter(file => !file.folder).map((file) => (
+      <FileTreeNode
+        key={file.id}
+        file={file}
+        level={1}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    ))}
+  </>
+);
+
+const EmptyTreeMessage: React.FC = () => (
+  <ListItem>
+    <ListItemText
+      primary={
+        <Typography variant="body2" color="text.secondary" textAlign="center">
+          No files uploaded yet. Upload your first file to get started.
+        </Typography>
+      }
+    />
+  </ListItem>
+);
 
 export const FileTreeView: React.FC<FileTreeViewProps> = ({
   files,
@@ -301,34 +449,13 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
   const unassignedFolders = folders.filter(folder =>
     unassignedFiles.some(file => file.folder?.id === folder.id)
   );
-  const orphanedFiles = unassignedFiles.filter(file => !file.folder);
+  const hasUnassignedFiles = unassignedFolders.length > 0 || unassignedFiles.some(file => !file.folder);
 
   return (
     <Paper sx={{ mt: 2 }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ProjectIcon />
-            File Tree View
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Files organized by Project → Folder hierarchy
-          </Typography>
-        </Box>
-        {onRefresh && (
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<RefreshIcon />}
-            onClick={onRefresh}
-          >
-            Refresh
-          </Button>
-        )}
-      </Box>
+      <TreeHeader onRefresh={onRefresh} />
       
       <List sx={{ maxHeight: 600, overflow: 'auto' }}>
-        {/* Project-based files */}
         {projects.map((project) => (
           <ProjectTreeNode
             key={project.id}
@@ -341,56 +468,17 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
           />
         ))}
 
-        {/* Unassigned files section */}
-        {(unassignedFolders.length > 0 || orphanedFiles.length > 0) && (
-          <>
-            <Divider sx={{ my: 1 }} />
-            <ListItem>
-              <ListItemIcon>
-                <ProjectIcon color="disabled" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Unassigned Files"
-                secondary={`${unassignedFiles.length} file${unassignedFiles.length !== 1 ? 's' : ''} without project assignment`}
-              />
-            </ListItem>
-            
-            {unassignedFolders.map((folder) => (
-              <FolderTreeNode
-                key={folder.id}
-                folder={folder}
-                files={unassignedFiles}
-                level={1}
-                onDownload={onDownload}
-                onDelete={onDelete}
-                onPreview={onPreview}
-              />
-            ))}
-            
-            {orphanedFiles.map((file) => (
-              <FileTreeNode
-                key={file.id}
-                file={file}
-                level={1}
-                onDownload={onDownload}
-                onDelete={onDelete}
-                onPreview={onPreview}
-              />
-            ))}
-          </>
+        {hasUnassignedFiles && (
+          <UnassignedSection
+            folders={unassignedFolders}
+            files={unassignedFiles}
+            onDownload={onDownload}
+            onDelete={onDelete}
+            onPreview={onPreview}
+          />
         )}
 
-        {files.length === 0 && (
-          <ListItem>
-            <ListItemText
-              primary={
-                <Typography variant="body2" color="text.secondary" textAlign="center">
-                  No files uploaded yet. Upload your first file to get started.
-                </Typography>
-              }
-            />
-          </ListItem>
-        )}
+        {files.length === 0 && <EmptyTreeMessage />}
       </List>
     </Paper>
   );

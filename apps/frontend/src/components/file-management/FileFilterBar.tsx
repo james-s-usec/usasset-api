@@ -5,17 +5,17 @@ import type { FileData } from './types';
 import {
   getUniqueFileTypes,
   getActiveFiltersCount,
-  FilterSummary,
-  FileTypeMenuItems,
-  DateRangeMenuItems,
-  SizeRangeMenuItems,
-} from './FileFilterBar.helpers';
+} from './fileFilterBar.utils';
 import {
   SearchField,
   ProjectFilter,
   FolderFilter,
   FilterToggle,
   AdvancedFilterSelect,
+  FilterSummary,
+  FileTypeMenuItems,
+  DateRangeMenuItems,
+  SizeRangeMenuItems,
 } from './FileFilterBar.components';
 
 interface Folder {
@@ -123,9 +123,10 @@ export const FileFilterBar: React.FC<FileFilterBarProps> = ({
   const fileTypes = getUniqueFileTypes(files);
   const activeFiltersCount = getActiveFiltersCount(filters);
 
-  const handleSelectChange = (field: keyof FileFilters) => (event: SelectChangeEvent) => {
-    onFiltersChange({ ...filters, [field]: event.target.value as string });
-  };
+  const handleSelectChange = (field: keyof FileFilters): ((event: SelectChangeEvent) => void) => 
+    (event: SelectChangeEvent): void => {
+      onFiltersChange({ ...filters, [field]: event.target.value as string });
+    };
 
   return (
     <Paper sx={{ p: 2, mb: 2 }}>
