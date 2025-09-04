@@ -204,7 +204,7 @@ export const FileTable: React.FC<FileTableProps> = ({
 }) => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   
-  const handleSelectFile = (fileId: string) => {
+  const handleSelectFile = (fileId: string): void => {
     const newSelected = new Set(selectedFiles);
     if (newSelected.has(fileId)) {
       newSelected.delete(fileId);
@@ -214,12 +214,12 @@ export const FileTable: React.FC<FileTableProps> = ({
     setSelectedFiles(newSelected);
   };
   
-  const handleSelectAll = () => {
+  const handleSelectAll = (): void => {
     const allFileIds = files.map(file => file.id);
     setSelectedFiles(new Set(allFileIds));
   };
   
-  const handleClearSelection = () => {
+  const handleClearSelection = (): void => {
     setSelectedFiles(new Set());
   };
   
@@ -232,9 +232,9 @@ export const FileTable: React.FC<FileTableProps> = ({
         projects={projects || []}
         onClearSelection={handleClearSelection}
         onSelectAll={handleSelectAll}
-        onBulkAssignProject={onBulkAssignProject || (async () => {})}
-        onBulkMoveToFolder={onBulkMoveToFolder || (async () => {})}
-        onBulkDelete={onBulkDelete || (async () => {})}
+        onBulkAssignProject={onBulkAssignProject || (async (): Promise<void> => {})}
+        onBulkMoveToFolder={onBulkMoveToFolder || (async (): Promise<void> => {})}
+        onBulkDelete={onBulkDelete || (async (): Promise<void> => {})}
       />
       <FileTableContent 
         files={files}

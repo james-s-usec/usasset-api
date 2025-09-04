@@ -56,7 +56,7 @@ const PDFLeafletViewer: React.FC<{ fileId: string; getPdfInfo: (fileId: string) 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadPdfInfo = async () => {
+    const loadPdfInfo = async (): Promise<void> => {
       try {
         const info = await getPdfInfo(fileId);
         setPdfInfo(info);

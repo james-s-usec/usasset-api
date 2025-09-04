@@ -3,46 +3,22 @@ import {
   TableCell,
   TableRow,
   Typography,
-  IconButton,
   Chip,
   Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Checkbox,
 } from '@mui/material';
-import {
-  Download as DownloadIcon,
-  Delete as DeleteIcon,
-  Visibility as PreviewIcon,
-  DriveFileMove as MoveIcon,
-  Assignment as AssignIcon,
-} from '@mui/icons-material';
 import type { FileData } from './types';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
 import { CSVPreviewDialog } from './CSVPreviewDialog';
 import { PDFPreviewDialog } from './PDFPreviewDialog';
+import { formatFileSize, formatDate, getMimeTypeColor, getFileTypeLabel } from './FileTableRow.helpers';
+import { FileActions } from './FileTableRow.actions';
+import { FolderMoveDialog, ProjectMoveDialog } from './FileTableRow.dialogs';
+import { usePreviewLogic, createPreviewClickHandler, createDefaultGetFileContent } from './FileTableRow.hooks';
 
-interface Folder {
-  id: string;
-  name: string;
-  color: string;
-  is_default: boolean;
-  file_count: number;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  status: string;
-}
+// Types moved to dialogs file, imported via FileTableRow.dialogs
+type Folder = Parameters<typeof FolderMoveDialog>[0]['folders'][0];
+type Project = Parameters<typeof ProjectMoveDialog>[0]['projects'][0];
 
 interface FileTableRowProps {
   file: FileData;
@@ -66,555 +42,244 @@ interface FileTableRowProps {
   }>;
 }
 
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
+// Helper functions moved to FileTableRow.helpers.ts
 
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleString();
-};
+// Action components moved to FileTableRow.actions.tsx
 
-const getMimeTypeColor = (mimetype: string): 'primary' | 'secondary' | 'success' | 'warning' => {
-  if (mimetype.includes('csv')) return 'success';
-  if (mimetype.includes('excel') || mimetype.includes('spreadsheet')) return 'primary';
-  if (mimetype.includes('image')) return 'secondary';
-  if (mimetype === 'application/pdf') return 'primary';
-  return 'warning';
-};
+// Preview logic moved to FileTableRow.hooks.ts
 
-const getFileTypeLabel = (mimetype: string): string => {
-  // Common document types
-  if (mimetype === 'application/pdf') return 'PDF';
-  if (mimetype.includes('wordprocessingml.document')) return 'DOCX';
-  if (mimetype.includes('presentationml.presentation')) return 'PPTX';
-  if (mimetype.includes('spreadsheetml.sheet')) return 'XLSX';
-  if (mimetype === 'application/msword') return 'DOC';
-  if (mimetype === 'application/vnd.ms-excel') return 'XLS';
-  if (mimetype === 'application/vnd.ms-powerpoint') return 'PPT';
-  
-  // Text and data formats
-  if (mimetype.includes('csv')) return 'CSV';
-  if (mimetype.includes('json')) return 'JSON';
-  if (mimetype.includes('xml')) return 'XML';
-  if (mimetype.includes('text/plain')) return 'TXT';
-  if (mimetype.includes('text/html')) return 'HTML';
-  
-  // Images
-  if (mimetype.startsWith('image/jpeg')) return 'JPEG';
-  if (mimetype.startsWith('image/png')) return 'PNG';
-  if (mimetype.startsWith('image/gif')) return 'GIF';
-  if (mimetype.startsWith('image/webp')) return 'WEBP';
-  if (mimetype.startsWith('image/')) return 'Image';
-  
-  // Video/Audio
-  if (mimetype.startsWith('video/')) return 'Video';
-  if (mimetype.startsWith('audio/')) return 'Audio';
-  
-  // Archives
-  if (mimetype.includes('zip')) return 'ZIP';
-  if (mimetype.includes('rar')) return 'RAR';
-  if (mimetype.includes('7z')) return '7Z';
-  
-  // Fallback to file extension if available
-  const parts = mimetype.split('/');
-  if (parts.length === 2) {
-    const subtype = parts[1].toUpperCase();
-    if (subtype.length <= 5) return subtype;
-  }
-  
-  return 'File';
-};
-
-const PreviewButton: React.FC<{ onPreview: () => void }> = ({ onPreview }) => (
-  <IconButton
-    onClick={onPreview}
-    color="secondary"
-    size="small"
-    title="Preview"
-  >
-    <PreviewIcon />
-  </IconButton>
+const CheckboxCell: React.FC<{
+  fileId: string;
+  selected?: boolean;
+  onSelectFile?: (fileId: string) => void;
+}> = ({ fileId, selected, onSelectFile }) => (
+  <TableCell padding="checkbox">
+    {onSelectFile && (
+      <Checkbox
+        checked={selected || false}
+        onChange={() => onSelectFile(fileId)}
+        inputProps={{ 'aria-labelledby': `file-name-${fileId}` }}
+      />
+    )}
+  </TableCell>
 );
 
-const DownloadButton: React.FC<{ onDownload: () => Promise<void> }> = ({ onDownload }) => (
-  <IconButton
-    onClick={onDownload}
-    color="primary"
-    size="small"
-    title="Download"
-  >
-    <DownloadIcon />
-  </IconButton>
+const NameCell: React.FC<{ file: FileData }> = ({ file }) => (
+  <TableCell>
+    <Typography variant="body2" fontWeight="medium" id={`file-name-${file.id}`}>
+      {file.original_name}
+    </Typography>
+  </TableCell>
 );
 
-const DeleteButton: React.FC<{ onDelete: () => Promise<void> }> = ({ onDelete }) => (
-  <IconButton
-    onClick={onDelete}
-    color="error"
-    size="small"
-    title="Delete"
-  >
-    <DeleteIcon />
-  </IconButton>
+const ProjectCell: React.FC<{ project?: FileData['project'] }> = ({ project }) => (
+  <TableCell>
+    {project ? (
+      <Typography variant="body2" fontSize="0.875rem" color="primary.main">
+        {project.name}
+      </Typography>
+    ) : (
+      <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
+        No Project
+      </Typography>
+    )}
+  </TableCell>
 );
 
-const MoveButton: React.FC<{ onMove: () => void }> = ({ onMove }) => (
-  <IconButton
-    onClick={onMove}
-    color="primary"
-    size="small"
-    title="Move to Folder"
-  >
-    <MoveIcon />
-  </IconButton>
+const FolderCell: React.FC<{ folder?: FileData['folder'] }> = ({ folder }) => (
+  <TableCell>
+    {folder ? (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box 
+          sx={{ 
+            width: 8, 
+            height: 8, 
+            borderRadius: 1, 
+            bgcolor: folder.color || '#gray',
+          }} 
+        />
+        <Typography variant="body2" fontSize="0.875rem">
+          {folder.name}
+        </Typography>
+      </Box>
+    ) : (
+      <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
+        Unorganized
+      </Typography>
+    )}
+  </TableCell>
 );
 
-const AssignButton: React.FC<{ onAssign: () => void }> = ({ onAssign }) => (
-  <IconButton
-    onClick={onAssign}
-    color="secondary"
-    size="small"
-    title="Assign to Project"
-  >
-    <AssignIcon />
-  </IconButton>
+const TypeCell: React.FC<{ mimetype: string }> = ({ mimetype }) => (
+  <TableCell>
+    <Chip
+      label={getFileTypeLabel(mimetype)}
+      size="small"
+      color={getMimeTypeColor(mimetype)}
+      title={mimetype}
+    />
+  </TableCell>
 );
 
-const FileActions: React.FC<{
+const ActionsCell: React.FC<{
   file: FileData;
   onDownload: () => Promise<void>;
   onDelete: () => Promise<void>;
   onPreview?: () => void;
   onMove?: () => void;
   onAssign?: () => void;
-}> = ({ file, onDownload, onDelete, onPreview, onMove, onAssign }) => {
-  const isImage = file.mimetype.startsWith('image/');
-  const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
-  const isPDF = file.mimetype === 'application/pdf';
+}> = ({ file, onDownload, onDelete, onPreview, onMove, onAssign }) => (
+  <TableCell align="center" sx={{ width: '15%', minWidth: 180 }}>
+    <FileActions
+      file={file}
+      onDownload={onDownload}
+      onDelete={onDelete}
+      onPreview={onPreview}
+      onMove={onMove}
+      onAssign={onAssign}
+    />
+  </TableCell>
+);
+
+// Preview handlers moved to FileTableRow.hooks.ts
+
+// Dialog components moved to FileTableRow.dialogs.tsx
+
+// Hook to manage dialog states
+const useDialogStates = () => {
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   
-  return (
-    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', flexWrap: 'nowrap' }}>
-      {(isImage || isCSV || isPDF) && onPreview && <PreviewButton onPreview={onPreview} />}
-      <DownloadButton onDownload={onDownload} />
-      {onMove && <MoveButton onMove={onMove} />}
-      {onAssign && <AssignButton onAssign={onAssign} />}
-      <DeleteButton onDelete={onDelete} />
-    </Box>
-  );
-};
-
-const createPreviewHandler = (
-  file: FileData,
-  onPreview: (fileId: string) => Promise<string>,
-  setters: {
-    setLoading: (loading: boolean) => void;
-    setPreviewUrl: (url: string) => void;
-    setPreviewOpen: (open: boolean) => void;
-  }
-): (() => Promise<void>) => async (): Promise<void> => {
-  setters.setLoading(true);
-  try {
-    const url = await onPreview(file.id);
-    setters.setPreviewUrl(url);
-    setters.setPreviewOpen(true);
-  } catch (error) {
-    console.error('Failed to get preview URL:', error);
-  } finally {
-    setters.setLoading(false);
-  }
-};
-
-const usePreviewLogic = (file: FileData, onPreview?: (fileId: string) => Promise<string>): {
-  previewOpen: boolean;
-  previewUrl: string;
-  loading: boolean;
-  handlePreview: () => Promise<void>;
-  setPreviewOpen: (open: boolean) => void;
-  csvPreviewOpen: boolean;
-  setCsvPreviewOpen: (open: boolean) => void;
-  pdfPreviewOpen: boolean;
-  setPdfPreviewOpen: (open: boolean) => void;
-} => {
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [csvPreviewOpen, setCsvPreviewOpen] = useState(false);
-  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
-
-  const handlePreview = onPreview 
-    ? createPreviewHandler(file, onPreview, { setLoading, setPreviewUrl, setPreviewOpen })
-    : async (): Promise<void> => {};
-
   return {
-    previewOpen,
-    previewUrl,
-    loading,
-    handlePreview,
-    setPreviewOpen,
-    csvPreviewOpen,
-    setCsvPreviewOpen,
-    pdfPreviewOpen,
-    setPdfPreviewOpen,
+    moveDialogOpen,
+    assignDialogOpen,
+    openMoveDialog: () => setMoveDialogOpen(true),
+    closeMoveDialog: () => setMoveDialogOpen(false),
+    openAssignDialog: () => setAssignDialogOpen(true),
+    closeAssignDialog: () => setAssignDialogOpen(false),
   };
 };
 
-const FileRowContent: React.FC<{ 
+// Extract file type checks
+const getFileTypes = (file: FileData) => ({
+  isImage: file.mimetype.startsWith('image/'),
+  isCSV: file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv'),
+  isPDF: file.mimetype === 'application/pdf'),
+});
+
+// Row rendering component
+const FileRowContent: React.FC<{
   file: FileData;
   selected?: boolean;
   onSelectFile?: (fileId: string) => void;
-  onDownload: (fileId: string) => Promise<void>;
-  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onDownload: () => Promise<void>;
+  onDelete: () => Promise<void>;
   onPreview?: () => void;
   onMove?: () => void;
   onAssign?: () => void;
 }> = ({ file, selected, onSelectFile, onDownload, onDelete, onPreview, onMove, onAssign }) => (
   <TableRow hover selected={selected}>
-    <TableCell padding="checkbox">
-      {onSelectFile && (
-        <Checkbox
-          checked={selected || false}
-          onChange={() => onSelectFile(file.id)}
-          inputProps={{ 'aria-labelledby': `file-name-${file.id}` }}
-        />
-      )}
-    </TableCell>
-    <TableCell>
-      <Typography variant="body2" fontWeight="medium" id={`file-name-${file.id}`}>
-        {file.original_name}
-      </Typography>
-    </TableCell>
-    <TableCell>
-      {file.project ? (
-        <Typography variant="body2" fontSize="0.875rem" color="primary.main">
-          {file.project.name}
-        </Typography>
-      ) : (
-        <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
-          No Project
-        </Typography>
-      )}
-    </TableCell>
-    <TableCell>
-      {file.folder ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box 
-            sx={{ 
-              width: 8, 
-              height: 8, 
-              borderRadius: 1, 
-              bgcolor: file.folder.color || '#gray',
-            }} 
-          />
-          <Typography variant="body2" fontSize="0.875rem">
-            {file.folder.name}
-          </Typography>
-        </Box>
-      ) : (
-        <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
-          Unorganized
-        </Typography>
-      )}
-    </TableCell>
-    <TableCell>
-      <Chip
-        label={getFileTypeLabel(file.mimetype)}
-        size="small"
-        color={getMimeTypeColor(file.mimetype)}
-        title={file.mimetype} // Show full MIME type on hover
-      />
-    </TableCell>
+    <CheckboxCell fileId={file.id} selected={selected} onSelectFile={onSelectFile} />
+    <NameCell file={file} />
+    <ProjectCell project={file.project} />
+    <FolderCell folder={file.folder} />
+    <TypeCell mimetype={file.mimetype} />
     <TableCell>{formatFileSize(file.size)}</TableCell>
     <TableCell>{formatDate(file.created_at)}</TableCell>
-    <TableCell align="center" sx={{ width: '15%', minWidth: 180 }}>
-      <FileActions
-        file={file}
-        onDownload={() => onDownload(file.id)}
-        onDelete={() => onDelete(file.id, file.original_name)}
-        onPreview={onPreview}
-        onMove={onMove}
-        onAssign={onAssign}
-      />
-    </TableCell>
+    <ActionsCell
+      file={file}
+      onDownload={onDownload}
+      onDelete={onDelete}
+      onPreview={onPreview}
+      onMove={onMove}
+      onAssign={onAssign}
+    />
   </TableRow>
 );
 
-const createPreviewClickHandler = (
-  isCSV: boolean,
-  isImage: boolean,
-  isPDF: boolean,
-  setCsvPreviewOpen: (open: boolean) => void,
-  setPdfPreviewOpen: (open: boolean) => void,
-  handlePreview: () => Promise<void>
-): (() => Promise<void>) => async (): Promise<void> => {
-  if (isCSV) {
-    setCsvPreviewOpen(true);
-  } else if (isPDF) {
-    setPdfPreviewOpen(true);
-  } else if (isImage) {
-    await handlePreview();
-  }
-};
+// Preview dialogs component
+const PreviewDialogs: React.FC<{
+  file: FileData;
+  previewState: ReturnType<typeof usePreviewLogic>;
+  getFileContent?: (fileId: string) => Promise<string>;
+  getPdfInfo?: FileTableRowProps['getPdfInfo'];
+}> = ({ file, previewState, getFileContent, getPdfInfo }) => (
+  <>
+    <ImagePreviewDialog
+      open={previewState.previewOpen}
+      onClose={() => previewState.setPreviewOpen(false)}
+      imageUrl={previewState.previewUrl}
+      fileName={file.original_name}
+      loading={previewState.loading}
+    />
+    <CSVPreviewDialog
+      open={previewState.csvPreviewOpen}
+      onClose={() => previewState.setCsvPreviewOpen(false)}
+      fileName={file.original_name}
+      fileId={file.id}
+      getFileContent={getFileContent || createDefaultGetFileContent()}
+    />
+    <PDFPreviewDialog
+      open={previewState.pdfPreviewOpen}
+      onClose={() => previewState.setPdfPreviewOpen(false)}
+      fileId={file.id}
+      fileName={file.original_name}
+      loading={false}
+      getPdfInfo={getPdfInfo}
+    />
+  </>
+);
 
-const createDefaultGetFileContent = (): ((fileId: string) => Promise<string>) => 
-  (): Promise<string> => Promise.reject(new Error('getFileContent not provided'));
-
-const FolderMoveDialog: React.FC<{
-  open: boolean;
-  onClose: () => void;
-  fileName: string;
-  currentFolder?: { id: string; name: string };
-  folders: Folder[];
-  onMove: (folderId: string | null) => Promise<void>;
-}> = ({ open, onClose, fileName, currentFolder, folders, onMove }) => {
-  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
-  const [moving, setMoving] = useState(false);
-
-  React.useEffect(() => {
-    if (open) {
-      setSelectedFolderId(currentFolder?.id || '');
-    }
-  }, [open, currentFolder?.id]);
-
-  const handleMove = async (): Promise<void> => {
-    setMoving(true);
-    try {
-      await onMove(selectedFolderId || null);
-      onClose();
-    } catch (error) {
-      console.error('Failed to move file:', error);
-    } finally {
-      setMoving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm"
-fullWidth>
-      <DialogTitle>Move File</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Move "{fileName}" to a different folder
-        </Typography>
-        <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel id="folder-move-select-label">Folder</InputLabel>
-          <Select
-            labelId="folder-move-select-label"
-            value={selectedFolderId}
-            label="Folder"
-            onChange={(e): void => setSelectedFolderId(e.target.value)}
-            disabled={moving}
-          >
-            <MenuItem value="">
-              <em>Unorganized</em>
-            </MenuItem>
-            {folders.map((folder) => (
-              <MenuItem key={folder.id} value={folder.id}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box 
-                    sx={{ 
-                      width: 12, 
-                      height: 12, 
-                      borderRadius: 1, 
-                      bgcolor: folder.color || '#gray',
-                    }} 
-                  />
-                  {folder.name}
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={moving}>
-          Cancel
-        </Button>
-        <Button 
-          onClick={handleMove} 
-          variant="contained" 
-          disabled={moving}
-        >
-          {moving ? 'Moving...' : 'Move'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
-const ProjectMoveDialog: React.FC<{
-  open: boolean;
-  onClose: () => void;
-  fileName: string;
-  currentProject?: { id: string; name: string };
-  projects: Project[];
-  onMove: (projectId: string | null) => Promise<void>;
-}> = ({ open, onClose, fileName, currentProject, projects, onMove }) => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [moving, setMoving] = useState(false);
-
-  React.useEffect(() => {
-    if (open) {
-      setSelectedProjectId(currentProject?.id || '');
-    }
-  }, [open, currentProject?.id]);
-
-  const handleMove = async (): Promise<void> => {
-    setMoving(true);
-    try {
-      await onMove(selectedProjectId || null);
-      onClose();
-    } catch (error) {
-      console.error('Failed to assign file to project:', error);
-    } finally {
-      setMoving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm"
-fullWidth>
-      <DialogTitle>Assign to Project</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Assign &quot;{fileName}&quot; to a project
-        </Typography>
-        <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel id="project-move-select-label">Project</InputLabel>
-          <Select
-            labelId="project-move-select-label"
-            value={selectedProjectId}
-            label="Project"
-            onChange={(e): void => setSelectedProjectId(e.target.value)}
-            disabled={moving}
-          >
-            <MenuItem value="">
-              <em>No Project</em>
-            </MenuItem>
-            {projects.map((project) => (
-              <MenuItem key={project.id} value={project.id}>
-                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Typography variant="body2" fontWeight="medium">
-                    {project.name}
-                  </Typography>
-                  {project.description && (
-                    <Typography variant="caption" color="text.secondary">
-                      {project.description}
-                    </Typography>
-                  )}
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={moving}>
-          Cancel
-        </Button>
-        <Button 
-          onClick={handleMove} 
-          variant="contained" 
-          disabled={moving}
-        >
-          {moving ? 'Assigning...' : 'Assign'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
-export const FileTableRow: React.FC<FileTableRowProps> = ({ file, selected, onSelectFile, onDownload, onDelete, onMoveToFolder, folders, onMoveToProject, projects, onPreview, getFileContent, getPdfInfo }) => {
-  const { previewOpen, previewUrl, loading, handlePreview, setPreviewOpen, csvPreviewOpen, setCsvPreviewOpen, pdfPreviewOpen, setPdfPreviewOpen } = usePreviewLogic(file, onPreview);
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+// Main component - now under 30 lines
+export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
+  const { file, selected, onSelectFile, onDownload, onDelete } = props;
+  const { onMoveToFolder, folders, onMoveToProject, projects } = props;
+  const { onPreview, getFileContent, getPdfInfo } = props;
   
-  const isImage = file.mimetype.startsWith('image/');
-  const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
-  const isPDF = file.mimetype === 'application/pdf';
+  const previewState = usePreviewLogic(file, onPreview);
+  const dialogState = useDialogStates();
+  const fileTypes = getFileTypes(file);
   
-  const handlePreviewClick = createPreviewClickHandler(isCSV, isImage, isPDF, setCsvPreviewOpen, setPdfPreviewOpen, handlePreview);
-
-  const handleMoveClick = (): void => {
-    setMoveDialogOpen(true);
-  };
-
-  const handleAssignClick = (): void => {
-    setAssignDialogOpen(true);
-  };
-
-  const handleMoveToFolder = async (folderId: string | null): Promise<void> => {
-    if (onMoveToFolder) {
-      await onMoveToFolder(file.id, folderId);
-    }
-  };
-
-  const handleMoveToProject = async (projectId: string | null): Promise<void> => {
-    if (onMoveToProject) {
-      await onMoveToProject(file.id, projectId);
-    }
-  };
-
+  const handlePreviewClick = createPreviewClickHandler(
+    fileTypes.isCSV,
+    fileTypes.isImage,
+    fileTypes.isPDF,
+    previewState.setCsvPreviewOpen,
+    previewState.setPdfPreviewOpen,
+    previewState.handlePreview
+  );
+  
   return (
     <>
       <FileRowContent
         file={file}
         selected={selected}
         onSelectFile={onSelectFile}
-        onDownload={onDownload}
-        onDelete={onDelete}
+        onDownload={() => onDownload(file.id)}
+        onDelete={() => onDelete(file.id, file.original_name)}
         onPreview={handlePreviewClick}
-        onMove={onMoveToFolder && folders ? handleMoveClick : undefined}
-        onAssign={onMoveToProject && projects ? handleAssignClick : undefined}
+        onMove={onMoveToFolder && folders ? dialogState.openMoveDialog : undefined}
+        onAssign={onMoveToProject && projects ? dialogState.openAssignDialog : undefined}
       />
-      
-      <ImagePreviewDialog
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        imageUrl={previewUrl}
-        fileName={file.original_name}
-        loading={loading}
-      />
-      
-      <CSVPreviewDialog
-        open={csvPreviewOpen}
-        onClose={() => setCsvPreviewOpen(false)}
-        fileName={file.original_name}
-        fileId={file.id}
-        getFileContent={getFileContent || createDefaultGetFileContent()}
-      />
-      
-      <PDFPreviewDialog
-        open={pdfPreviewOpen}
-        onClose={() => setPdfPreviewOpen(false)}
-        fileId={file.id}
-        fileName={file.original_name}
-        loading={false}
-        getPdfInfo={getPdfInfo}
-      />
-      
+      <PreviewDialogs file={file} previewState={previewState} getFileContent={getFileContent} getPdfInfo={getPdfInfo} />
       {onMoveToFolder && folders && (
         <FolderMoveDialog
-          open={moveDialogOpen}
-          onClose={() => setMoveDialogOpen(false)}
+          open={dialogState.moveDialogOpen}
+          onClose={dialogState.closeMoveDialog}
           fileName={file.original_name}
           currentFolder={file.folder}
           folders={folders}
-          onMove={handleMoveToFolder}
+          onMove={(id) => onMoveToFolder(file.id, id)}
         />
       )}
-      
       {onMoveToProject && projects && (
         <ProjectMoveDialog
-          open={assignDialogOpen}
-          onClose={() => setAssignDialogOpen(false)}
+          open={dialogState.assignDialogOpen}
+          onClose={dialogState.closeAssignDialog}
           fileName={file.original_name}
           currentProject={file.project}
           projects={projects}
-          onMove={handleMoveToProject}
+          onMove={(id) => onMoveToProject(file.id, id)}
         />
       )}
     </>

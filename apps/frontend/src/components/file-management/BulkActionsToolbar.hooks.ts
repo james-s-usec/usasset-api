@@ -131,7 +131,16 @@ export const useBulkActionHandlers = ({
 export const useBulkActions = (
   selectedFiles: Set<string>,
   handlers: BulkActionHandlers
-) => {
+): {
+  dialogs: DialogState;
+  setDialogs: React.Dispatch<React.SetStateAction<DialogState>>;
+  selected: SelectedState;
+  setSelected: React.Dispatch<React.SetStateAction<SelectedState>>;
+  loading: boolean;
+  handleBulkAssignProject: () => Promise<void>;
+  handleBulkMoveToFolder: () => Promise<void>;
+  handleBulkDelete: () => Promise<void>;
+} => {
   const {
     dialogs,
     setDialogs,

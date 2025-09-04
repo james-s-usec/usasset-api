@@ -75,7 +75,7 @@ const formatFileSize = (bytes: number): string => {
 };
 
 
-const getFileIcon = (mimetype: string) => {
+const getFileIcon = (mimetype: string): React.ReactElement => {
   if (mimetype === 'application/pdf') return <PdfIcon color="error" />;
   if (mimetype.startsWith('image/')) return <ImageIcon color="primary" />;
   if (mimetype.includes('csv') || mimetype.includes('spreadsheet') || mimetype.includes('excel')) return <CsvIcon color="success" />;

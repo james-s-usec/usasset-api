@@ -197,13 +197,13 @@ export const FileManagement: React.FC = () => {
     return applyFilters(state.files, filters);
   }, [state.files, filters]);
   
-  const handleClearFilters = () => {
+  const handleClearFilters = (): void => {
     setFilters(createDefaultFilters());
   };
   
   // Load projects on mount
   useEffect(() => {
-    const loadProjects = async () => {
+    const loadProjects = async (): Promise<void> => {
       try {
         const projectData = await state.fetchProjects();
         setProjects(projectData);

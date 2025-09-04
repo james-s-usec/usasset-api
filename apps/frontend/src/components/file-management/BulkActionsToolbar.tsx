@@ -103,9 +103,9 @@ export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
               onToggleSelect={handleToggleSelect}
             />
             <BulkActionButtons
-              onProjectClick={() => setDialogs(prev => ({ ...prev, project: true }))}
-              onFolderClick={() => setDialogs(prev => ({ ...prev, folder: true }))}
-              onDeleteClick={() => setDialogs(prev => ({ ...prev, delete: true }))}
+              onProjectClick={(): void => setDialogs(prev => ({ ...prev, project: true }))}
+              onFolderClick={(): void => setDialogs(prev => ({ ...prev, folder: true }))}
+              onDeleteClick={(): void => setDialogs(prev => ({ ...prev, delete: true }))}
               onClear={onClearSelection}
             />
           </Toolbar>

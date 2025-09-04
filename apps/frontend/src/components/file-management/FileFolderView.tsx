@@ -56,7 +56,7 @@ interface FileFolderViewProps {
   onRefresh?: () => Promise<void>;
 }
 
-const getFileIcon = (mimetype: string) => {
+const getFileIcon = (mimetype: string): React.ReactElement => {
   if (mimetype === 'application/pdf') return <PdfIcon color="error" />;
   if (mimetype.startsWith('image/')) return <ImageIcon color="primary" />;
   if (mimetype.includes('csv') || mimetype.includes('spreadsheet') || mimetype.includes('excel')) 
@@ -230,7 +230,7 @@ export const FileFolderView: React.FC<FileFolderViewProps> = ({
 
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(new Set(['unorganized']));
 
-  const handlePanelChange = (panelId: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
+  const handlePanelChange = (panelId: string): (_event: React.SyntheticEvent, isExpanded: boolean) => void => (_event: React.SyntheticEvent, isExpanded: boolean): void => {
     const newExpanded = new Set(expandedPanels);
     if (isExpanded) {
       newExpanded.add(panelId);
