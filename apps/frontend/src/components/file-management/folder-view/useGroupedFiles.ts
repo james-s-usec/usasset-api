@@ -16,7 +16,7 @@ interface Project {
   status: string;
 }
 
-interface GroupData {
+export interface GroupData {
   type: "project" | "folder" | "unorganized";
   data: Project | Folder | null;
   files: FileData[];

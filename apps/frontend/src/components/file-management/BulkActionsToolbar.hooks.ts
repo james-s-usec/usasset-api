@@ -4,6 +4,9 @@ import {
   useBulkProjectHandler,
   useBulkFolderHandler,
   useBulkDeleteHandler,
+  type ProjectHandlerParams,
+  type FolderHandlerParams,
+  type DeleteHandlerParams,
 } from "./BulkActionsHandlers";
 
 interface DialogState {
@@ -64,11 +67,14 @@ interface BulkActionHandlerParams {
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-// Helper to create handler params
-const createHandlerParams = (
+// Helper to create handler params with proper typing
+function createHandlerParams(params: BulkActionHandlerParams, type: 'project'): ProjectHandlerParams;
+function createHandlerParams(params: BulkActionHandlerParams, type: 'folder'): FolderHandlerParams;
+function createHandlerParams(params: BulkActionHandlerParams, type: 'delete'): DeleteHandlerParams;
+function createHandlerParams(
   params: BulkActionHandlerParams,
   type: 'project' | 'folder' | 'delete'
-): Record<string, unknown> => {
+): ProjectHandlerParams | FolderHandlerParams | DeleteHandlerParams {
   const base = {
     selectedFiles: params.selectedFiles,
     handlers: params.handlers,
@@ -76,10 +82,14 @@ const createHandlerParams = (
     setLoading: params.setLoading,
   };
   
-  if (type === 'project') return { ...base, projectId: params.selected.projectId, setSelected: params.setSelected };
-  if (type === 'folder') return { ...base, folderId: params.selected.folderId, setSelected: params.setSelected };
-  return base;
-};
+  if (type === 'project') {
+    return { ...base, projectId: params.selected.projectId, setSelected: params.setSelected } as ProjectHandlerParams;
+  }
+  if (type === 'folder') {
+    return { ...base, folderId: params.selected.folderId, setSelected: params.setSelected } as FolderHandlerParams;
+  }
+  return base as DeleteHandlerParams;
+}
 
 interface BulkActionHandlersReturn {
   handleBulkAssignProject: () => Promise<void>;

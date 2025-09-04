@@ -12,7 +12,7 @@ import {
   Alert,
 } from '@mui/material';
 
-interface BulkDeleteDialogProps {
+export interface BulkDeleteDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;

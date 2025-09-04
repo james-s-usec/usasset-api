@@ -21,7 +21,7 @@ interface Folder {
   color: string;
 }
 
-interface BulkFolderDialogProps {
+export interface BulkFolderDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;

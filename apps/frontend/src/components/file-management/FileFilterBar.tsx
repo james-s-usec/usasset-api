@@ -151,7 +151,7 @@ const ExpandedFilters: React.FC<{
       />
       {activeFiltersCount > 0 && (
         <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider', mt: 2 }}>
-          <FilterSummary filters={filters} projects={projects} folders={folders} />
+          <FilterSummary filters={filters} projects={projects || []} folders={folders || []} />
         </Box>
       )}
     </>

@@ -74,7 +74,7 @@ const FitBoundsOnLoad: React.FC<{ bounds: L.LatLngBoundsExpression }> = ({ bound
   return null;
 };
 
-const usePDFCRS = (height: number): any => {
+const usePDFCRS = (height: number): L.CRS => {
   return L.extend({}, L.CRS.Simple, {
     transformation: new L.Transformation(1, 0, -1, height),
   });

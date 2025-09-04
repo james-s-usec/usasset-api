@@ -89,7 +89,7 @@ const FileGroupAccordion: React.FC<{
     onChange={onToggle(groupId)}
     sx={{ mb: 1, "&:before": { display: "none" } }}
   >
-    {children}
+    {children || <></>}
   </Accordion>
 );
 

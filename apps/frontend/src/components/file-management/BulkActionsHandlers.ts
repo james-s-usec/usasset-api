@@ -18,7 +18,7 @@ interface BulkActionHandlers {
   onClearSelection: () => void;
 }
 
-interface ProjectHandlerParams {
+export interface ProjectHandlerParams {
   selectedFiles: Set<string>;
   projectId: string;
   handlers: BulkActionHandlers;
@@ -54,7 +54,7 @@ export const useBulkProjectHandler = ({
   }, [selectedFiles, projectId, handlers, setDialogs, setSelected, setLoading]);
 };
 
-interface FolderHandlerParams {
+export interface FolderHandlerParams {
   selectedFiles: Set<string>;
   folderId: string;
   handlers: BulkActionHandlers;
@@ -90,7 +90,7 @@ export const useBulkFolderHandler = ({
   }, [selectedFiles, folderId, handlers, setDialogs, setSelected, setLoading]);
 };
 
-interface DeleteHandlerParams {
+export interface DeleteHandlerParams {
   selectedFiles: Set<string>;
   handlers: BulkActionHandlers;
   setDialogs: React.Dispatch<React.SetStateAction<DialogState>>;

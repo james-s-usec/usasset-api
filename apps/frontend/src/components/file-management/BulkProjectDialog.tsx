@@ -20,7 +20,7 @@ interface Project {
   name: string;
 }
 
-interface BulkProjectDialogProps {
+export interface BulkProjectDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;

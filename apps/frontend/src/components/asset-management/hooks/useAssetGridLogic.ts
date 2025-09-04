@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { GridReadyEvent, ColDef } from 'ag-grid-community';
+import type { GridReadyEvent, ColDef, ICellRendererParams } from 'ag-grid-community';
 import type { Asset } from '../types';
 import { useActionsCellRenderer, useStatusCellRenderer, useGridComponents } from '../components/useGridRenderers';
 

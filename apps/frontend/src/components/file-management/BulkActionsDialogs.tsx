@@ -1,7 +1,7 @@
 import React from 'react';
-import { BulkProjectDialog } from './BulkProjectDialog';
-import { BulkFolderDialog } from './BulkFolderDialog';
-import { BulkDeleteDialog } from './BulkDeleteDialog';
+import { BulkProjectDialog, type BulkProjectDialogProps } from './BulkProjectDialog';
+import { BulkFolderDialog, type BulkFolderDialogProps } from './BulkFolderDialog';
+import { BulkDeleteDialog, type BulkDeleteDialogProps } from './BulkDeleteDialog';
 import type { Folder, Project } from './types';
 
 interface DialogState {
@@ -58,15 +58,15 @@ interface BaseDialogProps {
   loading: boolean;
 }
 
-const ProjectDialogSection: React.FC<BaseDialogProps> = (props) => (
+const ProjectDialogSection: React.FC<BulkProjectDialogProps> = (props) => (
   <BulkProjectDialog {...props} />
 );
 
-const FolderDialogSection: React.FC<BaseDialogProps> = (props) => (
+const FolderDialogSection: React.FC<BulkFolderDialogProps> = (props) => (
   <BulkFolderDialog {...props} />
 );
 
-const DeleteDialogSection: React.FC<BaseDialogProps> = (props) => (
+const DeleteDialogSection: React.FC<BulkDeleteDialogProps> = (props) => (
   <BulkDeleteDialog {...props} />
 );
 

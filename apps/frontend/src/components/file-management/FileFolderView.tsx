@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Paper, Box, Grid } from "@mui/material";
 import type { FileData } from "./types";
-import { useGroupedFiles } from "./folder-view/useGroupedFiles";
+import { useGroupedFiles, type GroupData } from "./folder-view/useGroupedFiles";
 import { FileFolderHeader } from "./folder-view/FileFolderHeader";
 import { EmptyState } from "./folder-view/EmptyState";
 import { FileGroup } from "./folder-view/FileGroup";
@@ -51,17 +51,10 @@ const usePanelExpansion = (): { expandedPanels: Set<string>; handlePanelChange: 
   return { expandedPanels, handlePanelChange };
 };
 
-interface GroupedItem {
-  files: FileData[];
-  name: string;
-  color?: string;
-  count: number;
-}
-
 const FileGroupsList: React.FC<{
-  groupedData: Array<[string, GroupedItem]>;
+  groupedData: Array<[string, GroupData]>;
   expandedPanels: Set<string>;
-  handlePanelChange: (groupId: string) => void;
+  handlePanelChange: (panelId: string) => (_event: React.SyntheticEvent<Element, Event>, isExpanded: boolean) => void;
   onDownload: FileFolderViewProps['onDownload'];
   onDelete: FileFolderViewProps['onDelete'];
   onPreview?: FileFolderViewProps['onPreview'];
@@ -75,7 +68,7 @@ const FileGroupsList: React.FC<{
         expanded={expandedPanels.has(groupId)}
         onToggle={handlePanelChange}
       >
-        {group.files.map((file) => (
+        {group.files.map((file: FileData) => (
           <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={file.id}>
             <FileCard
               file={file}
