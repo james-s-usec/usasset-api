@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Project {
   id: string;
@@ -17,14 +17,14 @@ export const useProjects = (
 ): UseProjectsState => {
   const [projects, setProjects] = useState<Project[]>([]);
 
-  const loadProjects = async (): Promise<void> => {
+  const loadProjects = useCallback(async (): Promise<void> => {
     try {
       const projectData = await fetchProjects();
       setProjects(projectData);
     } catch (error) {
       console.error("Failed to load projects:", error);
     }
-  };
+  }, [fetchProjects]);
 
   useEffect(() => {
     loadProjects();

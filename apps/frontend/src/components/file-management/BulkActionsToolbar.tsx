@@ -33,98 +33,104 @@ interface BulkActionsToolbarProps {
   onBulkDelete: (fileIds: string[]) => Promise<void>;
 }
 
-export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
-  selectedFiles,
-  allFiles,
-  folders,
-  projects,
-  onClearSelection,
-  onSelectAll,
-  onBulkAssignProject,
-  onBulkMoveToFolder,
-  onBulkDelete,
-}): React.ReactElement | null => {
-  const {
-    dialogs,
-    setDialogs,
-    selected,
-    setSelected,
-    loading,
-    handleBulkAssignProject,
-    handleBulkMoveToFolder,
-    handleBulkDelete,
-  } = useBulkActions(selectedFiles, {
-    onBulkAssignProject,
-    onBulkMoveToFolder,
-    onBulkDelete,
-    onClearSelection,
-  });
+// Container styles
+const toolbarStyles = {
+  bgcolor: 'primary.light',
+  color: 'primary.contrastText',
+  mb: 2,
+  borderRadius: 1
+};
 
-  const selectedCount = selectedFiles.size;
-  const { allSelected, someSelected } = calculateSelectionState(
-    selectedCount,
-    allFiles.length
+interface ToolbarContentProps {
+  selectedCount: number;
+  allSelected: boolean;
+  someSelected: boolean;
+  selectedFileNames: string[];
+  remainingCount: number;
+  onToggleSelect: () => void;
+  onProjectClick: () => void;
+  onFolderClick: () => void;
+  onDeleteClick: () => void;
+  onClear: () => void;
+}
+
+// Simplified component - under 30 lines
+const BulkToolbarContent: React.FC<ToolbarContentProps> = (props) => {
+  const { selectedCount, onProjectClick, onFolderClick, onDeleteClick, onClear, ...selectionProps } = props;
+  
+  return (
+    <Collapse in={selectedCount > 0}>
+      <Box sx={toolbarStyles}>
+        <Toolbar sx={{ minHeight: '48px !important' }}>
+          <SelectionInfo {...selectionProps} selectedCount={selectedCount} />
+          <BulkActionButtons {...{ onProjectClick, onFolderClick, onDeleteClick, onClear }} />
+        </Toolbar>
+      </Box>
+    </Collapse>
   );
+};
 
-  const handleToggleSelect = useCallback((): void => {
-    if (allSelected) {
-      onClearSelection();
-    } else {
-      onSelectAll();
-    }
-  }, [allSelected, onClearSelection, onSelectAll]);
+// Helper hook for dialog actions
+const useDialogActions = (setDialogs: any) => ({
+  openProject: () => setDialogs((prev: any) => ({ ...prev, project: true })),
+  openFolder: () => setDialogs((prev: any) => ({ ...prev, folder: true })),
+  openDelete: () => setDialogs((prev: any) => ({ ...prev, delete: true }))
+});
 
+// Helper for toolbar props
+const useToolbarProps = (props: any) => {
+  const { selectedFiles, allFiles, onClearSelection, onSelectAll } = props;
+  const selectedCount = selectedFiles.size;
+  const { allSelected, someSelected } = calculateSelectionState(selectedCount, allFiles.length);
+  
+  const handleToggleSelect = useCallback(
+    () => allSelected ? onClearSelection() : onSelectAll(),
+    [allSelected, onClearSelection, onSelectAll]
+  );
+  
   const getFileNames = useCallback(
-    (): string[] => getSelectedFileNames(allFiles, selectedFiles),
+    () => getSelectedFileNames(allFiles, selectedFiles),
     [allFiles, selectedFiles]
   );
-
-  if (selectedCount === 0) return null;
-
+  
   const selectedFileNames = getFileNames();
   const remainingCount = selectedCount - selectedFileNames.length;
+  
+  return {
+    selectedCount, allSelected, someSelected, selectedFileNames,
+    remainingCount, handleToggleSelect, getFileNames
+  };
+};
+
+// Main component - refactored to under 30 lines
+export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = (props) => {
+  const { folders, projects, onClearSelection, onBulkAssignProject, onBulkMoveToFolder, onBulkDelete } = props;
+  
+  const bulkActions = useBulkActions(props.selectedFiles, {
+    onBulkAssignProject, onBulkMoveToFolder, onBulkDelete, onClearSelection
+  });
+  
+  const toolbarProps = useToolbarProps(props);
+  const dialogActions = useDialogActions(bulkActions.setDialogs);
+  
+  if (toolbarProps.selectedCount === 0) return null;
 
   return (
     <>
-      <Collapse in={selectedCount > 0}>
-        <Box sx={{ 
-          bgcolor: 'primary.light', 
-          color: 'primary.contrastText', 
-          mb: 2, 
-          borderRadius: 1 
-        }}>
-          <Toolbar sx={{ minHeight: '48px !important' }}>
-            <SelectionInfo
-              allSelected={allSelected}
-              someSelected={someSelected}
-              selectedCount={selectedCount}
-              selectedFileNames={selectedFileNames}
-              remainingCount={remainingCount}
-              onToggleSelect={handleToggleSelect}
-            />
-            <BulkActionButtons
-              onProjectClick={(): void => setDialogs(prev => ({ ...prev, project: true }))}
-              onFolderClick={(): void => setDialogs(prev => ({ ...prev, folder: true }))}
-              onDeleteClick={(): void => setDialogs(prev => ({ ...prev, delete: true }))}
-              onClear={onClearSelection}
-            />
-          </Toolbar>
-        </Box>
-      </Collapse>
-
+      <BulkToolbarContent
+        {...toolbarProps}
+        onToggleSelect={toolbarProps.handleToggleSelect}
+        onProjectClick={dialogActions.openProject}
+        onFolderClick={dialogActions.openFolder}
+        onDeleteClick={dialogActions.openDelete}
+        onClear={onClearSelection}
+      />
       <BulkActionsDialogs
-        dialogs={dialogs}
-        selected={selected}
-        loading={loading}
+        {...bulkActions}
         projects={projects}
         folders={folders}
-        selectedCount={selectedCount}
-        setDialogs={setDialogs}
-        setSelected={setSelected}
-        handleBulkAssignProject={handleBulkAssignProject}
-        handleBulkMoveToFolder={handleBulkMoveToFolder}
-        handleBulkDelete={handleBulkDelete}
-        getFileNames={getFileNames}
+        selectedCount={toolbarProps.selectedCount}
+        getFileNames={toolbarProps.getFileNames}
       />
     </>
   );

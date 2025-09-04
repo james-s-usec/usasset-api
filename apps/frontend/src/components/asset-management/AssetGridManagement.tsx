@@ -1,58 +1,39 @@
-import React, { useEffect, useMemo, useCallback } from "react";
-import { Box } from "@mui/material";
-import type { GridReadyEvent } from "ag-grid-community";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
-import "./AssetGrid.css";
-import { getEnabledColumns } from "./columnConfig";
-import { useAssetData } from "./components/useAssetData";
-import { useAssetActions } from "./components/useAssetActions";
-import { useColumnCategories } from "./components/useColumnCategories";
-import { useActionsCellRenderer, useStatusCellRenderer, useGridComponents } from "./components/useGridRenderers";
-import { AssetHeader } from "./components/AssetHeader";
-import { AssetGrid } from "./components/AssetGrid";
-
-const useGridReady = (): ((params: GridReadyEvent) => void) => {
-  return useCallback((params: GridReadyEvent) => {
-    params.api.sizeColumnsToFit();
-  }, []);
-};
+import React, { useEffect } from 'react';
+import { Box, Alert } from '@mui/material';
+import type { Asset } from './types';
+import { useAssets } from './hooks/useAssets';
+import { AssetTableHeader } from './AssetTableHeader';
+import { AssetGrid } from './components/AssetGrid';
+import { useAssetGridLogic } from './hooks/useAssetGridLogic';
 
 export const AssetGridManagement: React.FC = () => {
-  const { assets, loading, error, fetchAssets } = useAssetData();
-  const { columnCategories, handleCategoryToggle } = useColumnCategories();
-  const { handleAdd, handleEdit, handleDelete } = useAssetActions(fetchAssets);
-  
-  const actionsCellRenderer = useActionsCellRenderer({ onEdit: handleEdit, onDelete: handleDelete });
-  const statusCellRenderer = useStatusCellRenderer();
-  const components = useGridComponents(actionsCellRenderer, statusCellRenderer);
-  
-  const columnDefs = useMemo(() => {
-    return getEnabledColumns(columnCategories);
-  }, [columnCategories]);
-  
-  const handleGridReady = useGridReady();
+  const { assets, loading, error, fetchAssets, deleteAsset } = useAssets();
+  const { columnDefs, components, onGridReady } = useAssetGridLogic({
+    onEdit: (asset: Asset) => alert(`Edit ${asset.name} coming soon!`),
+    onDelete: deleteAsset,
+  });
 
-  useEffect(() => {
-    fetchAssets();
+  const handleAdd = (): void => alert('Add asset functionality coming soon!');
+
+  useEffect(() => { 
+    fetchAssets(); 
   }, [fetchAssets]);
 
   return (
     <Box>
-      <AssetHeader
-        columnCategories={columnCategories}
-        onCategoryToggle={handleCategoryToggle}
-        onRefresh={fetchAssets}
-        onAdd={handleAdd}
-        loading={loading}
+      <AssetTableHeader 
+        onAdd={handleAdd} 
+        onRefresh={fetchAssets} 
+        loading={loading} 
       />
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       <AssetGrid
         assets={assets}
         columnDefs={columnDefs}
         components={components}
         loading={loading}
         error={error}
-        onGridReady={handleGridReady}
+        onGridReady={onGridReady}
       />
     </Box>
   );

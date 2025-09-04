@@ -1,21 +1,6 @@
 import { useState, useCallback } from 'react';
-import type { FileData } from './types';
+import type { FileData, Folder, Project } from './types';
 import { useFileOperations } from './useFileOperations';
-
-interface Folder {
-  id: string;
-  name: string;
-  color: string;
-  is_default: boolean;
-  file_count: number;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  status: string;
-}
 
 interface UseFileManagementReturn {
   files: FileData[];

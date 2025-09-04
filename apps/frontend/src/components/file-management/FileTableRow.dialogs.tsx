@@ -141,14 +141,15 @@ interface FolderMoveDialogProps {
   onMove: (folderId: string | null) => Promise<void>;
 }
 
-export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({ 
-  open, 
-  onClose, 
-  fileName, 
-  currentFolder, 
-  folders, 
-  onMove 
-}) => {
+const useFolderMove = (
+  open: boolean,
+  currentFolder?: { id: string; name: string }
+): {
+  selectedFolderId: string;
+  setSelectedFolderId: (id: string) => void;
+  moving: boolean;
+  handleMove: (onMove: (id: string | null) => Promise<void>, onClose: () => void) => Promise<void>;
+} => {
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [moving, setMoving] = useState(false);
 
@@ -158,7 +159,10 @@ export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({
     }
   }, [open, currentFolder?.id]);
 
-  const handleMove = async (): Promise<void> => {
+  const handleMove = async (
+    onMove: (id: string | null) => Promise<void>,
+    onClose: () => void
+  ): Promise<void> => {
     setMoving(true);
     try {
       await onMove(selectedFolderId || null);
@@ -170,13 +174,21 @@ export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({
     }
   };
 
+  return { selectedFolderId, setSelectedFolderId, moving, handleMove };
+};
+
+export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({ 
+  open, 
+  onClose, 
+  fileName, 
+  currentFolder, 
+  folders, 
+  onMove 
+}) => {
+  const { selectedFolderId, setSelectedFolderId, moving, handleMove } = useFolderMove(open, currentFolder);
+
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="sm" 
-      fullWidth
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Move File</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -191,7 +203,7 @@ export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({
       </DialogContent>
       <DialogFooter
         onClose={onClose}
-        onAction={handleMove}
+        onAction={() => handleMove(onMove, onClose)}
         actionLabel={moving ? 'Moving' : 'Move'}
         loading={moving}
       />
@@ -208,14 +220,15 @@ interface ProjectMoveDialogProps {
   onMove: (projectId: string | null) => Promise<void>;
 }
 
-export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({ 
-  open, 
-  onClose, 
-  fileName, 
-  currentProject, 
-  projects, 
-  onMove 
-}) => {
+const useProjectMove = (
+  open: boolean,
+  currentProject?: { id: string; name: string }
+): {
+  selectedProjectId: string;
+  setSelectedProjectId: (id: string) => void;
+  moving: boolean;
+  handleMove: (onMove: (id: string | null) => Promise<void>, onClose: () => void) => Promise<void>;
+} => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [moving, setMoving] = useState(false);
 
@@ -225,7 +238,10 @@ export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({
     }
   }, [open, currentProject?.id]);
 
-  const handleMove = async (): Promise<void> => {
+  const handleMove = async (
+    onMove: (id: string | null) => Promise<void>,
+    onClose: () => void
+  ): Promise<void> => {
     setMoving(true);
     try {
       await onMove(selectedProjectId || null);
@@ -237,13 +253,21 @@ export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({
     }
   };
 
+  return { selectedProjectId, setSelectedProjectId, moving, handleMove };
+};
+
+export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({ 
+  open, 
+  onClose, 
+  fileName, 
+  currentProject, 
+  projects, 
+  onMove 
+}) => {
+  const { selectedProjectId, setSelectedProjectId, moving, handleMove } = useProjectMove(open, currentProject);
+
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="sm" 
-      fullWidth
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Assign to Project</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -258,7 +282,7 @@ export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({
       </DialogContent>
       <DialogFooter
         onClose={onClose}
-        onAction={handleMove}
+        onAction={() => handleMove(onMove, onClose)}
         actionLabel={moving ? 'Assigning' : 'Assign'}
         loading={moving}
       />

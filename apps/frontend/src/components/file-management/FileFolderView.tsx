@@ -32,7 +32,7 @@ interface FileFolderViewProps {
   onRefresh?: () => Promise<void>;
 }
 
-const usePanelExpansion = () => {
+const usePanelExpansion = (): { expandedPanels: Set<string>; handlePanelChange: (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => void } => {
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
     new Set(["unorganized"])
   );

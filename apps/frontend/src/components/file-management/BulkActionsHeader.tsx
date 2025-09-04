@@ -4,17 +4,13 @@ import {
   Toolbar,
   Typography,
   IconButton,
-  Button,
 } from '@mui/material';
 import {
-  Close as CloseIcon,
-  Assignment as AssignIcon,
-  DriveFileMove as MoveIcon,
-  Delete as DeleteIcon,
   SelectAll as SelectAllIcon,
   CheckBox as CheckBoxIcon,
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
 } from '@mui/icons-material';
+import { ProjectButton, FolderButton, DeleteButton, ClearButton } from './BulkActionsButtons';
 
 interface BulkActionsHeaderProps {
   selectedCount: number;
@@ -27,6 +23,44 @@ interface BulkActionsHeaderProps {
   onFolderClick: () => void;
   onDeleteClick: () => void;
 }
+
+const SelectionToggleButton: React.FC<{
+  allSelected: boolean;
+  someSelected: boolean;
+  onSelectAll: () => void;
+}> = ({ allSelected, someSelected, onSelectAll }) => (
+  <IconButton
+    size="small"
+    onClick={onSelectAll}
+    sx={{ color: 'inherit' }}
+    title={allSelected ? "Deselect All" : "Select All"}
+  >
+    {allSelected ? <CheckBoxIcon /> : someSelected ? <CheckBoxOutlineBlankIcon /> : <SelectAllIcon />}
+  </IconButton>
+);
+
+const SelectionCounter: React.FC<{
+  selectedCount: number;
+  totalCount: number;
+}> = ({ selectedCount, totalCount }) => (
+  <Typography variant="subtitle1" sx={{ ml: 1 }}>
+    {selectedCount} of {totalCount} selected
+  </Typography>
+);
+
+const ActionButtons: React.FC<{
+  onProjectClick: () => void;
+  onFolderClick: () => void;
+  onDeleteClick: () => void;
+  onClearSelection: () => void;
+}> = ({ onProjectClick, onFolderClick, onDeleteClick, onClearSelection }) => (
+  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+    <ProjectButton onClick={onProjectClick} />
+    <FolderButton onClick={onFolderClick} />
+    <DeleteButton onClick={onDeleteClick} />
+    <ClearButton onClick={onClearSelection} />
+  </Box>
+);
 
 export const BulkActionsHeader: React.FC<BulkActionsHeaderProps> = ({
   selectedCount,
@@ -49,62 +83,19 @@ export const BulkActionsHeader: React.FC<BulkActionsHeaderProps> = ({
     mb: 1,
   }}>
     <Toolbar variant="dense" sx={{ minHeight: 48 }}>
-      <IconButton
-        size="small"
-        onClick={onSelectAll}
-        sx={{ color: 'inherit' }}
-        title={allSelected ? "Deselect All" : "Select All"}
-      >
-        {allSelected ? <CheckBoxIcon /> : someSelected ? <CheckBoxOutlineBlankIcon /> : <SelectAllIcon />}
-      </IconButton>
-      
-      <Typography variant="subtitle1" sx={{ ml: 1 }}>
-        {selectedCount} of {totalCount} selected
-      </Typography>
-
+      <SelectionToggleButton
+        allSelected={allSelected}
+        someSelected={someSelected}
+        onSelectAll={onSelectAll}
+      />
+      <SelectionCounter selectedCount={selectedCount} totalCount={totalCount} />
       <Box sx={{ flexGrow: 1 }} />
-
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-        <Button
-          size="small"
-          startIcon={<AssignIcon />}
-          onClick={onProjectClick}
-          sx={{ color: 'inherit', borderColor: 'currentColor' }}
-          variant="outlined"
-        >
-          Assign to Project
-        </Button>
-        
-        <Button
-          size="small"
-          startIcon={<MoveIcon />}
-          onClick={onFolderClick}
-          sx={{ color: 'inherit', borderColor: 'currentColor' }}
-          variant="outlined"
-        >
-          Move to Folder
-        </Button>
-        
-        <Button
-          size="small"
-          startIcon={<DeleteIcon />}
-          onClick={onDeleteClick}
-          sx={{ color: 'inherit', borderColor: 'currentColor' }}
-          variant="outlined"
-          color="error"
-        >
-          Delete
-        </Button>
-        
-        <IconButton
-          size="small"
-          onClick={onClearSelection}
-          sx={{ color: 'inherit' }}
-          title="Clear Selection"
-        >
-          <CloseIcon />
-        </IconButton>
-      </Box>
+      <ActionButtons
+        onProjectClick={onProjectClick}
+        onFolderClick={onFolderClick}
+        onDeleteClick={onDeleteClick}
+        onClearSelection={onClearSelection}
+      />
     </Toolbar>
   </Box>
 );

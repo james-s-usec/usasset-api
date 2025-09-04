@@ -32,7 +32,7 @@ const enrichPdfWithPageCount = async (pdf: PDFFile): Promise<PDFFile> => {
   return { ...pdf, pageCount };
 };
 
-export const usePdfFiles = () => {
+export const usePdfFiles = (): { pdfFiles: PDFFile[]; loading: boolean; fetchPdfFiles: () => Promise<void> } => {
   const [pdfFiles, setPdfFiles] = useState<PDFFile[]>([]);
   const [loading, setLoading] = useState(true);
 

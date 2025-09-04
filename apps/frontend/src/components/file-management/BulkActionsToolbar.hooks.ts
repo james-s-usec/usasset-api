@@ -64,51 +64,47 @@ interface BulkActionHandlerParams {
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const useBulkActionHandlers = (
-  params: BulkActionHandlerParams
-): {
+// Helper to create handler params
+const createHandlerParams = (
+  params: BulkActionHandlerParams,
+  type: 'project' | 'folder' | 'delete'
+): any => {
+  const base = {
+    selectedFiles: params.selectedFiles,
+    handlers: params.handlers,
+    setDialogs: params.setDialogs,
+    setLoading: params.setLoading,
+  };
+  
+  if (type === 'project') return { ...base, projectId: params.selected.projectId, setSelected: params.setSelected };
+  if (type === 'folder') return { ...base, folderId: params.selected.folderId, setSelected: params.setSelected };
+  return base;
+};
+
+interface BulkActionHandlersReturn {
   handleBulkAssignProject: () => Promise<void>;
   handleBulkMoveToFolder: () => Promise<void>;
   handleBulkDelete: () => Promise<void>;
-} => {
-  const { selectedFiles, selected, handlers, setDialogs, setSelected, setLoading } = params;
+}
 
-  const handleBulkAssignProject = useBulkProjectHandler({
-    selectedFiles,
-    projectId: selected.projectId,
-    handlers,
-    setDialogs,
-    setSelected,
-    setLoading,
-  });
+// Refactored - now under 30 lines
+export const useBulkActionHandlers = (params: BulkActionHandlerParams): BulkActionHandlersReturn => {
+  const handleBulkAssignProject = useBulkProjectHandler(
+    createHandlerParams(params, 'project')
+  );
+  
+  const handleBulkMoveToFolder = useBulkFolderHandler(
+    createHandlerParams(params, 'folder')
+  );
+  
+  const handleBulkDelete = useBulkDeleteHandler(
+    createHandlerParams(params, 'delete')
+  );
 
-  const handleBulkMoveToFolder = useBulkFolderHandler({
-    selectedFiles,
-    folderId: selected.folderId,
-    handlers,
-    setDialogs,
-    setSelected,
-    setLoading,
-  });
-
-  const handleBulkDelete = useBulkDeleteHandler({
-    selectedFiles,
-    handlers,
-    setDialogs,
-    setLoading,
-  });
-
-  return {
-    handleBulkAssignProject,
-    handleBulkMoveToFolder,
-    handleBulkDelete,
-  };
+  return { handleBulkAssignProject, handleBulkMoveToFolder, handleBulkDelete };
 };
 
-export const useBulkActions = (
-  selectedFiles: Set<string>,
-  handlers: BulkActionHandlers
-): {
+type BulkActionsReturn = {
   dialogs: DialogState;
   setDialogs: React.Dispatch<React.SetStateAction<DialogState>>;
   selected: SelectedState;
@@ -117,24 +113,24 @@ export const useBulkActions = (
   handleBulkAssignProject: () => Promise<void>;
   handleBulkMoveToFolder: () => Promise<void>;
   handleBulkDelete: () => Promise<void>;
-} => {
-  const { dialogs, setDialogs, selected, setSelected, loading, setLoading } = useDialogState();
+};
+
+// Simplified - now under 30 lines
+export const useBulkActions = (
+  selectedFiles: Set<string>,
+  handlers: BulkActionHandlers
+): BulkActionsReturn => {
+  const dialogState = useDialogState();
+  const { setDialogs, setSelected, setLoading } = dialogState;
   
   const actionHandlers = useBulkActionHandlers({
     selectedFiles,
-    selected,
+    selected: dialogState.selected,
     handlers,
     setDialogs,
     setSelected,
     setLoading,
   });
 
-  return {
-    dialogs,
-    setDialogs,
-    selected,
-    setSelected,
-    loading,
-    ...actionHandlers,
-  };
+  return { ...dialogState, ...actionHandlers };
 };

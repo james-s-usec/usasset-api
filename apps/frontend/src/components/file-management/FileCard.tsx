@@ -28,16 +28,30 @@ const getFileIcon = (mimetype: string): React.ReactElement => {
   return <FileIcon color="action" />;
 };
 
+// Map of mimetypes to labels
+const MIMETYPE_LABELS: Record<string, string> = {
+  "application/pdf": "PDF",
+};
+
+// Check mimetype patterns
+const getMimetypePattern = (mimetype: string): string => {
+  const patterns = [
+    { check: (m: string) => m.includes("wordprocessingml.document"), label: "DOCX" },
+    { check: (m: string) => m.includes("presentationml.presentation"), label: "PPTX" },
+    { check: (m: string) => m.includes("spreadsheetml.sheet"), label: "XLSX" },
+    { check: (m: string) => m.includes("csv"), label: "CSV" },
+    { check: (m: string) => m.startsWith("image/jpeg"), label: "JPEG" },
+    { check: (m: string) => m.startsWith("image/png"), label: "PNG" },
+    { check: (m: string) => m.startsWith("image/"), label: "Image" },
+  ];
+  
+  const match = patterns.find(p => p.check(mimetype));
+  return match?.label || "File";
+};
+
+// Simplified function with reduced complexity
 const getFileTypeLabel = (mimetype: string): string => {
-  if (mimetype === "application/pdf") return "PDF";
-  if (mimetype.includes("wordprocessingml.document")) return "DOCX";
-  if (mimetype.includes("presentationml.presentation")) return "PPTX";
-  if (mimetype.includes("spreadsheetml.sheet")) return "XLSX";
-  if (mimetype.includes("csv")) return "CSV";
-  if (mimetype.startsWith("image/jpeg")) return "JPEG";
-  if (mimetype.startsWith("image/png")) return "PNG";
-  if (mimetype.startsWith("image/")) return "Image";
-  return "File";
+  return MIMETYPE_LABELS[mimetype] || getMimetypePattern(mimetype);
 };
 
 const formatFileSize = (bytes: number): string => {
@@ -96,46 +110,43 @@ const FileChips: React.FC<{ file: FileData }> = ({ file }) => (
   </Box>
 );
 
+// Check if file can be previewed
+const canPreviewFile = (file: FileData): boolean => {
+  const isImage = file.mimetype.startsWith("image/");
+  const isCSV = file.mimetype.includes("csv") || file.original_name.toLowerCase().endsWith(".csv");
+  const isPDF = file.mimetype === "application/pdf";
+  return isImage || isCSV || isPDF;
+};
+
+// Preview button component
+const PreviewButton: React.FC<{ fileId: string; onPreview: (id: string) => Promise<string> }> = ({ 
+  fileId, 
+  onPreview 
+}) => (
+  <IconButton size="small" onClick={() => onPreview(fileId)} title="Preview">
+    <PreviewIcon fontSize="small" />
+  </IconButton>
+);
+
+// Simplified FileActions - now under 30 lines
 const FileActions: React.FC<{
   file: FileData;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
-}> = ({ file, onDownload, onDelete, onPreview }) => {
-  const isImage = file.mimetype.startsWith("image/");
-  const isCSV = file.mimetype.includes("csv") || file.original_name.toLowerCase().endsWith(".csv");
-  const isPDF = file.mimetype === "application/pdf";
-  const canPreview = isImage || isCSV || isPDF;
-
-  return (
-    <Box sx={{ display: "flex", gap: 0.5, width: "100%", justifyContent: "flex-end" }}>
-      {canPreview && onPreview && (
-        <IconButton
-          size="small"
-          onClick={() => onPreview(file.id)}
-          title="Preview"
-        >
-          <PreviewIcon fontSize="small" />
-        </IconButton>
-      )}
-      <IconButton
-        size="small"
-        onClick={() => onDownload(file.id)}
-        title="Download"
-      >
-        <DownloadIcon fontSize="small" />
-      </IconButton>
-      <IconButton
-        size="small"
-        color="error"
-        onClick={() => onDelete(file.id, file.original_name)}
-        title="Delete"
-      >
-        <DeleteIcon fontSize="small" />
-      </IconButton>
-    </Box>
-  );
-};
+}> = ({ file, onDownload, onDelete, onPreview }) => (
+  <Box sx={{ display: "flex", gap: 0.5, width: "100%", justifyContent: "flex-end" }}>
+    {canPreviewFile(file) && onPreview && (
+      <PreviewButton fileId={file.id} onPreview={onPreview} />
+    )}
+    <IconButton size="small" onClick={() => onDownload(file.id)} title="Download">
+      <DownloadIcon fontSize="small" />
+    </IconButton>
+    <IconButton size="small" color="error" onClick={() => onDelete(file.id, file.original_name)} title="Delete">
+      <DeleteIcon fontSize="small" />
+    </IconButton>
+  </Box>
+);
 
 export const FileCard: React.FC<FileCardProps> = ({ file, onDownload, onDelete, onPreview }) => (
   <Card variant="outlined" sx={{ height: "100%", display: "flex", flexDirection: "column" }}>

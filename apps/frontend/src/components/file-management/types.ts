@@ -1,3 +1,24 @@
+export interface Folder {
+  id: string;
+  name: string;
+  color: string;
+  is_default: boolean;
+  file_count: number;
+}
+
+export interface TreeFolder {
+  id: string;
+  name: string;
+  path: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  status: string;
+}
+
 export interface FileData {
   id: string;
   filename: string;

@@ -8,7 +8,7 @@ interface ActionsCellRendererProps {
   onDelete: (id: string) => Promise<void>;
 }
 
-export const useActionsCellRenderer = ({ onEdit, onDelete }: ActionsCellRendererProps): ((params: ICellRendererParams<Asset>) => JSX.Element) => {
+export const useActionsCellRenderer = ({ onEdit, onDelete }: ActionsCellRendererProps): ((params: ICellRendererParams<Asset>) => React.ReactElement) => {
   return useCallback((params: ICellRendererParams<Asset>) => (
     <Box sx={{ display: "flex", gap: 1, alignItems: "center", height: "100%" }}>
       <Button 
@@ -30,7 +30,7 @@ export const useActionsCellRenderer = ({ onEdit, onDelete }: ActionsCellRenderer
   ), [onEdit, onDelete]);
 };
 
-export const useStatusCellRenderer = (): ((params: ICellRendererParams) => JSX.Element) => {
+export const useStatusCellRenderer = (): ((params: ICellRendererParams) => React.ReactElement) => {
   return useCallback((params: ICellRendererParams) => {
     const status = params.value || "ACTIVE";
     const colors = {
@@ -59,7 +59,7 @@ export const useStatusCellRenderer = (): ((params: ICellRendererParams) => JSX.E
   }, []);
 };
 
-export const useGridComponents = (actionsCellRenderer: (params: ICellRendererParams<Asset>) => JSX.Element, statusCellRenderer: (params: ICellRendererParams) => JSX.Element): { actionsRenderer: (params: ICellRendererParams<Asset>) => JSX.Element; statusRenderer: (params: ICellRendererParams) => JSX.Element } => {
+export const useGridComponents = (actionsCellRenderer: (params: ICellRendererParams<Asset>) => React.ReactElement, statusCellRenderer: (params: ICellRendererParams) => React.ReactElement): { actionsRenderer: (params: ICellRendererParams<Asset>) => React.ReactElement; statusRenderer: (params: ICellRendererParams) => React.ReactElement } => {
   return useMemo(() => ({
     actionsRenderer: actionsCellRenderer,
     statusRenderer: statusCellRenderer,

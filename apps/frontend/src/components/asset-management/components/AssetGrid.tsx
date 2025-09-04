@@ -8,7 +8,7 @@ import type { Asset } from "../types";
 interface AssetGridProps {
   assets: Asset[];
   columnDefs: ColDef[];
-  components: { actionsRenderer: (params: ICellRendererParams<Asset>) => JSX.Element; statusRenderer: (params: ICellRendererParams) => JSX.Element };
+  components: { actionsRenderer: (params: ICellRendererParams<Asset>) => React.ReactElement; statusRenderer: (params: ICellRendererParams) => React.ReactElement };
   loading: boolean;
   error: string | null;
   onGridReady: (params: GridReadyEvent) => void;
@@ -23,7 +23,7 @@ const ErrorAlert: React.FC<{ error: string }> = ({ error }) => (
 const GridContainer: React.FC<{
   assets: Asset[];
   columnDefs: ColDef[];
-  components: { actionsRenderer: (params: ICellRendererParams<Asset>) => JSX.Element; statusRenderer: (params: ICellRendererParams) => JSX.Element };
+  components: { actionsRenderer: (params: ICellRendererParams<Asset>) => React.ReactElement; statusRenderer: (params: ICellRendererParams) => React.ReactElement };
   loading: boolean;
   onGridReady: (params: GridReadyEvent) => void;
 }> = ({ assets, columnDefs, components, loading, onGridReady }) => (

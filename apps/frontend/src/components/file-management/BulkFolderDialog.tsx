@@ -33,6 +33,51 @@ interface BulkFolderDialogProps {
   loading: boolean;
 }
 
+// File list component
+const FileList: React.FC<{ names: string[]; count: number }> = ({ names, count }) => (
+  <List dense sx={{ mb: 2, bgcolor: 'grey.50', borderRadius: 1, p: 1 }}>
+    {names.map((name) => (
+      <ListItem key={name} disableGutters>
+        <ListItemText primary={name} primaryTypographyProps={{ variant: 'caption' }} />
+      </ListItem>
+    ))}
+    {count > 3 && (
+      <ListItem disableGutters>
+        <ListItemText 
+          primary={`... and ${count - 3} more`} 
+          primaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
+        />
+      </ListItem>
+    )}
+  </List>
+);
+
+// Folder selector component
+const FolderSelector: React.FC<{
+  selectedFolderId: string;
+  onFolderChange: (id: string) => void;
+  folders: Folder[];
+}> = ({ selectedFolderId, onFolderChange, folders }) => (
+  <FormControl fullWidth>
+    <InputLabel>Folder</InputLabel>
+    <Select
+      value={selectedFolderId}
+      onChange={(e) => onFolderChange(e.target.value)}
+      label="Folder"
+    >
+      <MenuItem value="">
+        <em>Remove from folder</em>
+      </MenuItem>
+      {folders.map((folder) => (
+        <MenuItem key={folder.id} value={folder.id}>
+          {folder.name}
+        </MenuItem>
+      ))}
+    </Select>
+  </FormControl>
+);
+
+// Main dialog - now under 30 lines
 export const BulkFolderDialog: React.FC<BulkFolderDialogProps> = ({
   open,
   onClose,
@@ -44,47 +89,25 @@ export const BulkFolderDialog: React.FC<BulkFolderDialogProps> = ({
   selectedCount,
   loading,
 }) => (
-  <Dialog open={open} onClose={onClose} maxWidth="sm"
-fullWidth>
+  <Dialog 
+    open={open} 
+    onClose={onClose} 
+    maxWidth="sm"
+    fullWidth
+  >
     <DialogTitle>Move Files to Folder</DialogTitle>
     <DialogContent>
       <Typography variant="body2" color="text.secondary" gutterBottom>
         Move {selectedCount} file{selectedCount > 1 ? 's' : ''} to folder:
       </Typography>
       {selectedFileNames.length > 0 && (
-        <List dense sx={{ mb: 2, bgcolor: 'grey.50', borderRadius: 1, p: 1 }}>
-          {selectedFileNames.map((name) => (
-            <ListItem key={name} disableGutters>
-              <ListItemText primary={name} primaryTypographyProps={{ variant: 'caption' }} />
-            </ListItem>
-          ))}
-          {selectedCount > 3 && (
-            <ListItem disableGutters>
-              <ListItemText 
-                primary={`... and ${selectedCount - 3} more`} 
-                primaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
-              />
-            </ListItem>
-          )}
-        </List>
+        <FileList names={selectedFileNames} count={selectedCount} />
       )}
-      <FormControl fullWidth>
-        <InputLabel>Folder</InputLabel>
-        <Select
-          value={selectedFolderId}
-          onChange={(e) => onFolderChange(e.target.value)}
-          label="Folder"
-        >
-          <MenuItem value="">
-            <em>Remove from folder</em>
-          </MenuItem>
-          {folders.map((folder) => (
-            <MenuItem key={folder.id} value={folder.id}>
-              {folder.name}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+      <FolderSelector 
+        selectedFolderId={selectedFolderId}
+        onFolderChange={onFolderChange}
+        folders={folders}
+      />
     </DialogContent>
     <DialogActions>
       <Button onClick={onClose}>Cancel</Button>

@@ -46,69 +46,55 @@ interface ViewContentProps {
   onBulkDelete: (fileIds: string[]) => Promise<void>;
 }
 
-export const ViewContent: React.FC<ViewContentProps> = ({
-  viewMode,
-  filteredFiles,
-  folders,
-  projects,
-  onDownload,
-  onDelete,
-  onMoveToFolder,
-  onMoveToProject,
-  onPreview,
-  getFileContent,
-  getPdfInfo,
-  onRefresh,
-  onBulkAssignProject,
-  onBulkMoveToFolder,
-  onBulkDelete,
-}) => {
-  if (viewMode === "table") {
-    return (
-      <FileTable
-        files={filteredFiles}
-        onDownload={onDownload}
-        onDelete={onDelete}
-        onMoveToFolder={onMoveToFolder}
-        folders={folders}
-        onMoveToProject={onMoveToProject}
-        projects={projects}
-        onPreview={onPreview}
-        getFileContent={getFileContent}
-        getPdfInfo={getPdfInfo}
-        onRefresh={onRefresh}
-        onBulkAssignProject={onBulkAssignProject}
-        onBulkMoveToFolder={onBulkMoveToFolder}
-        onBulkDelete={onBulkDelete}
-      />
-    );
-  }
+const TableView: React.FC<ViewContentProps> = (props) => (
+  <FileTable
+    files={props.filteredFiles}
+    onDownload={props.onDownload}
+    onDelete={props.onDelete}
+    onMoveToFolder={props.onMoveToFolder}
+    folders={props.folders}
+    onMoveToProject={props.onMoveToProject}
+    projects={props.projects}
+    onPreview={props.onPreview}
+    getFileContent={props.getFileContent}
+    getPdfInfo={props.getPdfInfo}
+    onRefresh={props.onRefresh}
+    onBulkAssignProject={props.onBulkAssignProject}
+    onBulkMoveToFolder={props.onBulkMoveToFolder}
+    onBulkDelete={props.onBulkDelete}
+  />
+);
 
-  if (viewMode === "tree") {
-    return (
-      <FileTreeView
-        files={filteredFiles}
-        folders={folders}
-        projects={projects}
-        onDownload={onDownload}
-        onDelete={onDelete}
-        onPreview={onPreview}
-        getFileContent={getFileContent}
-        getPdfInfo={getPdfInfo}
-        onRefresh={onRefresh}
-      />
-    );
-  }
+const TreeView: React.FC<ViewContentProps> = (props) => (
+  <FileTreeView
+    files={props.filteredFiles}
+    folders={props.folders}
+    projects={props.projects}
+    onDownload={props.onDownload}
+    onDelete={props.onDelete}
+    onPreview={props.onPreview}
+    getFileContent={props.getFileContent}
+    getPdfInfo={props.getPdfInfo}
+    onRefresh={props.onRefresh}
+  />
+);
 
-  return (
-    <FileFolderView
-      files={filteredFiles}
-      folders={folders}
-      projects={projects}
-      onDownload={onDownload}
-      onDelete={onDelete}
-      onPreview={onPreview}
-      onRefresh={onRefresh}
-    />
-  );
+const FolderView: React.FC<ViewContentProps> = (props) => (
+  <FileFolderView
+    files={props.filteredFiles}
+    folders={props.folders}
+    projects={props.projects}
+    onDownload={props.onDownload}
+    onDelete={props.onDelete}
+    onPreview={props.onPreview}
+    onRefresh={props.onRefresh}
+  />
+);
+
+export const ViewContent: React.FC<ViewContentProps> = (props) => {
+  const { viewMode } = props;
+  
+  if (viewMode === "table") return <TableView {...props} />;
+  if (viewMode === "tree") return <TreeView {...props} />;
+  return <FolderView {...props} />;
 };

@@ -50,51 +50,38 @@ const DialogHeader: React.FC<{ fileName: string; onClose: () => void }> = ({ fil
   </DialogTitle>
 );
 
-const PDFLeafletViewer: React.FC<{ fileId: string; getPdfInfo: (fileId: string) => Promise<PDFInfo> }> = ({ fileId, getPdfInfo }) => {
-  const [pdfInfo, setPdfInfo] = useState<PDFInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const LoadingMessage: React.FC = () => (
+  <Box sx={{ textAlign: 'center', py: 4 }}>
+    <Typography>Loading PDF...</Typography>
+  </Box>
+);
 
-  useEffect(() => {
-    const loadPdfInfo = async (): Promise<void> => {
-      try {
-        const info = await getPdfInfo(fileId);
-        setPdfInfo(info);
-      } catch (err) {
-        console.error('Error loading PDF info:', err);
-        setError('Failed to load PDF information');
-      } finally {
-        setLoading(false);
-      }
-    };
+const ErrorMessage: React.FC<{ error: string | null }> = ({ error }) => (
+  <Box sx={{ textAlign: 'center', py: 4 }}>
+    <Typography color="error">{error || 'Failed to load PDF'}</Typography>
+  </Box>
+);
 
-    if (fileId) {
-      loadPdfInfo();
+const FitBoundsOnLoad: React.FC<{ bounds: L.LatLngBoundsExpression }> = ({ bounds }) => {
+  const map = useMapEvents({});
+  
+  React.useEffect(() => {
+    if (bounds) {
+      map.fitBounds(bounds);
     }
-  }, [fileId, getPdfInfo]);
+  }, [bounds, map]);
+  
+  return null;
+};
 
-  if (loading) {
-    return (
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography>Loading PDF...</Typography>
-      </Box>
-    );
-  }
-
-  if (error || !pdfInfo) {
-    return (
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography color="error">{error || 'Failed to load PDF'}</Typography>
-      </Box>
-    );
-  }
-
-  // Define custom CRS for PDF coordinates
+const PDFMapView: React.FC<{
+  fileId: string;
+  pdfInfo: PDFInfo;
+}> = ({ fileId, pdfInfo }) => {
   const pdfCRS = L.extend({}, L.CRS.Simple, {
     transformation: new L.Transformation(1, 0, -1, pdfInfo.dimensions.height),
   });
 
-  // Calculate bounds based on PDF dimensions
   const bounds = L.latLngBounds(
     [0, 0],
     [pdfInfo.dimensions.height, pdfInfo.dimensions.width]
@@ -102,25 +89,9 @@ const PDFLeafletViewer: React.FC<{ fileId: string; getPdfInfo: (fileId: string) 
 
   const tileUrl = `${config.api.baseUrl}/api/files/${fileId}/pdf-tiles/1/{z}/{x}/{y}.png`;
 
-  // Component to auto-fit PDF on load
-  const FitBoundsOnLoad: React.FC<{ bounds: L.LatLngBoundsExpression }> = ({ bounds }) => {
-    const map = useMapEvents({});
-    
-    React.useEffect(() => {
-      if (bounds) {
-        map.fitBounds(bounds);
-      }
-    }, [bounds, map]);
-    
-    return null;
-  };
-
   return (
     <Box sx={{ 
-      height: { 
-        xs: '60vh',  // Smaller on mobile to fit screen
-        sm: '70vh'   // Standard for desktop
-      }, 
+      height: { xs: '60vh', sm: '70vh' }, 
       width: '100%' 
     }}>
       <MapContainer
@@ -147,8 +118,43 @@ const PDFLeafletViewer: React.FC<{ fileId: string; getPdfInfo: (fileId: string) 
   );
 };
 
+const PDFLeafletViewer: React.FC<{ fileId: string; getPdfInfo: (fileId: string) => Promise<PDFInfo> }> = ({ fileId, getPdfInfo }) => {
+  const [pdfInfo, setPdfInfo] = useState<PDFInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadPdfInfo = async (): Promise<void> => {
+      try {
+        const info = await getPdfInfo(fileId);
+        setPdfInfo(info);
+      } catch (err) {
+        console.error('Error loading PDF info:', err);
+        setError('Failed to load PDF information');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (fileId) {
+      loadPdfInfo();
+    }
+  }, [fileId, getPdfInfo]);
+
+  if (loading) return <LoadingMessage />;
+  if (error || !pdfInfo) return <ErrorMessage error={error} />;
+  
+  return <PDFMapView fileId={fileId} pdfInfo={pdfInfo} />;
+};
+
 const createDefaultGetPdfInfo = (): ((fileId: string) => Promise<PDFInfo>) => 
   (): Promise<PDFInfo> => Promise.reject(new Error('getPdfInfo not provided'));
+
+const DialogLoadingContent: React.FC = () => (
+  <Box sx={{ textAlign: 'center', py: 4 }}>
+    <Typography>Loading...</Typography>
+  </Box>
+);
 
 export const PDFPreviewDialog: React.FC<PDFPreviewDialogProps> = ({
   open,
@@ -167,9 +173,7 @@ export const PDFPreviewDialog: React.FC<PDFPreviewDialogProps> = ({
     <DialogHeader fileName={fileName} onClose={onClose} />
     <DialogContent>
       {externalLoading ? (
-        <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography>Loading...</Typography>
-        </Box>
+        <DialogLoadingContent />
       ) : (
         <PDFLeafletViewer 
           fileId={fileId} 

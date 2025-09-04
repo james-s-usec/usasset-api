@@ -34,7 +34,7 @@ export const useBulkProjectHandler = ({
   setDialogs,
   setSelected,
   setLoading,
-}: ProjectHandlerParams) => {
+}: ProjectHandlerParams): (() => Promise<void>) => {
   return useCallback(async (): Promise<void> => {
     if (selectedFiles.size === 0) return;
     setLoading(true);
@@ -70,7 +70,7 @@ export const useBulkFolderHandler = ({
   setDialogs,
   setSelected,
   setLoading,
-}: FolderHandlerParams) => {
+}: FolderHandlerParams): (() => Promise<void>) => {
   return useCallback(async (): Promise<void> => {
     if (selectedFiles.size === 0) return;
     setLoading(true);
@@ -102,7 +102,7 @@ export const useBulkDeleteHandler = ({
   handlers,
   setDialogs,
   setLoading,
-}: DeleteHandlerParams) => {
+}: DeleteHandlerParams): (() => Promise<void>) => {
   return useCallback(async (): Promise<void> => {
     if (selectedFiles.size === 0) return;
     setLoading(true);
