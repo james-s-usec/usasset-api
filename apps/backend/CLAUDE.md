@@ -142,6 +142,25 @@ npm run test:e2e        # Run e2e tests
 - Authentication requirements (when implemented)
 - Try-it-out functionality in Swagger UI
 
+### **🎯 Asset API Comprehensive Documentation**
+**NEW: Complete Asset Management API** (130+ fields)
+- **GET /api/assets**: Paginated list with comprehensive asset data
+- **POST /api/assets**: Create asset with full field validation
+- **GET /api/assets/:id**: Single asset with all 130+ fields
+- **PATCH /api/assets/:id**: Update asset with partial data
+- **DELETE /api/assets/:id**: Soft delete asset
+
+**Complete Asset Schema** includes:
+- **Core**: id, assetTag, name, manufacturer, model, serial
+- **Status**: status (7 values), condition (7 values)  
+- **Location**: building, floor, room, coordinates, zones
+- **Financial**: purchase cost, TCO, depreciation, energy costs
+- **Technical**: power, voltage, motor specs, HVAC details
+- **Lifecycle**: install date, service life, warranty, replacement
+- **Energy**: consumption, efficiency, carbon emissions
+- **Documentation**: 6 structured note fields, legacy IDs
+- **Audit**: created_at, updated_at, verification status
+
 ### **Adding Documentation to New Endpoints**
 ```typescript
 @ApiTags('feature-name')

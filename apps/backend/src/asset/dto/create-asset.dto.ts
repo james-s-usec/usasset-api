@@ -9,7 +9,7 @@ import {
   IsDateString,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AssetStatus } from '@prisma/client';
+import { AssetStatus, AssetCondition } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
 export class CreateAssetDto {
@@ -61,6 +61,15 @@ export class CreateAssetDto {
   @IsEnum(AssetStatus)
   @IsOptional()
   public status?: AssetStatus;
+
+  @ApiPropertyOptional({
+    description: 'Asset condition',
+    enum: AssetCondition,
+    default: AssetCondition.GOOD,
+  })
+  @IsEnum(AssetCondition)
+  @IsOptional()
+  public condition?: AssetCondition;
 
   @ApiPropertyOptional({
     description: 'Asset location',

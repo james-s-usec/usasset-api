@@ -180,6 +180,7 @@ model Asset {
   modelNumber  String?
   serialNumber String?
   status       AssetStatus @default(ACTIVE)
+  condition    AssetCondition @default(GOOD)
   location     String?
   
   // Enhanced identification
@@ -354,7 +355,20 @@ model Asset {
 
 enum AssetStatus {
   ACTIVE
+  INACTIVE
   MAINTENANCE
   RETIRED
   DISPOSED
+  LOST
+  STOLEN
+}
+
+enum AssetCondition {
+  NEW
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  FOR_REPAIR
+  FOR_DISPOSAL
 }

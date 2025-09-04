@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
-import { AssetStatus } from '@prisma/client';
+import { AssetStatus, AssetCondition } from '@prisma/client';
 
 /**
  * Safe asset response DTO with all comprehensive fields exposed
@@ -34,6 +34,10 @@ export class SafeAssetDto {
   @ApiPropertyOptional({ description: 'Asset status', enum: AssetStatus })
   @Expose()
   public status?: AssetStatus;
+
+  @ApiPropertyOptional({ description: 'Asset condition', enum: AssetCondition })
+  @Expose()
+  public condition?: AssetCondition;
 
   @ApiPropertyOptional({ description: 'Asset location' })
   @Expose()
@@ -338,6 +342,255 @@ export class SafeAssetDto {
   @ApiPropertyOptional({ description: 'General notes' })
   @Expose()
   public notes?: string;
+
+  // Technical specification fields (missing from current DTO)
+  @ApiPropertyOptional({ description: 'Motor horsepower', type: 'number' })
+  @Expose()
+  public motorHp?: number;
+
+  @ApiPropertyOptional({
+    description: 'Estimated operating hours per year',
+    type: 'number',
+  })
+  @Expose()
+  public estimatedOperatingHours?: number;
+
+  @ApiPropertyOptional({ description: 'Number of circuits', type: 'number' })
+  @Expose()
+  public numberOfCircuits?: number;
+
+  @ApiPropertyOptional({ description: 'Supply fan motor size' })
+  @Expose()
+  public supplyFanMotorSize?: string;
+
+  @ApiPropertyOptional({ description: 'Return fan motor size' })
+  @Expose()
+  public returnFanMotorSize?: string;
+
+  @ApiPropertyOptional({ description: 'Belt size' })
+  @Expose()
+  public beltSize?: string;
+
+  @ApiPropertyOptional({ description: 'Belt quantity', type: 'number' })
+  @Expose()
+  public beltQuantity?: number;
+
+  @ApiPropertyOptional({ description: 'Filter type' })
+  @Expose()
+  public filterType?: string;
+
+  @ApiPropertyOptional({ description: 'Filter size' })
+  @Expose()
+  public filterSize?: string;
+
+  @ApiPropertyOptional({ description: 'Filter quantity', type: 'number' })
+  @Expose()
+  public filterQuantity?: number;
+
+  @ApiPropertyOptional({ description: 'Refrigerant type' })
+  @Expose()
+  public refrigerant?: string;
+
+  @ApiPropertyOptional({ description: 'Refrigerant default description' })
+  @Expose()
+  public refrigerantDefaultDescription?: string;
+
+  @ApiPropertyOptional({ description: 'Refrigerant description' })
+  @Expose()
+  public refrigerantDescription?: string;
+
+  @ApiPropertyOptional({ description: 'Refrigerant quantity', type: 'number' })
+  @Expose()
+  public refrigerantQuantity?: number;
+
+  @ApiPropertyOptional({ description: 'Rating name' })
+  @Expose()
+  public ratingName?: string;
+
+  @ApiPropertyOptional({ description: 'Rating value' })
+  @Expose()
+  public ratingValue?: string;
+
+  // Energy calculation fields (missing)
+  @ApiPropertyOptional({ description: 'Power factor', type: 'number' })
+  @Expose()
+  public powerFactor?: number;
+
+  @ApiPropertyOptional({ description: 'Operating amperage', type: 'number' })
+  @Expose()
+  public amperage?: number;
+
+  @ApiPropertyOptional({ description: 'Electrical phase', type: 'number' })
+  @Expose()
+  public phase?: number;
+
+  @ApiPropertyOptional({ description: 'Load factor', type: 'number' })
+  @Expose()
+  public loadFactor?: number;
+
+  @ApiPropertyOptional({ description: 'Energy efficiency rating' })
+  @Expose()
+  public energyEfficiencyRating?: string;
+
+  @ApiPropertyOptional({
+    description: 'Energy efficiency value',
+    type: 'number',
+  })
+  @Expose()
+  public energyEfficiencyValue?: number;
+
+  @ApiPropertyOptional({ description: 'Peak demand in kW', type: 'number' })
+  @Expose()
+  public peakDemandKw?: number;
+
+  @ApiPropertyOptional({ description: 'Gas consumption rate', type: 'number' })
+  @Expose()
+  public gasConsumptionRate?: number;
+
+  @ApiPropertyOptional({
+    description: 'Annual gas consumption',
+    type: 'number',
+  })
+  @Expose()
+  public annualGasConsumption?: number;
+
+  @ApiPropertyOptional({ description: 'Annual operating days', type: 'number' })
+  @Expose()
+  public annualOperatingDays?: number;
+
+  @ApiPropertyOptional({
+    description: 'Annual carbon emissions kg CO2',
+    type: 'number',
+  })
+  @Expose()
+  public annualCarbonEmissions?: number;
+
+  @ApiPropertyOptional({
+    description: 'Estimated annual electricity cost',
+    type: 'number',
+  })
+  @Expose()
+  public estimatedAnnualElectricityCost?: number;
+
+  @ApiPropertyOptional({
+    description: 'Estimated annual gas cost',
+    type: 'number',
+  })
+  @Expose()
+  public estimatedAnnualGasCost?: number;
+
+  @ApiPropertyOptional({
+    description: 'Total annual energy cost',
+    type: 'number',
+  })
+  @Expose()
+  public totalAnnualEnergyCost?: number;
+
+  // Additional size fields
+  @ApiPropertyOptional({ description: 'Asset size rounded up' })
+  @Expose()
+  public assetSizeRounded?: string;
+
+  @ApiPropertyOptional({ description: 'ID unit' })
+  @Expose()
+  public idUnit?: string;
+
+  // Additional lifecycle fields
+  @ApiPropertyOptional({
+    description: 'Industry service life years',
+    type: 'number',
+  })
+  @Expose()
+  public industryServiceLife?: number;
+
+  @ApiPropertyOptional({
+    description: 'Observed remaining life years',
+    type: 'number',
+  })
+  @Expose()
+  public observedRemainingLife?: number;
+
+  @ApiPropertyOptional({ description: 'Estimated replacement date' })
+  @Expose()
+  public estimatedReplacementDate?: Date;
+
+  @ApiPropertyOptional({ description: 'Warranty expiration date' })
+  @Expose()
+  public warrantyExpirationDate?: Date;
+
+  // Structured notes (missing)
+  @ApiPropertyOptional({ description: 'Note 1 subject' })
+  @Expose()
+  public note1Subject?: string;
+
+  @ApiPropertyOptional({ description: 'Note 1 content' })
+  @Expose()
+  public note1?: string;
+
+  @ApiPropertyOptional({ description: 'Note 2 subject' })
+  @Expose()
+  public note2Subject?: string;
+
+  @ApiPropertyOptional({ description: 'Note 2 content' })
+  @Expose()
+  public note2?: string;
+
+  @ApiPropertyOptional({ description: 'Note 3 subject' })
+  @Expose()
+  public note3Subject?: string;
+
+  @ApiPropertyOptional({ description: 'Note 3 content' })
+  @Expose()
+  public note3?: string;
+
+  @ApiPropertyOptional({ description: 'Note 4 subject' })
+  @Expose()
+  public note4Subject?: string;
+
+  @ApiPropertyOptional({ description: 'Note 4 content' })
+  @Expose()
+  public note4?: string;
+
+  @ApiPropertyOptional({ description: 'Note 5 subject' })
+  @Expose()
+  public note5Subject?: string;
+
+  @ApiPropertyOptional({ description: 'Note 5 content' })
+  @Expose()
+  public note5?: string;
+
+  @ApiPropertyOptional({ description: 'Note 6 subject' })
+  @Expose()
+  public note6Subject?: string;
+
+  @ApiPropertyOptional({ description: 'Note 6 content' })
+  @Expose()
+  public note6?: string;
+
+  // Legacy reference fields
+  @ApiPropertyOptional({ description: 'Legacy branch ID' })
+  @Expose()
+  public legacyBranchId?: string;
+
+  @ApiPropertyOptional({ description: 'Legacy client site equipment RN' })
+  @Expose()
+  public legacyClientSiteEquipmentRn?: string;
+
+  @ApiPropertyOptional({ description: 'Legacy client site equipment name' })
+  @Expose()
+  public legacyClientSiteEquipmentName?: string;
+
+  @ApiPropertyOptional({ description: 'Legacy internal asset ID' })
+  @Expose()
+  public legacyInternalAssetId?: string;
+
+  @ApiPropertyOptional({ description: 'Legacy USAsset ID' })
+  @Expose()
+  public legacyUsAssetId?: string;
+
+  @ApiPropertyOptional({ description: 'Legacy USE Asset ID' })
+  @Expose()
+  public legacyUseAssetId?: string;
 
   // Timestamps
   @ApiProperty({ description: 'Asset creation timestamp' })

@@ -60,6 +60,15 @@ export const coreColumns: ColDef[] = [
     minWidth: 100,
     cellRenderer: statusCellRenderer,
   },
+  {
+    headerName: 'Condition',
+    field: 'condition',
+    sortable: true,
+    filter: true,
+    flex: 1,
+    minWidth: 100,
+    valueFormatter: nullValueFormatter,
+  },
 ];
 
 // Action column that's always pinned right
