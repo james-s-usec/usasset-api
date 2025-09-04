@@ -71,7 +71,7 @@ const DeleteDialogSection: React.FC<BaseDialogProps> = (props) => (
 );
 
 // Render all three dialogs
-const DialogsContainer: React.FC<{
+interface DialogsContainerProps {
   dialogs: DialogState;
   selected: SelectedState;
   loading: boolean;
@@ -83,34 +83,43 @@ const DialogsContainer: React.FC<{
   handleBulkAssignProject: () => Promise<void>;
   handleBulkMoveToFolder: () => Promise<void>;
   handleBulkDelete: () => Promise<void>;
-}> = ({ 
-  dialogs, selected, projects, folders, handlers, baseProps,
-  handleBulkAssignProject, handleBulkMoveToFolder, handleBulkDelete 
-}) => (
+}
+
+const ProjectDialogWrapper: React.FC<Pick<DialogsContainerProps, 'dialogs' | 'selected' | 'projects' | 'handlers' | 'baseProps' | 'handleBulkAssignProject'>> = 
+  ({ dialogs, selected, projects, handlers, baseProps, handleBulkAssignProject }) => (
+  <ProjectDialogSection
+    {...baseProps}
+    open={dialogs.project}
+    onClose={handlers.closeProject}
+    onConfirm={handleBulkAssignProject}
+    selectedProjectId={selected.projectId}
+    onProjectChange={handlers.setProjectId}
+    projects={projects}
+  />
+);
+
+const FolderDialogWrapper: React.FC<Pick<DialogsContainerProps, 'dialogs' | 'selected' | 'folders' | 'handlers' | 'baseProps' | 'handleBulkMoveToFolder'>> = 
+  ({ dialogs, selected, folders, handlers, baseProps, handleBulkMoveToFolder }) => (
+  <FolderDialogSection
+    {...baseProps}
+    open={dialogs.folder}
+    onClose={handlers.closeFolder}
+    onConfirm={handleBulkMoveToFolder}
+    selectedFolderId={selected.folderId}
+    onFolderChange={handlers.setFolderId}
+    folders={folders}
+  />
+);
+
+const DialogsContainer: React.FC<DialogsContainerProps> = (props) => (
   <>
-    <ProjectDialogSection
-      {...baseProps}
-      open={dialogs.project}
-      onClose={handlers.closeProject}
-      onConfirm={handleBulkAssignProject}
-      selectedProjectId={selected.projectId}
-      onProjectChange={handlers.setProjectId}
-      projects={projects}
-    />
-    <FolderDialogSection
-      {...baseProps}
-      open={dialogs.folder}
-      onClose={handlers.closeFolder}
-      onConfirm={handleBulkMoveToFolder}
-      selectedFolderId={selected.folderId}
-      onFolderChange={handlers.setFolderId}
-      folders={folders}
-    />
+    <ProjectDialogWrapper {...props} />
+    <FolderDialogWrapper {...props} />
     <DeleteDialogSection
-      {...baseProps}
-      open={dialogs.delete}
-      onClose={handlers.closeDelete}
-      onConfirm={handleBulkDelete}
+      {...props.baseProps}
+      open={props.dialogs.delete}
+      onClose={props.handlers.closeDelete}
+      onConfirm={props.handleBulkDelete}
     />
   </>
 );

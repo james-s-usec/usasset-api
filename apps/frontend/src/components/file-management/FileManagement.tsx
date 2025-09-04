@@ -17,44 +17,51 @@ const ErrorAlert: React.FC<{ error: string; onClose: () => void }> = ({ error, o
 
 type ViewMode = "table" | "tree" | "folders";
 
+const FileManagementView: React.FC<{
+  state: ReturnType<typeof useFileManagement>;
+  projects: ReturnType<typeof useProjects>['projects'];
+  viewMode: ViewMode;
+  setViewMode: React.Dispatch<React.SetStateAction<ViewMode>>;
+  filteredFiles: ReturnType<typeof applyFilters>;
+  filters: FileFilters;
+  setFilters: React.Dispatch<React.SetStateAction<FileFilters>>;
+  handleClearFilters: () => void;
+}> = ({ state, projects, viewMode, setViewMode, filteredFiles, filters, setFilters, handleClearFilters }) => (
+  <Box>
+    <FileManagementHeader viewMode={viewMode} onViewModeChange={setViewMode} />
+    {state.error && (
+      <ErrorAlert error={state.error} onClose={() => state.setError(null)} />
+    )}
+    <FileManagementContent
+      state={state}
+      projects={projects}
+      viewMode={viewMode}
+      filteredFiles={filteredFiles}
+      filters={filters}
+      onFiltersChange={setFilters}
+      onClearFilters={handleClearFilters}
+    />
+  </Box>
+);
+
 export const FileManagement: React.FC = () => {
   const state = useFileManagement();
   const { loadFiles } = state;
   const { projects } = useProjects(state.fetchProjects);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [filters, setFilters] = useState<FileFilters>(createDefaultFilters());
-
-  const filteredFiles = useMemo(() => {
-    return applyFilters(state.files, filters);
-  }, [state.files, filters]);
-
-  const handleClearFilters = (): void => {
-    setFilters(createDefaultFilters());
-  };
-
-  useEffect((): void => {
-    loadFiles();
-  }, [loadFiles]);
-
+  
+  const filteredFiles = useMemo(() => applyFilters(state.files, filters), [state.files, filters]);
+  const handleClearFilters = (): void => setFilters(createDefaultFilters());
+  
+  useEffect((): void => { loadFiles(); }, [loadFiles]);
+  
   if (state.loading) return <LoadingView />;
-
+  
   return (
-    <Box>
-      <FileManagementHeader viewMode={viewMode} onViewModeChange={setViewMode} />
-      
-      {state.error && (
-        <ErrorAlert error={state.error} onClose={() => state.setError(null)} />
-      )}
-      
-      <FileManagementContent
-        state={state}
-        projects={projects}
-        viewMode={viewMode}
-        filteredFiles={filteredFiles}
-        filters={filters}
-        onFiltersChange={setFilters}
-        onClearFilters={handleClearFilters}
-      />
-    </Box>
+    <FileManagementView {...{
+      state, projects, viewMode, setViewMode, 
+      filteredFiles, filters, setFilters, handleClearFilters
+    }} />
   );
 };

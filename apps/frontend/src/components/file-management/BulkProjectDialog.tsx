@@ -77,42 +77,55 @@ const ProjectSelector: React.FC<{
 );
 
 // Main dialog - now under 30 lines
-export const BulkProjectDialog: React.FC<BulkProjectDialogProps> = ({
-  open,
-  onClose,
-  onConfirm,
-  selectedProjectId,
-  onProjectChange,
-  projects,
-  selectedFileNames,
-  selectedCount,
-  loading,
-}) => (
+// Dialog content component
+const BulkProjectDialogContent: React.FC<{
+  selectedCount: number;
+  selectedFileNames: string[];
+  selectedProjectId: string;
+  onProjectChange: (projectId: string) => void;
+  projects: Project[];
+}> = ({ selectedCount, selectedFileNames, selectedProjectId, onProjectChange, projects }) => (
+  <>
+    <Typography variant="body2" color="text.secondary" gutterBottom>
+      Assign {selectedCount} file{selectedCount > 1 ? 's' : ''} to a project:
+    </Typography>
+    {selectedFileNames.length > 0 && (
+      <FileList names={selectedFileNames} count={selectedCount} />
+    )}
+    <ProjectSelector 
+      selectedProjectId={selectedProjectId}
+      onProjectChange={onProjectChange}
+      projects={projects}
+    />
+  </>
+);
+
+const DialogWrapper: React.FC<BulkProjectDialogProps> = (props) => (
   <Dialog 
-    open={open} 
-    onClose={onClose} 
+    open={props.open} 
+    onClose={props.onClose} 
     maxWidth="sm"
     fullWidth
   >
     <DialogTitle>Assign Files to Project</DialogTitle>
     <DialogContent>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
-        Assign {selectedCount} file{selectedCount > 1 ? 's' : ''} to a project:
-      </Typography>
-      {selectedFileNames.length > 0 && (
-        <FileList names={selectedFileNames} count={selectedCount} />
-      )}
-      <ProjectSelector 
-        selectedProjectId={selectedProjectId}
-        onProjectChange={onProjectChange}
-        projects={projects}
+      <BulkProjectDialogContent
+        selectedCount={props.selectedCount}
+        selectedFileNames={props.selectedFileNames}
+        selectedProjectId={props.selectedProjectId}
+        onProjectChange={props.onProjectChange}
+        projects={props.projects}
       />
     </DialogContent>
     <DialogActions>
-      <Button onClick={onClose}>Cancel</Button>
-      <Button onClick={onConfirm} variant="contained" disabled={loading}>
+      <Button onClick={props.onClose}>Cancel</Button>
+      <Button onClick={props.onConfirm} variant="contained" disabled={props.loading}>
         Assign to Project
       </Button>
     </DialogActions>
   </Dialog>
+);
+
+export const BulkProjectDialog: React.FC<BulkProjectDialogProps> = (props) => (
+  <DialogWrapper {...props} />
 );

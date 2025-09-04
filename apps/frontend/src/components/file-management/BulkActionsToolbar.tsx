@@ -4,7 +4,6 @@ import type { FileData } from './types';
 import { SelectionInfo, BulkActionButtons } from './BulkActionsToolbar.components';
 import { BulkActionsDialogs } from './BulkActionsDialogs';
 import { useBulkActions } from './BulkActionsToolbar.hooks';
-import type { DialogState } from './BulkActionsToolbar.hooks';
 import { getSelectedFileNames, calculateSelectionState } from './BulkActionsToolbar.helpers';
 
 interface Folder {
@@ -72,14 +71,20 @@ const BulkToolbarContent: React.FC<ToolbarContentProps> = (props) => {
 };
 
 // Helper hook for dialog actions
+interface DialogState {
+  project: boolean;
+  folder: boolean;
+  delete: boolean;
+}
+
 const useDialogActions = (setDialogs: React.Dispatch<React.SetStateAction<DialogState>>): {
   openProject: () => void;
   openFolder: () => void;
   openDelete: () => void;
 } => ({
-  openProject: (): void => setDialogs((prev) => ({ ...prev, project: true })),
-  openFolder: (): void => setDialogs((prev) => ({ ...prev, folder: true })),
-  openDelete: (): void => setDialogs((prev) => ({ ...prev, delete: true }))
+  openProject: (): void => setDialogs((prev: DialogState) => ({ ...prev, project: true })),
+  openFolder: (): void => setDialogs((prev: DialogState) => ({ ...prev, folder: true })),
+  openDelete: (): void => setDialogs((prev: DialogState) => ({ ...prev, delete: true }))
 });
 
 // Helper for toolbar props
@@ -89,12 +94,12 @@ const useToolbarProps = (props: BulkActionsToolbarProps): { selectedCount: numbe
   const { allSelected, someSelected } = calculateSelectionState(selectedCount, allFiles.length);
   
   const handleToggleSelect = useCallback(
-    () => allSelected ? onClearSelection() : onSelectAll(),
+    (): void => allSelected ? onClearSelection() : onSelectAll(),
     [allSelected, onClearSelection, onSelectAll]
   );
   
   const getFileNames = useCallback(
-    () => getSelectedFileNames(allFiles, selectedFiles),
+    (): string[] => getSelectedFileNames(allFiles, selectedFiles),
     [allFiles, selectedFiles]
   );
   

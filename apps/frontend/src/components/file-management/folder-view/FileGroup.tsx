@@ -77,34 +77,36 @@ const GroupHeader: React.FC<{
   </>
 );
 
-export const FileGroup: React.FC<FileGroupProps> = ({
-  groupId,
-  group,
-  expanded,
-  onToggle,
-  children,
-}) => (
+const FileGroupAccordion: React.FC<{
+  groupId: string;
+  expanded: boolean;
+  onToggle: (groupId: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => void;
+  children: React.ReactNode;
+}> = ({ groupId, expanded, onToggle, children }) => (
   <Accordion
     key={groupId}
     expanded={expanded}
     onChange={onToggle(groupId)}
     sx={{ mb: 1, "&:before": { display: "none" } }}
   >
+    {children}
+  </Accordion>
+);
+
+export const FileGroup: React.FC<FileGroupProps> = (props) => (
+  <FileGroupAccordion
+    groupId={props.groupId}
+    expanded={props.expanded}
+    onToggle={props.onToggle}
+  >
     <AccordionSummary
       expandIcon={<ExpandMoreIcon />}
-      sx={{
-        "& .MuiAccordionSummary-content": {
-          alignItems: "center",
-          gap: 1
-        }
-      }}
+      sx={{ "& .MuiAccordionSummary-content": { alignItems: "center", gap: 1 } }}
     >
-      <GroupHeader group={group} expandedPanels={new Set(expanded ? [groupId] : [])} />
+      <GroupHeader group={props.group} expandedPanels={new Set(props.expanded ? [props.groupId] : [])} />
     </AccordionSummary>
     <AccordionDetails>
-      <Grid container spacing={2}>
-        {children}
-      </Grid>
+      <Grid container spacing={2}>{props.children}</Grid>
     </AccordionDetails>
-  </Accordion>
+  </FileGroupAccordion>
 );

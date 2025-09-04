@@ -51,45 +51,64 @@ const usePanelExpansion = (): { expandedPanels: Set<string>; handlePanelChange: 
   return { expandedPanels, handlePanelChange };
 };
 
-export const FileFolderView: React.FC<FileFolderViewProps> = ({
-  files,
-  folders,
-  projects,
-  onDownload,
-  onDelete,
-  onPreview,
-  onRefresh,
-}) => {
-  const groupedData = useGroupedFiles(files, folders, projects);
+interface GroupedItem {
+  files: FileData[];
+  name: string;
+  color?: string;
+  count: number;
+}
+
+const FileGroupsList: React.FC<{
+  groupedData: Array<[string, GroupedItem]>;
+  expandedPanels: Set<string>;
+  handlePanelChange: (groupId: string) => void;
+  onDownload: FileFolderViewProps['onDownload'];
+  onDelete: FileFolderViewProps['onDelete'];
+  onPreview?: FileFolderViewProps['onPreview'];
+}> = ({ groupedData, expandedPanels, handlePanelChange, onDownload, onDelete, onPreview }) => (
+  <>
+    {groupedData.map(([groupId, group]) => (
+      <FileGroup
+        key={groupId}
+        groupId={groupId}
+        group={group}
+        expanded={expandedPanels.has(groupId)}
+        onToggle={handlePanelChange}
+      >
+        {group.files.map((file) => (
+          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={file.id}>
+            <FileCard
+              file={file}
+              onDownload={onDownload}
+              onDelete={onDelete}
+              onPreview={onPreview}
+            />
+          </Grid>
+        ))}
+      </FileGroup>
+    ))}
+  </>
+);
+
+export const FileFolderView: React.FC<FileFolderViewProps> = (props) => {
+  const groupedData = useGroupedFiles(props.files, props.folders, props.projects);
   const { expandedPanels, handlePanelChange } = usePanelExpansion();
 
   return (
     <Paper sx={{ mt: 2 }}>
-      <FileFolderHeader onRefresh={onRefresh} />
+      <FileFolderHeader onRefresh={props.onRefresh} />
       <Box sx={{ p: 2 }}>
         {groupedData.length === 0 ? (
           <EmptyState />
         ) : (
-          groupedData.map(([groupId, group]) => (
-            <FileGroup
-              key={groupId}
-              groupId={groupId}
-              group={group}
-              expanded={expandedPanels.has(groupId)}
-              onToggle={handlePanelChange}
-            >
-              {group.files.map((file) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={file.id}>
-                  <FileCard
-                    file={file}
-                    onDownload={onDownload}
-                    onDelete={onDelete}
-                    onPreview={onPreview}
-                  />
-                </Grid>
-              ))}
-            </FileGroup>
-          ))
+          <FileGroupsList
+            groupedData={groupedData}
+            expandedPanels={expandedPanels}
+            handlePanelChange={handlePanelChange}
+            onDownload={props.onDownload}
+            onDelete={props.onDelete}
+            onPreview={props.onPreview}
+          />
         )}
       </Box>
     </Paper>

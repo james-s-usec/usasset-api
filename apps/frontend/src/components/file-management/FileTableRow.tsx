@@ -210,6 +210,17 @@ const FileRowContent: React.FC<{
   </TableRow>
 );
 
+// Preview dialog handlers
+const createPreviewCloseHandlers = (previewState: ReturnType<typeof usePreviewLogic>): {
+  closeImage: () => void;
+  closeCsv: () => void;
+  closePdf: () => void;
+} => ({
+  closeImage: (): void => previewState.setPreviewOpen(false),
+  closeCsv: (): void => previewState.setCsvPreviewOpen(false),
+  closePdf: (): void => previewState.setPdfPreviewOpen(false),
+});
+
 // Preview dialogs component
 const PreviewDialogs: React.FC<{
   file: FileData;
@@ -217,29 +228,27 @@ const PreviewDialogs: React.FC<{
   getFileContent?: (fileId: string) => Promise<string>;
   getPdfInfo?: FileTableRowProps['getPdfInfo'];
 }> = ({ file, previewState, getFileContent, getPdfInfo }) => {
-  const closeImagePreview = (): void => previewState.setPreviewOpen(false);
-  const closeCsvPreview = (): void => previewState.setCsvPreviewOpen(false);
-  const closePdfPreview = (): void => previewState.setPdfPreviewOpen(false);
+  const handlers = createPreviewCloseHandlers(previewState);
   
   return (
     <>
       <ImagePreviewDialog
         open={previewState.previewOpen}
-        onClose={closeImagePreview}
+        onClose={handlers.closeImage}
         imageUrl={previewState.previewUrl}
         fileName={file.original_name}
         loading={previewState.loading}
       />
       <CSVPreviewDialog
         open={previewState.csvPreviewOpen}
-        onClose={closeCsvPreview}
+        onClose={handlers.closeCsv}
         fileName={file.original_name}
         fileId={file.id}
         getFileContent={getFileContent || createDefaultGetFileContent()}
       />
       <PDFPreviewDialog
         open={previewState.pdfPreviewOpen}
-        onClose={closePdfPreview}
+        onClose={handlers.closePdf}
         fileId={file.id}
         fileName={file.original_name}
         loading={false}
@@ -269,15 +278,48 @@ const handleProjectAssign = (
   }
 };
 
-// Main component - simplified
-export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
-  const { file, selected, onSelectFile, onDownload, onDelete } = props;
-  const { onMoveToFolder, folders, onMoveToProject, projects } = props;
-  const { onPreview, getFileContent, getPdfInfo } = props;
-  
-  const previewState = usePreviewLogic(file, onPreview);
+// Dialog rendering components
+const FolderDialog: React.FC<{
+  file: FileData;
+  folders: Folder[];
+  dialogState: ReturnType<typeof useDialogStates>;
+  onMoveToFolder: (fileId: string, folderId: string | null) => Promise<void>;
+}> = ({ file, folders, dialogState, onMoveToFolder }) => (
+  <FolderMoveDialog
+    open={dialogState.moveDialogOpen}
+    onClose={dialogState.closeMoveDialog}
+    fileName={file.original_name}
+    currentFolder={file.folder}
+    folders={folders}
+    onMove={handleFolderMove(file.id, onMoveToFolder)}
+  />
+);
+
+const ProjectDialog: React.FC<{
+  file: FileData;
+  projects: Project[];
+  dialogState: ReturnType<typeof useDialogStates>;
+  onMoveToProject: (fileId: string, projectId: string | null) => Promise<void>;
+}> = ({ file, projects, dialogState, onMoveToProject }) => (
+  <ProjectMoveDialog
+    open={dialogState.assignDialogOpen}
+    onClose={dialogState.closeAssignDialog}
+    fileName={file.original_name}
+    currentProject={file.project}
+    projects={projects}
+    onMove={handleProjectAssign(file.id, onMoveToProject)}
+  />
+);
+
+// Setup hooks and handlers
+const useTableRowLogic = (props: FileTableRowProps): {
+  previewState: ReturnType<typeof usePreviewLogic>;
+  dialogState: ReturnType<typeof useDialogStates>;
+  handlePreviewClick: () => void;
+} => {
+  const previewState = usePreviewLogic(props.file, props.onPreview);
   const dialogState = useDialogStates();
-  const fileTypes = getFileTypes(file);
+  const fileTypes = getFileTypes(props.file);
   
   const handlePreviewClick = createPreviewClickHandler({
     isCSV: fileTypes.isCSV,
@@ -288,6 +330,17 @@ export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
     handlePreview: previewState.handlePreview,
   });
   
+  return { previewState, dialogState, handlePreviewClick };
+};
+
+// Main component - simplified
+export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
+  const { file, selected, onSelectFile, onDownload, onDelete } = props;
+  const { previewState, dialogState, handlePreviewClick } = useTableRowLogic(props);
+  
+  const showFolderDialog = props.onMoveToFolder && props.folders;
+  const showProjectDialog = props.onMoveToProject && props.projects;
+  
   return (
     <>
       <FileRowContent
@@ -297,35 +350,12 @@ export const FileTableRow: React.FC<FileTableRowProps> = (props) => {
         onDownload={() => onDownload(file.id)}
         onDelete={() => onDelete(file.id, file.original_name)}
         onPreview={handlePreviewClick}
-        onMove={onMoveToFolder && folders ? dialogState.openMoveDialog : undefined}
-        onAssign={onMoveToProject && projects ? dialogState.openAssignDialog : undefined}
+        onMove={showFolderDialog ? dialogState.openMoveDialog : undefined}
+        onAssign={showProjectDialog ? dialogState.openAssignDialog : undefined}
       />
-      <PreviewDialogs 
-        file={file} 
-        previewState={previewState} 
-        getFileContent={getFileContent} 
-        getPdfInfo={getPdfInfo} 
-      />
-      {onMoveToFolder && folders && (
-        <FolderMoveDialog
-          open={dialogState.moveDialogOpen}
-          onClose={dialogState.closeMoveDialog}
-          fileName={file.original_name}
-          currentFolder={file.folder}
-          folders={folders}
-          onMove={handleFolderMove(file.id, onMoveToFolder)}
-        />
-      )}
-      {onMoveToProject && projects && (
-        <ProjectMoveDialog
-          open={dialogState.assignDialogOpen}
-          onClose={dialogState.closeAssignDialog}
-          fileName={file.original_name}
-          currentProject={file.project}
-          projects={projects}
-          onMove={handleProjectAssign(file.id, onMoveToProject)}
-        />
-      )}
+      <PreviewDialogs {...{ file, previewState, getFileContent: props.getFileContent, getPdfInfo: props.getPdfInfo }} />
+      {showFolderDialog && <FolderDialog {...{ file, folders: props.folders!, dialogState, onMoveToFolder: props.onMoveToFolder! }} />}
+      {showProjectDialog && <ProjectDialog {...{ file, projects: props.projects!, dialogState, onMoveToProject: props.onMoveToProject! }} />}
     </>
   );
 };

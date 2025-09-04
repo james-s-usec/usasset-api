@@ -74,46 +74,52 @@ const FitBoundsOnLoad: React.FC<{ bounds: L.LatLngBoundsExpression }> = ({ bound
   return null;
 };
 
+const usePDFCRS = (height: number): any => {
+  return L.extend({}, L.CRS.Simple, {
+    transformation: new L.Transformation(1, 0, -1, height),
+  });
+};
+
+const PDFMapContainer: React.FC<{
+  pdfCRS: L.CRS;
+  bounds: L.LatLngBounds;
+  pdfInfo: PDFInfo;
+  tileUrl: string;
+}> = ({ pdfCRS, bounds, pdfInfo, tileUrl }) => (
+  <MapContainer
+    crs={pdfCRS}
+    bounds={bounds}
+    zoom={1}
+    minZoom={0}
+    maxZoom={pdfInfo.maxZoom}
+    style={{ height: '100%', width: '100%' }}
+    zoomControl={true}
+    attributionControl={false}
+  >
+    <FitBoundsOnLoad bounds={bounds} />
+    <TileLayer
+      url={tileUrl}
+      tileSize={pdfInfo.tileSize}
+      noWrap={true}
+      bounds={bounds}
+      maxZoom={pdfInfo.maxZoom}
+      minZoom={0}
+    />
+  </MapContainer>
+);
+
 const PDFMapView: React.FC<{
   fileId: string;
   pdfInfo: PDFInfo;
 }> = ({ fileId, pdfInfo }) => {
-  const pdfCRS = L.extend({}, L.CRS.Simple, {
-    transformation: new L.Transformation(1, 0, -1, pdfInfo.dimensions.height),
-  });
-
-  const bounds = L.latLngBounds(
-    [0, 0],
-    [pdfInfo.dimensions.height, pdfInfo.dimensions.width]
-  );
-
+  const pdfCRS = usePDFCRS(pdfInfo.dimensions.height);
+  const bounds = L.latLngBounds([0, 0], [pdfInfo.dimensions.height, pdfInfo.dimensions.width]);
   const tileUrl = `${config.api.baseUrl}/api/files/${fileId}/pdf-tiles/1/{z}/{x}/{y}.png`;
 
   return (
-    <Box sx={{ 
-      height: { xs: '60vh', sm: '70vh' }, 
-      width: '100%' 
-    }}>
-      <MapContainer
-        crs={pdfCRS}
-        bounds={bounds}
-        zoom={1}
-        minZoom={0}
-        maxZoom={pdfInfo.maxZoom}
-        style={{ height: '100%', width: '100%' }}
-        zoomControl={true}
-        attributionControl={false}
-      >
-        <FitBoundsOnLoad bounds={bounds} />
-        <TileLayer
-          url={tileUrl}
-          tileSize={pdfInfo.tileSize}
-          noWrap={true}
-          bounds={bounds}
-          maxZoom={pdfInfo.maxZoom}
-          minZoom={0}
-        />
-      </MapContainer>
+    <Box sx={{ height: { xs: '60vh', sm: '70vh' }, width: '100%' }}>
+      <PDFMapContainer pdfCRS={pdfCRS} bounds={bounds} pdfInfo={pdfInfo}
+        tileUrl={tileUrl} />
     </Box>
   );
 };

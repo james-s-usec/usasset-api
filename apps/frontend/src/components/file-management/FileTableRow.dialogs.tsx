@@ -141,70 +141,90 @@ interface FolderMoveDialogProps {
   onMove: (folderId: string | null) => Promise<void>;
 }
 
-const useFolderMove = (
-  open: boolean,
-  currentFolder?: { id: string; name: string }
-): {
-  selectedFolderId: string;
-  setSelectedFolderId: (id: string) => void;
+const useMove = <T extends string>(open: boolean, currentId?: string): {
+  selectedId: T;
+  setSelectedId: React.Dispatch<React.SetStateAction<T>>;
   moving: boolean;
-  handleMove: (onMove: (id: string | null) => Promise<void>, onClose: () => void) => Promise<void>;
+  handleMove: (onMove: (id: T | null) => Promise<void>, onClose: () => void) => Promise<void>;
 } => {
-  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+  const [selectedId, setSelectedId] = useState<T>('' as T);
   const [moving, setMoving] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setSelectedFolderId(currentFolder?.id || '');
-    }
-  }, [open, currentFolder?.id]);
+    if (open) setSelectedId((currentId || '') as T);
+  }, [open, currentId]);
 
   const handleMove = async (
-    onMove: (id: string | null) => Promise<void>,
+    onMove: (id: T | null) => Promise<void>,
     onClose: () => void
   ): Promise<void> => {
     setMoving(true);
     try {
-      await onMove(selectedFolderId || null);
+      await onMove(selectedId || null);
       onClose();
     } catch (error) {
-      console.error('Failed to move file:', error);
+      console.error('Failed to move:', error);
     } finally {
       setMoving(false);
     }
   };
 
-  return { selectedFolderId, setSelectedFolderId, moving, handleMove };
+  return { selectedId, setSelectedId, moving, handleMove };
 };
 
-export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({ 
-  open, 
-  onClose, 
-  fileName, 
-  currentFolder, 
-  folders, 
-  onMove 
-}) => {
-  const { selectedFolderId, setSelectedFolderId, moving, handleMove } = useFolderMove(open, currentFolder);
+const useFolderMove = (open: boolean, currentFolder?: { id: string; name: string }): {
+  selectedFolderId: string;
+  setSelectedFolderId: React.Dispatch<React.SetStateAction<string>>;
+  moving: boolean;
+  handleMove: (onMove: (id: string | null) => Promise<void>, onClose: () => void) => Promise<void>;
+} => {
+  const result = useMove<string>(open, currentFolder?.id);
+  return {
+    selectedFolderId: result.selectedId,
+    setSelectedFolderId: result.setSelectedId,
+    moving: result.moving,
+    handleMove: result.handleMove
+  };
+};
+
+const FolderDialogContent: React.FC<{
+  fileName: string;
+  selectedFolderId: string;
+  folders: Folder[];
+  onChange: (id: string) => void;
+  disabled: boolean;
+}> = ({ fileName, selectedFolderId, folders, onChange, disabled }) => (
+  <DialogContent>
+    <Typography variant="body2" color="text.secondary" gutterBottom>
+      Move &quot;{fileName}&quot; to a different folder
+    </Typography>
+    <FolderSelect
+      selectedFolderId={selectedFolderId}
+      folders={folders}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  </DialogContent>
+);
+
+export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = (props) => {
+  const { selectedFolderId, setSelectedFolderId, moving, handleMove } = 
+    useFolderMove(props.open, props.currentFolder);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm"
-fullWidth>
+    <Dialog open={props.open} onClose={props.onClose} maxWidth="sm"
+      fullWidth>
       <DialogTitle>Move File</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Move &quot;{fileName}&quot; to a different folder
-        </Typography>
-        <FolderSelect
-          selectedFolderId={selectedFolderId}
-          folders={folders}
-          onChange={setSelectedFolderId}
-          disabled={moving}
-        />
-      </DialogContent>
+      <FolderDialogContent
+        fileName={props.fileName}
+        selectedFolderId={selectedFolderId}
+        folders={props.folders}
+        onChange={setSelectedFolderId}
+        disabled={moving}
+      />
       <DialogFooter
-        onClose={onClose}
-        onAction={() => handleMove(onMove, onClose)}
+        onClose={props.onClose}
+        onAction={() => handleMove(props.onMove, props.onClose)}
         actionLabel={moving ? 'Moving' : 'Move'}
         loading={moving}
       />
@@ -221,70 +241,59 @@ interface ProjectMoveDialogProps {
   onMove: (projectId: string | null) => Promise<void>;
 }
 
-const useProjectMove = (
-  open: boolean,
-  currentProject?: { id: string; name: string }
-): {
+const useProjectMove = (open: boolean, currentProject?: { id: string; name: string }): {
   selectedProjectId: string;
-  setSelectedProjectId: (id: string) => void;
+  setSelectedProjectId: React.Dispatch<React.SetStateAction<string>>;
   moving: boolean;
   handleMove: (onMove: (id: string | null) => Promise<void>, onClose: () => void) => Promise<void>;
 } => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [moving, setMoving] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setSelectedProjectId(currentProject?.id || '');
-    }
-  }, [open, currentProject?.id]);
-
-  const handleMove = async (
-    onMove: (id: string | null) => Promise<void>,
-    onClose: () => void
-  ): Promise<void> => {
-    setMoving(true);
-    try {
-      await onMove(selectedProjectId || null);
-      onClose();
-    } catch (error) {
-      console.error('Failed to assign file to project:', error);
-    } finally {
-      setMoving(false);
-    }
+  const result = useMove<string>(open, currentProject?.id);
+  return {
+    selectedProjectId: result.selectedId,
+    setSelectedProjectId: result.setSelectedId,
+    moving: result.moving,
+    handleMove: result.handleMove
   };
-
-  return { selectedProjectId, setSelectedProjectId, moving, handleMove };
 };
 
-export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({ 
-  open, 
-  onClose, 
-  fileName, 
-  currentProject, 
-  projects, 
-  onMove 
-}) => {
-  const { selectedProjectId, setSelectedProjectId, moving, handleMove } = useProjectMove(open, currentProject);
+const ProjectDialogContent: React.FC<{
+  fileName: string;
+  selectedProjectId: string;
+  projects: Project[];
+  onChange: (id: string) => void;
+  disabled: boolean;
+}> = ({ fileName, selectedProjectId, projects, onChange, disabled }) => (
+  <DialogContent>
+    <Typography variant="body2" color="text.secondary" gutterBottom>
+      Assign &quot;{fileName}&quot; to a project
+    </Typography>
+    <ProjectSelect
+      selectedProjectId={selectedProjectId}
+      projects={projects}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  </DialogContent>
+);
+
+export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = (props) => {
+  const { selectedProjectId, setSelectedProjectId, moving, handleMove } = 
+    useProjectMove(props.open, props.currentProject);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm"
-fullWidth>
+    <Dialog open={props.open} onClose={props.onClose} maxWidth="sm"
+      fullWidth>
       <DialogTitle>Assign to Project</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Assign &quot;{fileName}&quot; to a project
-        </Typography>
-        <ProjectSelect
-          selectedProjectId={selectedProjectId}
-          projects={projects}
-          onChange={setSelectedProjectId}
-          disabled={moving}
-        />
-      </DialogContent>
+      <ProjectDialogContent
+        fileName={props.fileName}
+        selectedProjectId={selectedProjectId}
+        projects={props.projects}
+        onChange={setSelectedProjectId}
+        disabled={moving}
+      />
       <DialogFooter
-        onClose={onClose}
-        onAction={() => handleMove(onMove, onClose)}
+        onClose={props.onClose}
+        onAction={() => handleMove(props.onMove, props.onClose)}
         actionLabel={moving ? 'Assigning' : 'Assign'}
         loading={moving}
       />

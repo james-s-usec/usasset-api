@@ -110,55 +110,92 @@ const AdvancedFilters: React.FC<{
   </Box>
 );
 
-// Main component - simplified
-export const FileFilterBar: React.FC<FileFilterBarProps> = ({
-  files,
-  folders,
-  projects,
-  filters,
-  onFiltersChange,
-  onClearFilters,
-}) => {
+// Filter state logic
+const useFilterLogic = (files: FileData[], filters: FileFilters, onFiltersChange: (filters: FileFilters) => void): {
+  expanded: boolean;
+  fileTypes: Array<{ value: string; label: string; count: number }>;
+  activeFiltersCount: number;
+  handleSelectChange: (field: keyof FileFilters) => (event: SelectChangeEvent) => void;
+  toggleExpanded: () => void;
+} => {
   const [expanded, setExpanded] = React.useState(false);
   const fileTypes = getUniqueFileTypes(files);
   const activeFiltersCount = getActiveFiltersCount(filters);
 
-  const handleSelectChange = (field: keyof FileFilters): ((event: SelectChangeEvent) => void) => 
+  const handleSelectChange = (field: keyof FileFilters) => 
     (event: SelectChangeEvent): void => {
       onFiltersChange({ ...filters, [field]: event.target.value as string });
     };
 
+  const toggleExpanded = (): void => setExpanded(!expanded);
+
+  return { expanded, fileTypes, activeFiltersCount, handleSelectChange, toggleExpanded };
+};
+
+// Expanded section component
+const ExpandedFilters: React.FC<{
+  filters: FileFilters;
+  fileTypes: Array<{ value: string; label: string; count: number }>;
+  projects?: Project[];
+  folders?: Folder[];
+  onSelectChange: (field: keyof FileFilters) => (event: SelectChangeEvent) => void;
+}> = ({ filters, fileTypes, projects, folders, onSelectChange }) => {
+  const activeFiltersCount = getActiveFiltersCount(filters);
+  
   return (
-    <Paper sx={{ p: 2, mb: 2 }}>
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-        <QuickFilters
-          filters={filters}
-          projects={projects}
-          folders={folders}
-          onFiltersChange={onFiltersChange}
-          onSelectChange={handleSelectChange}
-        />
-        <FilterToggle
-          expanded={expanded}
-          activeFiltersCount={activeFiltersCount}
-          onToggle={() => setExpanded(!expanded)}
-          onClearFilters={onClearFilters}
-        />
-      </Box>
-      
-      <Collapse in={expanded}>
-        <AdvancedFilters
-          filters={filters}
-          fileTypes={fileTypes}
-          onSelectChange={handleSelectChange}
-        />
-        
-        {activeFiltersCount > 0 && (
-          <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider', mt: 2 }}>
-            <FilterSummary filters={filters} projects={projects} folders={folders} />
-          </Box>
-        )}
-      </Collapse>
-    </Paper>
+    <>
+      <AdvancedFilters
+        filters={filters}
+        fileTypes={fileTypes}
+        onSelectChange={onSelectChange}
+      />
+      {activeFiltersCount > 0 && (
+        <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider', mt: 2 }}>
+          <FilterSummary filters={filters} projects={projects} folders={folders} />
+        </Box>
+      )}
+    </>
   );
+};
+
+// Main rendering component
+const FileFilterBarContent: React.FC<FileFilterBarProps & {
+  expanded: boolean;
+  fileTypes: Array<{ value: string; label: string; count: number }>;
+  activeFiltersCount: number;
+  handleSelectChange: (field: keyof FileFilters) => (event: SelectChangeEvent) => void;
+  toggleExpanded: () => void;
+}> = (props) => (
+  <Paper sx={{ p: 2, mb: 2 }}>
+    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <QuickFilters
+        filters={props.filters}
+        projects={props.projects}
+        folders={props.folders}
+        onFiltersChange={props.onFiltersChange}
+        onSelectChange={props.handleSelectChange}
+      />
+      <FilterToggle
+        expanded={props.expanded}
+        activeFiltersCount={props.activeFiltersCount}
+        onToggle={props.toggleExpanded}
+        onClearFilters={props.onClearFilters}
+      />
+    </Box>
+    <Collapse in={props.expanded}>
+      <ExpandedFilters
+        filters={props.filters}
+        fileTypes={props.fileTypes}
+        projects={props.projects || []}
+        folders={props.folders || []}
+        onSelectChange={props.handleSelectChange}
+      />
+    </Collapse>
+  </Paper>
+);
+
+// Main component - simplified
+export const FileFilterBar: React.FC<FileFilterBarProps> = (props) => {
+  const logic = useFilterLogic(props.files, props.filters, props.onFiltersChange);
+  return <FileFilterBarContent {...props} {...logic} />;
 };

@@ -135,73 +135,65 @@ interface FileTableContentProps {
   }>;
 }
 
-const FileTableContent: React.FC<FileTableContentProps> = ({
-  files,
-  selectedFiles,
-  onSelectFile,
-  onSelectAll,
-  onClearSelection,
-  onDownload,
-  onDelete,
-  onMoveToFolder,
-  folders,
-  onMoveToProject,
-  projects,
-  onPreview,
-  getFileContent,
-  getPdfInfo
-}) => (
-  <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-    <Table sx={{ minWidth: 800 }}>
-      <FileTableHeader 
-        selectedFiles={selectedFiles}
-        allFiles={files}
-        onSelectAll={onSelectAll}
-        onClearSelection={onClearSelection}
+const FileRows: React.FC<{
+  files: FileData[];
+  selectedFiles: Set<string>;
+  onSelectFile: (fileId: string) => void;
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onMoveToFolder?: (fileId: string, folderId: string | null) => Promise<void>;
+  folders?: Folder[];
+  onMoveToProject?: (fileId: string, projectId: string | null) => Promise<void>;
+  projects?: Project[];
+  onPreview?: (fileId: string) => Promise<string>;
+  getFileContent?: (fileId: string) => Promise<string>;
+  getPdfInfo?: FileTableContentProps['getPdfInfo'];
+}> = (props) => (
+  <>
+    {props.files.map((file) => (
+      <FileTableRow
+        key={file.id}
+        file={file}
+        selected={props.selectedFiles.has(file.id)}
+        onSelectFile={props.onSelectFile}
+        onDownload={props.onDownload}
+        onDelete={props.onDelete}
+        onMoveToFolder={props.onMoveToFolder}
+        folders={props.folders}
+        onMoveToProject={props.onMoveToProject}
+        projects={props.projects}
+        onPreview={props.onPreview}
+        getFileContent={props.getFileContent}
+        getPdfInfo={props.getPdfInfo}
       />
-      <TableBody>
-        {files.length === 0 ? (
-          <EmptyRow />
-        ) : (
-          files.map((file) => (
-            <FileTableRow
-              key={file.id}
-              file={file}
-              selected={selectedFiles.has(file.id)}
-              onSelectFile={onSelectFile}
-              onDownload={onDownload}
-              onDelete={onDelete}
-              onMoveToFolder={onMoveToFolder}
-              folders={folders}
-              onMoveToProject={onMoveToProject}
-              projects={projects}
-              onPreview={onPreview}
-              getFileContent={getFileContent}
-              getPdfInfo={getPdfInfo}
-            />
-          ))
-        )}
-      </TableBody>
-    </Table>
-  </TableContainer>
+    ))}
+  </>
 );
 
-export const FileTable: React.FC<FileTableProps> = ({
-  files,
-  onDownload,
-  onDelete,
-  onMoveToFolder,
-  folders,
-  onMoveToProject,
-  projects,
-  onRefresh,
-  onPreview,
-  getFileContent,
-  getPdfInfo,
-  onBulkAssignProject,
-  onBulkMoveToFolder,
-  onBulkDelete,
-}) => {
+const FileTableContent: React.FC<FileTableContentProps> = (props) => {
+  const tableBody = props.files.length === 0 ? <EmptyRow /> : <FileRows {...props} />;
+  
+  return (
+    <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+      <Table sx={{ minWidth: 800 }}>
+        <FileTableHeader 
+          selectedFiles={props.selectedFiles}
+          allFiles={props.files}
+          onSelectAll={props.onSelectAll}
+          onClearSelection={props.onClearSelection}
+        />
+        <TableBody>{tableBody}</TableBody>
+      </Table>
+    </TableContainer>
+  );
+};
+
+const useFileSelection = (): {
+  selectedFiles: Set<string>;
+  handleSelectFile: (fileId: string) => void;
+  handleSelectAll: (files: FileData[]) => void;
+  handleClearSelection: () => void;
+} => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   
   const handleSelectFile = (fileId: string): void => {
@@ -214,7 +206,7 @@ export const FileTable: React.FC<FileTableProps> = ({
     setSelectedFiles(newSelected);
   };
   
-  const handleSelectAll = (): void => {
+  const handleSelectAll = (files: FileData[]): void => {
     const allFileIds = files.map(file => file.id);
     setSelectedFiles(new Set(allFileIds));
   };
@@ -223,36 +215,78 @@ export const FileTable: React.FC<FileTableProps> = ({
     setSelectedFiles(new Set());
   };
   
-  return (
-    <>
-      <BulkActionsToolbar
-        selectedFiles={selectedFiles}
-        allFiles={files}
-        folders={folders || []}
-        projects={projects || []}
-        onClearSelection={handleClearSelection}
-        onSelectAll={handleSelectAll}
-        onBulkAssignProject={onBulkAssignProject || (async (): Promise<void> => {})}
-        onBulkMoveToFolder={onBulkMoveToFolder || (async (): Promise<void> => {})}
-        onBulkDelete={onBulkDelete || (async (): Promise<void> => {})}
-      />
-      <FileTableContent 
-        files={files}
-        selectedFiles={selectedFiles}
-        onSelectFile={handleSelectFile}
-        onSelectAll={handleSelectAll}
-        onClearSelection={handleClearSelection}
-        onDownload={onDownload}
-        onDelete={onDelete}
-        onMoveToFolder={onMoveToFolder}
-        folders={folders}
-        onMoveToProject={onMoveToProject}
-        projects={projects}
-        onPreview={onPreview}
-        getFileContent={getFileContent}
-        getPdfInfo={getPdfInfo}
-      />
-      <FileSummary count={files.length} onRefresh={onRefresh} />
-    </>
-  );
+  return {
+    selectedFiles,
+    handleSelectFile,
+    handleSelectAll,
+    handleClearSelection
+  };
+};
+
+const FileTableActions: React.FC<{
+  files: FileData[];
+  selectedFiles: Set<string>;
+  folders?: Folder[];
+  projects?: Project[];
+  onClearSelection: () => void;
+  onSelectAll: () => void;
+  onBulkAssignProject?: (fileIds: string[], projectId: string | null) => Promise<void>;
+  onBulkMoveToFolder?: (fileIds: string[], folderId: string | null) => Promise<void>;
+  onBulkDelete?: (fileIds: string[]) => Promise<void>;
+}> = (props) => (
+  <BulkActionsToolbar
+    selectedFiles={props.selectedFiles}
+    allFiles={props.files}
+    folders={props.folders || []}
+    projects={props.projects || []}
+    onClearSelection={props.onClearSelection}
+    onSelectAll={props.onSelectAll}
+    onBulkAssignProject={props.onBulkAssignProject || (async (): Promise<void> => {})}
+    onBulkMoveToFolder={props.onBulkMoveToFolder || (async (): Promise<void> => {})}
+    onBulkDelete={props.onBulkDelete || (async (): Promise<void> => {})}
+  />
+);
+
+const FileTableMainContent: React.FC<FileTableProps & { selection: ReturnType<typeof useFileSelection> }> = (props) => {
+  const contentProps = {
+    files: props.files,
+    selectedFiles: props.selection.selectedFiles,
+    onSelectFile: props.selection.handleSelectFile,
+    onSelectAll: (): void => props.selection.handleSelectAll(props.files),
+    onClearSelection: props.selection.handleClearSelection,
+    onDownload: props.onDownload,
+    onDelete: props.onDelete,
+    onMoveToFolder: props.onMoveToFolder,
+    folders: props.folders,
+    onMoveToProject: props.onMoveToProject,
+    projects: props.projects,
+    onPreview: props.onPreview,
+    getFileContent: props.getFileContent,
+    getPdfInfo: props.getPdfInfo
+  };
+  
+  return <FileTableContent {...contentProps} />;
+};
+
+const FileTableMain: React.FC<FileTableProps & { selection: ReturnType<typeof useFileSelection> }> = (props) => (
+  <>
+    <FileTableActions
+      files={props.files}
+      selectedFiles={props.selection.selectedFiles}
+      folders={props.folders}
+      projects={props.projects}
+      onClearSelection={props.selection.handleClearSelection}
+      onSelectAll={() => props.selection.handleSelectAll(props.files)}
+      onBulkAssignProject={props.onBulkAssignProject}
+      onBulkMoveToFolder={props.onBulkMoveToFolder}
+      onBulkDelete={props.onBulkDelete}
+    />
+    <FileTableMainContent {...props} />
+    <FileSummary count={props.files.length} onRefresh={props.onRefresh} />
+  </>
+);
+
+export const FileTable: React.FC<FileTableProps> = (props) => {
+  const selection = useFileSelection();
+  return <FileTableMain {...props} selection={selection} />;
 };

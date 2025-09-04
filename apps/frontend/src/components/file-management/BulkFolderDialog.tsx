@@ -78,42 +78,58 @@ const FolderSelector: React.FC<{
 );
 
 // Main dialog - now under 30 lines
-export const BulkFolderDialog: React.FC<BulkFolderDialogProps> = ({
-  open,
-  onClose,
-  onConfirm,
-  selectedFolderId,
-  onFolderChange,
-  folders,
-  selectedFileNames,
-  selectedCount,
-  loading,
-}) => (
-  <Dialog 
-    open={open} 
-    onClose={onClose} 
-    maxWidth="sm"
-    fullWidth
-  >
+const BulkFolderDialogContent: React.FC<{
+  selectedCount: number;
+  selectedFileNames: string[];
+  selectedFolderId: string;
+  onFolderChange: (folderId: string) => void;
+  folders: Folder[];
+}> = ({ selectedCount, selectedFileNames, selectedFolderId, onFolderChange, folders }) => (
+  <>
+    <Typography variant="body2" color="text.secondary" gutterBottom>
+      Move {selectedCount} file{selectedCount > 1 ? 's' : ''} to folder:
+    </Typography>
+    {selectedFileNames.length > 0 && (
+      <FileList names={selectedFileNames} count={selectedCount} />
+    )}
+    <FolderSelector 
+      selectedFolderId={selectedFolderId}
+      onFolderChange={onFolderChange}
+      folders={folders}
+    />
+  </>
+);
+
+const DialogButtons: React.FC<{
+  onClose: () => void;
+  onConfirm: () => void;
+  loading?: boolean;
+}> = ({ onClose, onConfirm, loading }) => (
+  <DialogActions>
+    <Button onClick={onClose}>Cancel</Button>
+    <Button onClick={onConfirm} variant="contained" disabled={loading}>
+      Move to Folder
+    </Button>
+  </DialogActions>
+);
+
+export const BulkFolderDialog: React.FC<BulkFolderDialogProps> = (props) => (
+  <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" 
+    fullWidth>
     <DialogTitle>Move Files to Folder</DialogTitle>
     <DialogContent>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
-        Move {selectedCount} file{selectedCount > 1 ? 's' : ''} to folder:
-      </Typography>
-      {selectedFileNames.length > 0 && (
-        <FileList names={selectedFileNames} count={selectedCount} />
-      )}
-      <FolderSelector 
-        selectedFolderId={selectedFolderId}
-        onFolderChange={onFolderChange}
-        folders={folders}
+      <BulkFolderDialogContent
+        selectedCount={props.selectedCount}
+        selectedFileNames={props.selectedFileNames}
+        selectedFolderId={props.selectedFolderId}
+        onFolderChange={props.onFolderChange}
+        folders={props.folders}
       />
     </DialogContent>
-    <DialogActions>
-      <Button onClick={onClose}>Cancel</Button>
-      <Button onClick={onConfirm} variant="contained" disabled={loading}>
-        Move to Folder
-      </Button>
-    </DialogActions>
+    <DialogButtons
+      onClose={props.onClose}
+      onConfirm={props.onConfirm}
+      loading={props.loading}
+    />
   </Dialog>
 );
