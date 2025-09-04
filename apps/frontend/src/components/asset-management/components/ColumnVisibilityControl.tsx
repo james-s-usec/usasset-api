@@ -71,7 +71,12 @@ const CategoryList: React.FC<{
   </Box>
 );
 
-const usePopoverState = () => {
+const usePopoverState = (): {
+  anchorEl: HTMLElement | null;
+  open: boolean;
+  handleClick: (event: React.MouseEvent<HTMLElement>) => void;
+  handleClose: () => void;
+} => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const open = Boolean(anchorEl);
 
@@ -89,7 +94,7 @@ const usePopoverState = () => {
 const useCategoryToggle = (
   categories: ColumnCategory[],
   onUpdateCategories: (categories: ColumnCategory[]) => void
-) => {
+): { handleToggleCategory: (categoryId: string) => void } => {
   const handleToggleCategory = (categoryId: string): void => {
     const updatedCategories = categories.map(category =>
       category.id === categoryId 
@@ -105,7 +110,15 @@ const useCategoryToggle = (
 const useColumnVisibilityControl = (
   categories: ColumnCategory[],
   onUpdateCategories: (categories: ColumnCategory[]) => void
-) => {
+): {
+  anchorEl: HTMLElement | null;
+  open: boolean;
+  handleClick: (event: React.MouseEvent<HTMLElement>) => void;
+  handleClose: () => void;
+  handleToggleCategory: (categoryId: string) => void;
+  enabledCount: number;
+  totalCategories: number;
+} => {
   const popover = usePopoverState();
   const toggle = useCategoryToggle(categories, onUpdateCategories);
   const enabledCount = categories.filter(cat => cat.enabled).length;
@@ -119,43 +132,64 @@ const useColumnVisibilityControl = (
   };
 };
 
+const ColumnToggleButton: React.FC<{
+  onClick: (event: React.MouseEvent<HTMLElement>) => void;
+  enabledCount: number;
+  totalCategories: number;
+}> = ({ onClick, enabledCount, totalCategories }) => (
+  <IconButton
+    onClick={onClick}
+    color="primary"
+    title={`Column Categories (${enabledCount}/${totalCategories} enabled)`}
+  >
+    <ViewColumnIcon />
+  </IconButton>
+);
+
+const CategoryPopover: React.FC<{
+  open: boolean;
+  anchorEl: HTMLElement | null;
+  onClose: () => void;
+  categories: ColumnCategory[];
+  enabledCount: number;
+  totalCategories: number;
+  onToggle: (categoryId: string) => void;
+}> = ({ open, anchorEl, onClose, categories, enabledCount, totalCategories, onToggle }) => (
+  <Popover
+    open={open}
+    anchorEl={anchorEl}
+    onClose={onClose}
+    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+  >
+    <CategoryList
+      categories={categories}
+      enabledCount={enabledCount}
+      totalCategories={totalCategories}
+      onToggle={onToggle}
+    />
+  </Popover>
+);
+
 export const ColumnVisibilityControl: React.FC<ColumnVisibilityControlProps> = ({
   categories,
   onUpdateCategories,
 }) => {
-  const {
-    anchorEl,
-    open,
-    enabledCount,
-    totalCategories,
-    handleClick,
-    handleClose,
-    handleToggleCategory,
-  } = useColumnVisibilityControl(categories, onUpdateCategories);
+  const controlState = useColumnVisibilityControl(categories, onUpdateCategories);
 
   return (
     <>
-      <IconButton
-        onClick={handleClick}
-        color="primary"
-        title={`Column Categories (${enabledCount}/${totalCategories} enabled)`}
-      >
-        <ViewColumnIcon />
-      </IconButton>
-      <Popover
-        open={open}
-        anchorEl={anchorEl}
-        onClose={handleClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <CategoryList
-          categories={categories}
-          enabledCount={enabledCount}
-          totalCategories={totalCategories}
-          onToggle={handleToggleCategory}
-        />
-      </Popover>
+      <ColumnToggleButton 
+        onClick={controlState.handleClick}
+        enabledCount={controlState.enabledCount}
+        totalCategories={controlState.totalCategories}
+      />
+      <CategoryPopover 
+        {...controlState}
+        categories={categories}
+        onToggle={controlState.handleToggleCategory}
+        onClose={controlState.handleClose}
+      />
     </>
   );
 };

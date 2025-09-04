@@ -10,7 +10,9 @@ export class PipelineController {
   @Get('files')
   @ApiOperation({ summary: 'List CSV files available for import' })
   @ApiResponse({ status: 200, description: 'Files retrieved successfully' })
-  public async listFiles(): Promise<{ files: Array<{ id: string; name: string; size: number; created_at: Date }> }> {
+  public async listFiles(): Promise<{
+    files: Array<{ id: string; name: string; size: number; created_at: Date }>;
+  }> {
     const files = await this.pipelineService.listCsvFiles();
     return { files };
   }
@@ -28,12 +30,25 @@ export class PipelineController {
   @Get('status/:jobId')
   @ApiOperation({ summary: 'Check import job status' })
   @ApiResponse({ status: 200, description: 'Job status retrieved' })
-  public async getStatus(): Promise<{
+  public async getStatus(@Param('jobId') jobId: string): Promise<{
+    id: string;
     status: string;
     progress?: { total: number; processed: number };
+    errors?: string[];
   }> {
-    // jobId parameter will be added back in later phases for actual job lookup
-    const status = await this.pipelineService.getJobStatus();
+    const status = await this.pipelineService.getJobStatus(jobId);
     return status;
+  }
+
+  @Get('staging/:jobId')
+  @ApiOperation({ summary: 'Get staged data for preview' })
+  @ApiResponse({ status: 200, description: 'Staged data retrieved' })
+  public async getStagedData(@Param('jobId') jobId: string): Promise<{
+    data: any[];
+    validCount: number;
+    invalidCount: number;
+  }> {
+    const stagedData = await this.pipelineService.getStagedData(jobId);
+    return stagedData;
   }
 }

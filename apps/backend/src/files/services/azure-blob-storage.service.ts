@@ -607,8 +607,10 @@ export class AzureBlobStorageService {
     // Transform null to undefined for TypeScript compatibility
     return {
       ...updatedFile,
-      folder: updatedFile.folder || undefined,
-      project: updatedFile.project || undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      folder: (updatedFile as any).folder || undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      project: (updatedFile as any).project || undefined,
     };
   }
 

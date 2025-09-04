@@ -14,7 +14,10 @@ const AssetManagementContent: React.FC<{
   loading: boolean;
   error: string | null;
   columnDefs: ColDef[];
-  components: Record<string, unknown>;
+  components: {
+    actionsRenderer: (params: unknown) => React.ReactElement;
+    statusRenderer: (params: unknown) => React.ReactElement;
+  };
   onGridReady: (params: GridReadyEvent) => void;
   onAdd: () => void;
   onRefresh: () => void;

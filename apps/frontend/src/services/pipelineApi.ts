@@ -8,11 +8,13 @@ export interface FileInfo {
 }
 
 export interface JobStatus {
+  id: string;
   status: string;
   progress?: {
     total: number;
     processed: number;
   };
+  errors?: string[];
 }
 
 export const pipelineApi = {
@@ -28,7 +30,23 @@ export const pipelineApi = {
   },
 
   getJobStatus: async (jobId: string): Promise<JobStatus> => {
-    const response = await apiService.get<JobStatus>(`/api/pipeline/status/${jobId}`);
-    return response;
+    const response = await apiService.get<{ success: boolean; data: JobStatus }>(`/api/pipeline/status/${jobId}`);
+    return response.data;
+  },
+
+  getStagedData: async (jobId: string): Promise<{
+    data: Array<{
+      rowNumber: number;
+      isValid: boolean;
+      willImport: boolean;
+      rawData: any;
+      mappedData: any;
+      errors: any;
+    }>;
+    validCount: number;
+    invalidCount: number;
+  }> => {
+    const response = await apiService.get<{ success: boolean; data: any }>(`/api/pipeline/staging/${jobId}`);
+    return response.data;
   },
 };

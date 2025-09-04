@@ -164,6 +164,7 @@ model File {
   // Relations
   project       Project? @relation(fields: [project_id], references: [id])
   folder        Folder?  @relation(fields: [folder_id], references: [id])
+  import_jobs   ImportJob[]
   
   @@index([project_id])
   @@index([folder_id])
@@ -371,4 +372,58 @@ enum AssetCondition {
   POOR
   FOR_REPAIR
   FOR_DISPOSAL
+}
+
+// Import job tracking for pipeline
+model ImportJob {
+  id              String     @id @default(uuid())
+  file_id         String
+  status          JobStatus  @default(PENDING)
+  total_rows      Int?
+  processed_rows  Int        @default(0)
+  error_rows      Int        @default(0)
+  errors          Json       @default("[]")
+  started_at      DateTime   @default(now())
+  completed_at    DateTime?
+  created_by      String?
+  
+  // Relations
+  file            File       @relation(fields: [file_id], references: [id])
+  staging_assets  StagingAsset[]
+  
+  @@index([status])
+  @@index([started_at])
+  @@index([file_id])
+  @@map("import_jobs")
+}
+
+// Staging table for import preview and quality gate
+model StagingAsset {
+  id              String     @id @default(uuid())
+  import_job_id   String
+  row_number      Int
+  raw_data        Json       // Original CSV row data
+  mapped_data     Json       // Mapped to asset fields
+  validation_errors Json?    // Any validation issues
+  is_valid        Boolean    @default(true)
+  will_import     Boolean    @default(true) // User can toggle this
+  created_at      DateTime   @default(now())
+  
+  // Relations
+  import_job      ImportJob  @relation(fields: [import_job_id], references: [id], onDelete: Cascade)
+  
+  @@index([import_job_id])
+  @@index([is_valid])
+  @@index([will_import])
+  @@map("staging_assets")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  STAGED      // Data is in staging table for review
+  APPROVED    // User approved, ready to commit
+  COMPLETED   // Successfully imported to database
+  FAILED
+  CANCELLED
 }
