@@ -74,6 +74,7 @@ export class FilesController {
     @Query('folder_id') folderId?: string,
     @Query('project_id') projectId?: string,
   ): Promise<FileResponseDto> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const uploadedFile = await this.storageService.upload(
       file,
       folderId,
@@ -161,6 +162,7 @@ export class FilesController {
     @Param('id') id: string,
     @Body() updateData: { folder_id?: string; project_id?: string },
   ): Promise<FileResponseDto> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const updatedFile = await this.storageService.updateFile(id, updateData);
     return this.mapToResponseDto(updatedFile);
   }

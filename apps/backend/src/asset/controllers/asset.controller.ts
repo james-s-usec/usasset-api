@@ -26,13 +26,11 @@ import { AssetBulkService } from '../services/asset-bulk.service';
 import { CreateAssetDto } from '../dto/create-asset.dto';
 import { UpdateAssetDto } from '../dto/update-asset.dto';
 import { SafeAssetDto } from '../dto/safe-asset.dto';
-import { AssetSearchDto } from '../dto/asset-search.dto';
 import { AssetSearchWithPaginationDto } from '../dto/asset-search-with-pagination.dto';
 import { BulkCreateAssetsDto } from '../dto/bulk-create-asset.dto';
 import { BulkUpdateAssetsDto } from '../dto/bulk-update-asset.dto';
 import { BulkDeleteAssetsDto } from '../dto/bulk-delete-asset.dto';
 import { BulkOperationResult } from '../dto/bulk-operation-result.dto';
-import { PaginationDto } from '../../user/dto/pagination.dto';
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE } from '../../common/constants';
 import { AssetNotFoundException } from '../exceptions/asset.exceptions';
 import { SanitizationPipe } from '../../common/pipes/sanitization.pipe';
@@ -102,71 +100,19 @@ export class AssetController {
   @ApiResponse({ status: 200, description: 'Assets retrieved successfully' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({
-    name: 'search',
-    required: false,
-    type: String,
-    description: 'Search term across multiple fields',
-  })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: [
-      'ACTIVE',
-      'INACTIVE',
-      'MAINTENANCE',
-      'RETIRED',
-      'DISPOSED',
-      'LOST',
-      'TRANSFERRED',
-    ],
-  })
-  @ApiQuery({
-    name: 'condition',
-    required: false,
-    enum: [
-      'EXCELLENT',
-      'GOOD',
-      'FAIR',
-      'POOR',
-      'CRITICAL',
-      'UNKNOWN',
-      'NOT_APPLICABLE',
-    ],
-  })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'condition', required: false, type: String })
   @ApiQuery({ name: 'manufacturer', required: false, type: String })
   @ApiQuery({ name: 'buildingName', required: false, type: String })
-  @ApiQuery({ name: 'floor', required: false, type: String })
-  @ApiQuery({ name: 'trade', required: false, type: String })
-  @ApiQuery({ name: 'assetCategory', required: false, type: String })
-  @ApiQuery({
-    name: 'installDateFrom',
-    required: false,
-    type: String,
-    description: 'ISO date string',
-  })
-  @ApiQuery({
-    name: 'installDateTo',
-    required: false,
-    type: String,
-    description: 'ISO date string',
-  })
-  @ApiQuery({
-    name: 'sortBy',
-    required: false,
-    enum: [
-      'name',
-      'assetTag',
-      'manufacturer',
-      'installDate',
-      'purchaseDate',
-      'purchaseCost',
-      'created_at',
-    ],
-  })
-  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   public async findAll(
     @Query(ValidationPipe) query: AssetSearchWithPaginationDto,
+  ): Promise<{ assets: SafeAssetDto[]; pagination: Record<string, number> }> {
+    return this.handleFindAllRequest(query);
+  }
+
+  private async handleFindAllRequest(
+    query: AssetSearchWithPaginationDto,
   ): Promise<{ assets: SafeAssetDto[]; pagination: Record<string, number> }> {
     const {
       page = DEFAULT_PAGE,

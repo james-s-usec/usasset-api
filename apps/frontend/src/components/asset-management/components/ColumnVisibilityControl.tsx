@@ -17,14 +17,11 @@ interface ColumnVisibilityControlProps {
   onUpdateCategories: (categories: ColumnCategory[]) => void;
 }
 
-// Popover content component to reduce main component size
-const CategoryList: React.FC<{
-  categories: ColumnCategory[];
+const CategoryHeader: React.FC<{
   enabledCount: number;
   totalCategories: number;
-  onToggle: (categoryId: string) => void;
-}> = ({ categories, enabledCount, totalCategories, onToggle }) => (
-  <Box sx={{ p: 2, minWidth: 250 }}>
+}> = ({ enabledCount, totalCategories }) => (
+  <>
     <Typography variant="h6" gutterBottom>
       Column Categories
     </Typography>
@@ -32,40 +29,51 @@ const CategoryList: React.FC<{
       {enabledCount} of {totalCategories} categories enabled
     </Typography>
     <Divider sx={{ mb: 2 }} />
+  </>
+);
+
+const CategoryItem: React.FC<{
+  category: ColumnCategory;
+  onToggle: (categoryId: string) => void;
+}> = ({ category, onToggle }) => (
+  <FormControlLabel
+    control={
+      <Switch
+        checked={category.enabled}
+        onChange={() => onToggle(category.id)}
+        size="small"
+      />
+    }
+    label={
+      <Box>
+        <Typography variant="body2">{category.name}</Typography>
+        <Typography variant="caption" color="text.secondary">
+          {category.columns.length} fields
+        </Typography>
+      </Box>
+    }
+  />
+);
+
+const CategoryList: React.FC<{
+  categories: ColumnCategory[];
+  enabledCount: number;
+  totalCategories: number;
+  onToggle: (categoryId: string) => void;
+}> = ({ categories, enabledCount, totalCategories, onToggle }) => (
+  <Box sx={{ p: 2, minWidth: 250 }}>
+    <CategoryHeader enabledCount={enabledCount} totalCategories={totalCategories} />
     <FormGroup>
       {categories.map((category) => (
-        <FormControlLabel
-          key={category.id}
-          control={
-            <Switch
-              checked={category.enabled}
-              onChange={() => onToggle(category.id)}
-              size="small"
-            />
-          }
-          label={
-            <Box>
-              <Typography variant="body2">{category.name}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {category.columns.length} fields
-              </Typography>
-            </Box>
-          }
-        />
+        <CategoryItem key={category.id} category={category} onToggle={onToggle} />
       ))}
     </FormGroup>
   </Box>
 );
 
-export const ColumnVisibilityControl: React.FC<ColumnVisibilityControlProps> = ({
-  categories,
-  onUpdateCategories,
-}) => {
+const usePopoverState = () => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const open = Boolean(anchorEl);
-  
-  const enabledCount = categories.filter(cat => cat.enabled).length;
-  const totalCategories = categories.length;
 
   const handleClick = (event: React.MouseEvent<HTMLElement>): void => {
     setAnchorEl(event.currentTarget);
@@ -75,6 +83,13 @@ export const ColumnVisibilityControl: React.FC<ColumnVisibilityControlProps> = (
     setAnchorEl(null);
   };
 
+  return { anchorEl, open, handleClick, handleClose };
+};
+
+const useCategoryToggle = (
+  categories: ColumnCategory[],
+  onUpdateCategories: (categories: ColumnCategory[]) => void
+) => {
   const handleToggleCategory = (categoryId: string): void => {
     const updatedCategories = categories.map(category =>
       category.id === categoryId 
@@ -83,6 +98,40 @@ export const ColumnVisibilityControl: React.FC<ColumnVisibilityControlProps> = (
     );
     onUpdateCategories(updatedCategories);
   };
+
+  return { handleToggleCategory };
+};
+
+const useColumnVisibilityControl = (
+  categories: ColumnCategory[],
+  onUpdateCategories: (categories: ColumnCategory[]) => void
+) => {
+  const popover = usePopoverState();
+  const toggle = useCategoryToggle(categories, onUpdateCategories);
+  const enabledCount = categories.filter(cat => cat.enabled).length;
+  const totalCategories = categories.length;
+
+  return {
+    ...popover,
+    ...toggle,
+    enabledCount,
+    totalCategories,
+  };
+};
+
+export const ColumnVisibilityControl: React.FC<ColumnVisibilityControlProps> = ({
+  categories,
+  onUpdateCategories,
+}) => {
+  const {
+    anchorEl,
+    open,
+    enabledCount,
+    totalCategories,
+    handleClick,
+    handleClose,
+    handleToggleCategory,
+  } = useColumnVisibilityControl(categories, onUpdateCategories);
 
   return (
     <>
