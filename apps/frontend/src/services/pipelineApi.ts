@@ -95,7 +95,14 @@ export const pipelineApi = {
     }>;
   }> => {
     console.log(`[PipelineAPI] Validating file: ${fileId}`);
-    const response = await apiService.post<{ success: boolean; data: any }>(`/api/pipeline/validate/${fileId}`);
+    const response = await apiService.post<{ success: boolean; data: {
+      totalRows: number;
+      validRows: number;
+      invalidRows: number;
+      errors: string[];
+      sampleValidData: Array<{ rowNumber: number; rawData: Record<string, string>; mappedData: Record<string, string> }>;
+      sampleInvalidData: Array<{ rowNumber: number; rawData: Record<string, string>; errors: string[] }>;
+    } }>(`/api/pipeline/validate/${fileId}`);
     console.log('[PipelineAPI] Validation response:', response.data);
     return response.data;
   },

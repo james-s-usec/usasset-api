@@ -22,8 +22,13 @@ const CONSTANTS = {
   SECONDS_PER_MINUTE: 60,
   MINUTES_PER_HOUR: 60,
   MILLISECONDS_PER_SECOND: 1000,
-  MILLISECONDS_PER_HOUR: 60 * 60 * 1000, // 60 seconds * 60 minutes * 1000ms
 } as const;
+
+// Computed constants
+const MILLISECONDS_PER_HOUR =
+  CONSTANTS.SECONDS_PER_MINUTE *
+  CONSTANTS.MINUTES_PER_HOUR *
+  CONSTANTS.MILLISECONDS_PER_SECOND;
 
 interface FileInfo {
   id: string;
@@ -138,13 +143,52 @@ export class PipelineService {
     return validationErrors;
   }
 
-  private createStagingRecord(
-    jobId: string,
-    rowIndex: number,
-    row: Record<string, string>,
-    assetData: MappedAssetData,
-    validationErrors: string[],
-  ): Prisma.StagingAssetCreateManyInput {
+  private addValidSample(
+    validData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }>,
+    item: {
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: MappedAssetData;
+    },
+  ): void {
+    if (validData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
+      validData.push({
+        rowNumber: item.rowNumber,
+        rawData: item.rawData,
+        mappedData: item.mappedData as unknown as Record<string, string>,
+      });
+    }
+  }
+
+  private addInvalidSample(
+    invalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }>,
+    item: {
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    },
+  ): void {
+    if (invalidData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
+      invalidData.push(item);
+    }
+  }
+
+  private createStagingRecord(params: {
+    jobId: string;
+    rowIndex: number;
+    row: Record<string, string>;
+    assetData: MappedAssetData;
+    validationErrors: string[];
+  }): Prisma.StagingAssetCreateManyInput {
+    const { jobId, rowIndex, row, assetData, validationErrors } = params;
     const isValid = validationErrors.length === 0;
     // Truncate large raw data values to prevent memory issues
     const truncatedRow: Record<string, string> = {};
@@ -169,14 +213,14 @@ export class PipelineService {
     };
   }
 
-  private async processCsvRows(
+  private processCsvRows(
     jobId: string,
     rows: Record<string, string>[],
-  ): Promise<{
+  ): {
     stagingAssets: Prisma.StagingAssetCreateManyInput[];
     errors: string[];
     processedCount: number;
-  }> {
+  } {
     const errors: string[] = [];
     const stagingAssets: Prisma.StagingAssetCreateManyInput[] = [];
     let processedCount = 0;
@@ -187,13 +231,13 @@ export class PipelineService {
       try {
         const assetData = this.mapRowToAsset(row);
         const validationErrors = this.validateAssetData(assetData);
-        const stagingRecord = this.createStagingRecord(
+        const stagingRecord = this.createStagingRecord({
           jobId,
-          i,
+          rowIndex: i,
           row,
           assetData,
           validationErrors,
-        );
+        });
 
         stagingAssets.push(stagingRecord);
 
@@ -229,8 +273,10 @@ export class PipelineService {
         return;
       }
 
-      const { stagingAssets, errors, processedCount } =
-        await this.processCsvRows(jobId, parseResult.rows);
+      const { stagingAssets, errors, processedCount } = this.processCsvRows(
+        jobId,
+        parseResult.rows,
+      );
       const allErrors = [...parseResult.errors, ...errors];
 
       if (stagingAssets.length > 0) {
@@ -400,11 +446,42 @@ export class PipelineService {
       };
     });
 
-    // Bulk insert assets
-    const result = await this.prisma.asset.createMany({
-      data: assets,
-      skipDuplicates: true, // Skip if asset_tag already exists
-    });
+    // Debug: Log what we're trying to insert
+    this.logger.log(`[DEBUG] Attempting to insert ${assets.length} assets. Sample tags: ${assets.map(a => a.assetTag).slice(0, 3).join(', ')}`);
+
+    // Bulk insert assets with individual error tracking
+    let successCount = 0;
+    const errors: string[] = [];
+    
+    // Bulk insert assets (no more unique constraint issues)
+    try {
+      const result = await this.prisma.asset.createMany({
+        data: assets,
+        // No skipDuplicates needed - duplicate assetTags are now allowed
+      });
+      successCount = result.count;
+      this.logger.log(`[DEBUG] Bulk insert successful: ${result.count} assets inserted`);
+    } catch (error) {
+      // Fallback to individual inserts if bulk fails
+      this.logger.warn('Bulk insert failed, falling back to individual inserts');
+      for (const asset of assets) {
+        try {
+          await this.prisma.asset.create({ data: asset });
+          successCount++;
+        } catch (individualError) {
+          const errorMsg = `Failed to insert ${asset.assetTag}: ${individualError instanceof Error ? individualError.message : 'Unknown error'}`;
+          errors.push(errorMsg);
+          this.logger.error(errorMsg);
+        }
+      }
+    }
+
+    this.logger.log(`[DEBUG] Individual insert result: ${successCount} inserted, ${errors.length} failed out of ${assets.length} attempted`);
+    if (errors.length > 0) {
+      this.logger.error(`[DEBUG] Insert errors: ${errors.slice(0, 5).join('; ')}${errors.length > 5 ? ` (and ${errors.length - 5} more)` : ''}`);
+    }
+
+    const result = { count: successCount };
 
     // Update job status to COMPLETED
     await this.prisma.importJob.update({
@@ -414,6 +491,9 @@ export class PipelineService {
         completed_at: new Date(),
       },
     });
+
+    // TODO: Add metadata tracking - need to add metadata field to ImportJob schema
+    this.logger.log(`[METADATA] Import completed - Attempted: ${assets.length}, Success: ${successCount}, Failed: ${errors.length}`);
 
     // Clear staging data after successful import
     await this.prisma.stagingAsset.deleteMany({
@@ -467,7 +547,7 @@ export class PipelineService {
     stagingRecordsDeleted: number;
   }> {
     const cutoffDate = new Date(
-      Date.now() - olderThanHours * CONSTANTS.MILLISECONDS_PER_HOUR,
+      Date.now() - olderThanHours * MILLISECONDS_PER_HOUR,
     );
 
     // Find old completed/failed jobs
@@ -583,7 +663,6 @@ export class PipelineService {
     }> = [];
     const allErrors: string[] = [...parseResult.errors];
     let validCount = 0;
-    let invalidCount = 0;
 
     // Process first batch of rows for validation samples
     const sampleSize = Math.min(
@@ -599,37 +678,30 @@ export class PipelineService {
         const assetData = this.mapRowToAsset(row);
         const validationErrors = this.validateAssetData(assetData);
 
-        if (validationErrors.length === 0) {
+        const isValid = validationErrors.length === 0;
+        if (isValid) {
           validCount++;
-          if (validData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
-            validData.push({
-              rowNumber,
-              rawData: row,
-              mappedData: assetData as unknown as Record<string, string>,
-            });
-          }
+          this.addValidSample(validData, {
+            rowNumber,
+            rawData: row,
+            mappedData: assetData,
+          });
         } else {
-          invalidCount++;
-          if (invalidData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
-            invalidData.push({
-              rowNumber,
-              rawData: row,
-              errors: validationErrors,
-            });
-          }
+          this.addInvalidSample(invalidData, {
+            rowNumber,
+            rawData: row,
+            errors: validationErrors,
+          });
           allErrors.push(`Row ${rowNumber}: ${validationErrors.join(', ')}`);
         }
       } catch (error) {
-        invalidCount++;
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error';
-        if (invalidData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
-          invalidData.push({
-            rowNumber,
-            rawData: row,
-            errors: [errorMessage],
-          });
-        }
+        this.addInvalidSample(invalidData, {
+          rowNumber,
+          rawData: row,
+          errors: [errorMessage],
+        });
         allErrors.push(`Row ${rowNumber}: ${errorMessage}`);
       }
     }

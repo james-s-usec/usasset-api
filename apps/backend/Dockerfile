@@ -24,8 +24,9 @@ RUN npm run build
 # Production stage
 FROM node:20-alpine AS production
 
-# Install runtime dependencies
-RUN apk add --no-cache openssl netcat-openbsd
+# Install runtime dependencies including build tools for native modules
+RUN apk add --no-cache openssl netcat-openbsd python3 make g++ \
+    pkgconfig cairo-dev pango-dev libjpeg-turbo-dev giflib-dev librsvg-dev
 
 WORKDIR /app
 

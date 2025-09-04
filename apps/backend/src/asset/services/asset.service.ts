@@ -107,4 +107,12 @@ export class AssetService {
       (error as { code: string }).code === 'P2002'
     );
   }
+
+  public async clearAllAssets(): Promise<{ message: string; deletedCount: number }> {
+    const result = await this.prisma.asset.deleteMany({});
+    return {
+      message: `Cleared all assets from database`,
+      deletedCount: result.count,
+    };
+  }
 }

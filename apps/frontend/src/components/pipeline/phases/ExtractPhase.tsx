@@ -20,7 +20,14 @@ export const ExtractPhase: React.FC<ExtractPhaseProps> = ({
   const [rawData, setRawData] = useState<Record<string, string>[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [totalRows, setTotalRows] = useState(0);
-  const [validationResult, setValidationResult] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<{
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    errors: string[];
+    sampleValidData: Array<{ rowNumber: number; rawData: Record<string, string>; mappedData: Record<string, string> }>;
+    sampleInvalidData: Array<{ rowNumber: number; rawData: Record<string, string>; errors: string[] }>;
+  } | null>(null);
   const [validating, setValidating] = useState(false);
 
   // Fetch raw CSV preview when file is selected
@@ -40,7 +47,7 @@ export const ExtractPhase: React.FC<ExtractPhaseProps> = ({
     }
   }, [selectedFile, currentJobId]);
 
-  const handleValidation = async () => {
+  const handleValidation = async (): Promise<void> => {
     if (!selectedFile) return;
     
     setValidating(true);
@@ -49,7 +56,14 @@ export const ExtractPhase: React.FC<ExtractPhaseProps> = ({
       setValidationResult(result);
     } catch (err) {
       console.error('Validation failed:', err);
-      setValidationResult({ error: 'Validation failed' });
+      setValidationResult({ 
+        totalRows: 0,
+        validRows: 0,
+        invalidRows: 0,
+        errors: ['Validation failed'],
+        sampleValidData: [],
+        sampleInvalidData: []
+      });
     } finally {
       setValidating(false);
     }
@@ -121,9 +135,9 @@ export const ExtractPhase: React.FC<ExtractPhaseProps> = ({
             <Typography variant="h6" gutterBottom>
               Validation Results
             </Typography>
-            {validationResult.error ? (
+            {validationResult.errors.length > 0 && validationResult.errors[0] === 'Validation failed' ? (
               <Alert severity="error">
-                {validationResult.error}
+                {validationResult.errors[0]}
               </Alert>
             ) : (
               <>
@@ -152,7 +166,7 @@ export const ExtractPhase: React.FC<ExtractPhaseProps> = ({
                       Sample Invalid Rows:
                     </Typography>
                     <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                      {validationResult.sampleInvalidData.map((sample: any, index: number) => (
+                      {validationResult.sampleInvalidData.map((sample: { rowNumber: number; rawData: Record<string, string>; errors: string[] }, index: number) => (
                         <Box key={index} sx={{ p: 1, mb: 1, border: 1, borderColor: 'error.main', borderRadius: 1 }}>
                           <Typography variant="body2" fontWeight="bold">Row {sample.rowNumber}:</Typography>
                           <Typography variant="body2" color="error">{sample.errors.join(', ')}</Typography>

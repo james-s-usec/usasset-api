@@ -4,7 +4,7 @@ import type { CreateAssetData, UpdateAssetData, AssetApiResponse, SingleAssetApi
 export class AssetService {
   private static readonly BASE_PATH = '/api/assets';
 
-  static async getAssets(page = 1, limit = 10): Promise<AssetApiResponse> {
+  static async getAssets(page = 1, limit = 100): Promise<AssetApiResponse> {
     return apiService.get<AssetApiResponse>(`${this.BASE_PATH}?page=${page}&limit=${limit}`);
   }
 

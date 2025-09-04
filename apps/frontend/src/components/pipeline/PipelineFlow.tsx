@@ -6,6 +6,7 @@ import { FileSelector } from './components/FileSelector';
 import { ExtractPhase } from './phases/ExtractPhase';
 import { TransformPhase } from './phases/TransformPhase';
 import { LoadPhase } from './phases/LoadPhase';
+import { ValidationReport } from './components/ValidationReport';
 import { usePipelineStatus } from './hooks/usePipelineStatus';
 import { usePipelineActions } from './hooks/usePipelineActions';
 
@@ -97,6 +98,11 @@ export const PipelineFlow: React.FC<PipelineFlowProps> = (props) => {
           isProcessing={isActionProcessing}
           showNewImportOnly={true}
         />
+      )}
+
+      {/* Validation Report - shows after any phase completion */}
+      {jobStatus && (
+        <ValidationReport jobStatus={jobStatus} />
       )}
     </Box>
   );

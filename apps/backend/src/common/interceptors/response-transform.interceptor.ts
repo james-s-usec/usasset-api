@@ -97,9 +97,22 @@ export class ResponseTransformInterceptor<T>
       ip: request.ip || 'unknown',
       duration,
       requestHeaders: JSON.stringify(request.headers),
-      requestBody: JSON.stringify(request.body),
-      responseData: JSON.stringify(responseData.data),
+      requestBody: this.safeStringify(request.body),
+      responseData: this.safeStringify(responseData.data),
       timestamp: responseData.timestamp,
     };
+  }
+
+  private safeStringify(data: unknown): string {
+    try {
+      const jsonString = JSON.stringify(data);
+      // If the stringified data is larger than 1000 chars, truncate it
+      if (jsonString.length > 1000) {
+        return jsonString.substring(0, 1000) + '... [TRUNCATED]';
+      }
+      return jsonString;
+    } catch (error) {
+      return '[SERIALIZATION_ERROR]';
+    }
   }
 }

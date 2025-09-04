@@ -175,7 +175,7 @@ model File {
 
 model Asset {
   id           String      @id @default(uuid())
-  assetTag     String      @unique
+  assetTag     String      // Removed @unique - HVAC assets can have duplicate tags
   name         String
   manufacturer String?
   modelNumber  String?
@@ -426,4 +426,76 @@ enum JobStatus {
   COMPLETED   // Successfully imported to database
   FAILED
   CANCELLED
+}
+
+// Extensible ETL Rules System
+model PipelineRule {
+  id          String         @id @default(uuid())
+  name        String         // Human-readable rule name
+  description String?        // Optional description for UI
+  phase       PipelinePhase  // Which pipeline phase this rule applies to
+  type        RuleType       // Specific rule type within the phase
+  target      String         // Field/column/property this rule targets
+  config      Json           // Rule-specific configuration (typed per rule type)
+  priority    Int            @default(100)  // Lower number = higher priority
+  is_active   Boolean        @default(true) // Toggle rule on/off
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @updatedAt
+  created_by  String?
+  updated_by  String?
+  
+  // Indexes for performance
+  @@index([phase, is_active, priority])
+  @@index([type, target])
+  @@index([is_active])
+  @@map("pipeline_rules")
+}
+
+enum PipelinePhase {
+  EXTRACT
+  VALIDATE
+  CLEAN
+  TRANSFORM
+  MAP
+  LOAD
+}
+
+enum RuleType {
+  // EXTRACT Phase Rules
+  ENCODING_DETECTOR     // Detect and normalize file encoding
+  COLUMN_MAPPER         // Map CSV columns to expected field names
+  DELIMITER_DETECTOR    // Auto-detect CSV delimiter
+  HEADER_VALIDATOR      // Validate expected column headers
+  
+  // VALIDATE Phase Rules
+  REQUIRED_FIELD        // Ensure required fields are present
+  DATA_TYPE_CHECK       // Validate field data types
+  RANGE_VALIDATOR       // Check numeric ranges
+  FORMAT_VALIDATOR      // Validate formats (email, phone, etc.)
+  
+  // CLEAN Phase Rules
+  TRIM                  // Remove leading/trailing whitespace
+  REGEX_REPLACE         // Find and replace using regex
+  EXACT_REPLACE         // Exact string replacement
+  REMOVE_DUPLICATES     // Remove duplicate values within field
+  
+  // TRANSFORM Phase Rules
+  TO_UPPERCASE          // Convert to uppercase
+  TO_LOWERCASE          // Convert to lowercase
+  TITLE_CASE            // Convert to title case
+  DATE_FORMAT           // Convert date formats
+  NUMERIC_FORMAT        // Format numeric values
+  CALCULATE_FIELD       // Calculate derived fields
+  
+  // MAP Phase Rules
+  FIELD_MAPPING         // Map source fields to target schema
+  ENUM_MAPPING          // Map string values to enum values
+  REFERENCE_LOOKUP      // Lookup values in reference tables
+  DEFAULT_VALUE         // Set default values for empty fields
+  
+  // LOAD Phase Rules
+  CONFLICT_RESOLUTION   // Handle duplicate key conflicts
+  BATCH_SIZE            // Control batch insert size
+  TRANSACTION_BOUNDARY  // Define transaction boundaries
+  ROLLBACK_STRATEGY     // Define rollback behavior on errors
 }

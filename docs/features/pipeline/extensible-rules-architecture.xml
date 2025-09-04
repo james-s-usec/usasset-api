@@ -1,0 +1,706 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensible-rules-architecture version="1.0" date="2025-09-04">
+  
+  <architecture-overview>
+    <name>Phase-Aware Extensible ETL Rules System</name>
+    <description>Dynamic, configurable rule system that operates across all pipeline phases</description>
+    <approach>Phase-specific rule types with typed configuration and hot-reload capability</approach>
+    <tech-stack>NestJS, Prisma, TypeScript validation, Strategy Pattern</tech-stack>
+    <pragmatic-rules>One Thing Per File, Extensible by Design, Fail Fast Validation</pragmatic-rules>
+  </architecture-overview>
+
+  <!-- ========== PIPELINE PHASES DEFINITION ========== -->
+  <pipeline-phases>
+    <phase name="EXTRACT" order="1">
+      <description>File parsing, encoding detection, column identification</description>
+      <input>Raw file (CSV, Excel, etc.)</input>
+      <output>Structured data array with detected columns</output>
+      <rule-focus>File format handling, column mapping, encoding normalization</rule-focus>
+    </phase>
+    
+    <phase name="VALIDATE" order="2">
+      <description>Data quality checks, required field validation</description>
+      <input>Raw structured data</input>
+      <output>Validated data with error collection</output>
+      <rule-focus>Required fields, data types, format validation</rule-focus>
+    </phase>
+    
+    <phase name="CLEAN" order="3">
+      <description>Data cleaning and normalization</description>
+      <input>Validated raw data</input>
+      <output>Clean, normalized data</output>
+      <rule-focus>Whitespace, case normalization, character replacement</rule-focus>
+    </phase>
+    
+    <phase name="TRANSFORM" order="4">
+      <description>Data transformation and enrichment</description>
+      <input>Clean data</input>
+      <output>Transformed data ready for mapping</output>
+      <rule-focus>Format conversion, calculated fields, data enrichment</rule-focus>
+    </phase>
+    
+    <phase name="MAP" order="5">
+      <description>Map transformed data to database schema</description>
+      <input>Transformed data</input>
+      <output>Database-ready objects</output>
+      <rule-focus>Field mapping, enum conversion, relationship resolution</rule-focus>
+    </phase>
+    
+    <phase name="LOAD" order="6">
+      <description>Database insertion with conflict resolution</description>
+      <input>Mapped database objects</input>
+      <output>Persisted records in database</output>
+      <rule-focus>Conflict resolution, batch processing, transaction management</rule-focus>
+    </phase>
+  </pipeline-phases>
+
+  <!-- ========== DATABASE SCHEMA ========== -->
+  <database-schema>
+    <prisma-model name="PipelineRule">
+      <![CDATA[
+      model PipelineRule {
+        id          String         @id @default(uuid())
+        name        String         // Human-readable rule name
+        description String?        // Optional description for UI
+        phase       PipelinePhase  // Which pipeline phase this rule applies to
+        type        RuleType       // Specific rule type within the phase
+        target      String         // Field/column/property this rule targets
+        config      Json           // Rule-specific configuration (typed per rule type)
+        priority    Int            @default(100)  // Lower number = higher priority
+        is_active   Boolean        @default(true) // Toggle rule on/off
+        created_at  DateTime       @default(now())
+        updated_at  DateTime       @updatedAt
+        created_by  String?
+        updated_by  String?
+        
+        // Indexes for performance
+        @@index([phase, is_active, priority])
+        @@index([type, target])
+        @@index([is_active])
+        @@map("pipeline_rules")
+      }
+      
+      enum PipelinePhase {
+        EXTRACT
+        VALIDATE
+        CLEAN
+        TRANSFORM
+        MAP
+        LOAD
+      }
+      ]]>
+    </prisma-model>
+    
+    <rule-types-enum>
+      <![CDATA[
+      enum RuleType {
+        // EXTRACT Phase Rules
+        ENCODING_DETECTOR     // Detect and normalize file encoding
+        COLUMN_MAPPER         // Map CSV columns to expected field names
+        DELIMITER_DETECTOR    // Auto-detect CSV delimiter
+        HEADER_VALIDATOR      // Validate expected column headers
+        
+        // VALIDATE Phase Rules
+        REQUIRED_FIELD        // Ensure required fields are present
+        DATA_TYPE_CHECK       // Validate field data types
+        RANGE_VALIDATOR       // Check numeric ranges
+        FORMAT_VALIDATOR      // Validate formats (email, phone, etc.)
+        
+        // CLEAN Phase Rules
+        TRIM                  // Remove leading/trailing whitespace
+        REGEX_REPLACE         // Find and replace using regex
+        EXACT_REPLACE         // Exact string replacement
+        REMOVE_DUPLICATES     // Remove duplicate values within field
+        
+        // TRANSFORM Phase Rules
+        TO_UPPERCASE          // Convert to uppercase
+        TO_LOWERCASE          // Convert to lowercase
+        TITLE_CASE            // Convert to title case
+        DATE_FORMAT           // Convert date formats
+        NUMERIC_FORMAT        // Format numeric values
+        CALCULATE_FIELD       // Calculate derived fields
+        
+        // MAP Phase Rules
+        FIELD_MAPPING         // Map source fields to target schema
+        ENUM_MAPPING          // Map string values to enum values
+        REFERENCE_LOOKUP      // Lookup values in reference tables
+        DEFAULT_VALUE         // Set default values for empty fields
+        
+        // LOAD Phase Rules
+        CONFLICT_RESOLUTION   // Handle duplicate key conflicts
+        BATCH_SIZE            // Control batch insert size
+        TRANSACTION_BOUNDARY  // Define transaction boundaries
+        ROLLBACK_STRATEGY     // Define rollback behavior on errors
+      }
+      ]]>
+    </rule-types-enum>
+  </database-schema>
+
+  <!-- ========== RULE CONFIGURATION SCHEMAS ========== -->
+  <rule-configurations>
+    <rule-type name="TRIM" phase="CLEAN">
+      <description>Remove whitespace from field values</description>
+      <config-schema>
+        <![CDATA[
+        {
+          "type": "object",
+          "properties": {
+            "sides": {
+              "type": "string",
+              "enum": ["both", "left", "right"],
+              "default": "both"
+            },
+            "customChars": {
+              "type": "string",
+              "description": "Custom characters to trim",
+              "default": " \t\n\r"
+            }
+          }
+        }
+        ]]>
+      </config-schema>
+      <example-config>
+        <![CDATA[
+        {
+          "target": "name",
+          "config": {
+            "sides": "both",
+            "customChars": " \t\n\r"
+          }
+        }
+        ]]>
+      </example-config>
+    </rule-type>
+    
+    <rule-type name="REQUIRED_FIELD" phase="VALIDATE">
+      <description>Validate that required fields are present and not empty</description>
+      <config-schema>
+        <![CDATA[
+        {
+          "type": "object",
+          "properties": {
+            "allowEmpty": {
+              "type": "boolean",
+              "default": false,
+              "description": "Allow empty strings as valid values"
+            },
+            "errorMessage": {
+              "type": "string",
+              "description": "Custom error message for validation failure"
+            }
+          }
+        }
+        ]]>
+      </config-schema>
+      <example-config>
+        <![CDATA[
+        {
+          "target": "assetTag",
+          "config": {
+            "allowEmpty": false,
+            "errorMessage": "Asset Tag is required and cannot be empty"
+          }
+        }
+        ]]>
+      </example-config>
+    </rule-type>
+    
+    <rule-type name="FIELD_MAPPING" phase="MAP">
+      <description>Map source fields to target database schema</description>
+      <config-schema>
+        <![CDATA[
+        {
+          "type": "object",
+          "properties": {
+            "sourceField": {
+              "type": "string",
+              "description": "Source field name from CSV"
+            },
+            "targetField": {
+              "type": "string", 
+              "description": "Target field name in database schema"
+            },
+            "transform": {
+              "type": "string",
+              "enum": ["none", "uppercase", "lowercase", "trim"],
+              "default": "none"
+            }
+          },
+          "required": ["sourceField", "targetField"]
+        }
+        ]]>
+      </config-schema>
+      <example-config>
+        <![CDATA[
+        {
+          "target": "*",
+          "config": {
+            "sourceField": "Asset ID", 
+            "targetField": "assetTag",
+            "transform": "trim"
+          }
+        }
+        ]]>
+      </example-config>
+    </rule-type>
+    
+    <rule-type name="ENUM_MAPPING" phase="MAP">
+      <description>Map string values to database enum values</description>
+      <config-schema>
+        <![CDATA[
+        {
+          "type": "object",
+          "properties": {
+            "mappings": {
+              "type": "object",
+              "description": "Key-value pairs for string to enum mapping"
+            },
+            "defaultValue": {
+              "type": "string",
+              "description": "Default enum value if no mapping found"
+            },
+            "caseSensitive": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": ["mappings"]
+        }
+        ]]>
+      </config-schema>
+      <example-config>
+        <![CDATA[
+        {
+          "target": "status",
+          "config": {
+            "mappings": {
+              "active": "ACTIVE",
+              "inactive": "INACTIVE", 
+              "out of service": "MAINTENANCE",
+              "broken": "FOR_REPAIR"
+            },
+            "defaultValue": "ACTIVE",
+            "caseSensitive": false
+          }
+        }
+        ]]>
+      </example-config>
+    </rule-type>
+  </rule-configurations>
+
+  <!-- ========== PROCESSOR ARCHITECTURE ========== -->
+  <processor-architecture>
+    <interface name="RuleProcessor">
+      <description>Base interface for all rule processors</description>
+      <typescript-definition>
+        <![CDATA[
+        interface RuleProcessor<TConfig = any> {
+          readonly type: RuleType;
+          readonly phase: PipelinePhase;
+          
+          validateConfig(config: unknown): Promise<ValidationResult<TConfig>>;
+          process(data: any, config: TConfig, context: ProcessingContext): Promise<ProcessingResult>;
+        }
+        
+        interface ProcessingContext {
+          rowNumber: number;
+          jobId: string;
+          correlationId: string;
+          metadata: Record<string, any>;
+        }
+        
+        interface ProcessingResult {
+          success: boolean;
+          data?: any;
+          errors?: string[];
+          warnings?: string[];
+          metadata?: Record<string, any>;
+        }
+        ]]>
+      </typescript-definition>
+    </interface>
+    
+    <factory-pattern>
+      <description>Factory for creating rule processors by type</description>
+      <typescript-definition>
+        <![CDATA[
+        @Injectable()
+        export class RuleProcessorFactory {
+          private processors = new Map<RuleType, RuleProcessor>();
+          
+          constructor() {
+            this.registerProcessor(new TrimProcessor());
+            this.registerProcessor(new RequiredFieldProcessor());
+            this.registerProcessor(new FieldMappingProcessor());
+            // ... register all processors
+          }
+          
+          createProcessor(type: RuleType): RuleProcessor | null {
+            return this.processors.get(type) || null;
+          }
+          
+          private registerProcessor(processor: RuleProcessor): void {
+            this.processors.set(processor.type, processor);
+          }
+        }
+        ]]>
+      </typescript-definition>
+    </factory-pattern>
+  </processor-architecture>
+
+  <!-- ========== PIPELINE ORCHESTRATOR ========== -->
+  <pipeline-orchestrator>
+    <description>Coordinates rule execution across all pipeline phases</description>
+    <flow-diagram>
+      <![CDATA[
+      Input Data
+           |
+           ▼
+      ┌──────────────────────────────────────┐
+      │     PIPELINE ORCHESTRATOR           │
+      │                                     │
+      │  1. Load active rules by phase      │
+      │  2. Group rules by priority         │ 
+      │  3. Execute phase by phase          │
+      │  4. Collect results and errors      │
+      │  5. Provide rollback capability     │
+      └──────────────────────────────────────┘
+           |
+           ▼
+      Phase Execution Loop:
+      
+      EXTRACT → VALIDATE → CLEAN → TRANSFORM → MAP → LOAD
+         |         |        |         |        |      |
+         ▼         ▼        ▼         ▼        ▼      ▼
+      Rules[1-n] Rules[1-n] Rules[1-n] Rules[1-n] Rules[1-n] Rules[1-n]
+         |         |        |         |        |      |
+         └─────────┴────────┴─────────┴────────┴──────┘
+                              |
+                              ▼
+                         Final Result
+      ]]>
+    </flow-diagram>
+    
+    <typescript-definition>
+      <![CDATA[
+      @Injectable()
+      export class PipelineOrchestrator {
+        constructor(
+          private ruleService: RuleService,
+          private processorFactory: RuleProcessorFactory,
+          private auditService: AuditService
+        ) {}
+        
+        async executePhase(
+          phase: PipelinePhase, 
+          data: any[], 
+          context: ProcessingContext
+        ): Promise<PhaseResult> {
+          
+          // 1. Load active rules for this phase, ordered by priority
+          const rules = await this.ruleService.getActiveRulesByPhase(phase);
+          
+          // 2. Process each rule in priority order
+          const results: ProcessingResult[] = [];
+          let processedData = data;
+          
+          for (const rule of rules) {
+            const processor = this.processorFactory.createProcessor(rule.type);
+            if (!processor) continue;
+            
+            const result = await processor.process(processedData, rule.config, context);
+            results.push(result);
+            
+            if (result.success && result.data) {
+              processedData = result.data;
+            }
+          }
+          
+          return {
+            phase,
+            data: processedData,
+            results,
+            success: results.every(r => r.success)
+          };
+        }
+        
+        async executePipeline(
+          inputData: any[], 
+          jobId: string
+        ): Promise<PipelineResult> {
+          
+          const context: ProcessingContext = {
+            jobId,
+            correlationId: generateCorrelationId(),
+            rowNumber: 0,
+            metadata: {}
+          };
+          
+          let currentData = inputData;
+          const phaseResults: PhaseResult[] = [];
+          
+          const phases = [
+            PipelinePhase.EXTRACT,
+            PipelinePhase.VALIDATE, 
+            PipelinePhase.CLEAN,
+            PipelinePhase.TRANSFORM,
+            PipelinePhase.MAP,
+            PipelinePhase.LOAD
+          ];
+          
+          for (const phase of phases) {
+            const phaseResult = await this.executePhase(phase, currentData, context);
+            phaseResults.push(phaseResult);
+            
+            if (!phaseResult.success) {
+              // Phase failed, stop pipeline execution
+              break;
+            }
+            
+            currentData = phaseResult.data;
+          }
+          
+          return {
+            success: phaseResults.every(p => p.success),
+            data: currentData,
+            phaseResults,
+            correlationId: context.correlationId
+          };
+        }
+      }
+      ]]>
+    </typescript-definition>
+  </pipeline-orchestrator>
+
+  <!-- ========== TRACER BULLET IMPLEMENTATION PLAN ========== -->
+  <tracer-bullet-plan>
+    <phase number="1" name="Schema and Foundation">
+      <estimated-effort>4-6 hours</estimated-effort>
+      <tasks>
+        <task>Add PipelineRule schema to Prisma</task>
+        <task>Create and run database migration</task>
+        <task>Generate Prisma client types</task>
+        <task>Create RuleProcessor interface</task>
+        <task>Create RuleProcessorFactory</task>
+        <task>Create basic PipelineOrchestrator</task>
+      </tasks>
+      <acceptance-criteria>
+        <criterion>Database schema created and migrated</criterion>
+        <criterion>TypeScript interfaces defined</criterion>
+        <criterion>Factory pattern skeleton implemented</criterion>
+      </acceptance-criteria>
+    </phase>
+    
+    <phase number="2" name="One Rule Per Phase Implementation">
+      <estimated-effort>8-10 hours</estimated-effort>
+      <tasks>
+        <task>Implement TrimProcessor (CLEAN phase)</task>
+        <task>Implement RequiredFieldProcessor (VALIDATE phase)</task>
+        <task>Implement FieldMappingProcessor (MAP phase)</task>
+        <task>Create validation pipes for rule config</task>
+        <task>Integrate orchestrator into existing pipeline</task>
+        <task>Add rule loading and caching</task>
+      </tasks>
+      <acceptance-criteria>
+        <criterion>3 processors working with real data</criterion>
+        <criterion>Configuration validation working</criterion>
+        <criterion>Rules loaded dynamically from database</criterion>
+        <criterion>Existing CSV import still functional</criterion>
+      </acceptance-criteria>
+    </phase>
+    
+    <phase number="3" name="Rules Management API">
+      <estimated-effort>6-8 hours</estimated-effort>
+      <tasks>
+        <task>Create rules CRUD controller</task>
+        <task>Add rules service with caching</task>
+        <task>Implement hot-reload capability</task>
+        <task>Add Swagger documentation</task>
+        <task>Create rule configuration validation endpoints</task>
+      </tasks>
+      <acceptance-criteria>
+        <criterion>Full CRUD API for rules</criterion>
+        <criterion>Rules cache invalidation on updates</criterion>
+        <criterion>Configuration validation via API</criterion>
+      </acceptance-criteria>
+    </phase>
+    
+    <phase number="4" name="Rules Management UI">
+      <estimated-effort>10-12 hours</estimated-effort>
+      <tasks>
+        <task>Create RulesManagementTab component</task>
+        <task>Add AG-Grid with inline editing</task>
+        <task>Implement rule type selection with validation</task>
+        <task>Add toggle functionality (enable/disable)</task>
+        <task>Create rule testing interface</task>
+        <task>Add phase-based filtering and organization</task>
+      </tasks>
+      <acceptance-criteria>
+        <criterion>Rules table with full CRUD operations</criterion>
+        <criterion>Phase-based organization</criterion>
+        <criterion>Toggle rules on/off</criterion>
+        <criterion>Rule testing before saving</criterion>
+      </acceptance-criteria>
+    </phase>
+  </tracer-bullet-plan>
+
+  <!-- ========== API ENDPOINTS ========== -->
+  <api-endpoints>
+    <endpoint method="GET" path="/api/pipeline/rules">
+      <description>List all rules with optional phase filtering</description>
+      <query-params>
+        <param name="phase" type="PipelinePhase" optional="true">Filter by pipeline phase</param>
+        <param name="active" type="boolean" optional="true">Filter by active status</param>
+        <param name="page" type="number" optional="true">Page number for pagination</param>
+        <param name="limit" type="number" optional="true">Items per page</param>
+      </query-params>
+    </endpoint>
+    
+    <endpoint method="POST" path="/api/pipeline/rules">
+      <description>Create a new rule with validation</description>
+      <request-body>
+        <![CDATA[
+        {
+          "name": "Trim Asset Names",
+          "description": "Remove whitespace from asset names",
+          "phase": "CLEAN",
+          "type": "TRIM",
+          "target": "name",
+          "config": {
+            "sides": "both"
+          },
+          "priority": 100
+        }
+        ]]>
+      </request-body>
+    </endpoint>
+    
+    <endpoint method="PATCH" path="/api/pipeline/rules/:id">
+      <description>Update existing rule</description>
+    </endpoint>
+    
+    <endpoint method="DELETE" path="/api/pipeline/rules/:id">
+      <description>Delete rule</description>
+    </endpoint>
+    
+    <endpoint method="POST" path="/api/pipeline/rules/test">
+      <description>Test rule configuration against sample data</description>
+      <request-body>
+        <![CDATA[
+        {
+          "rule": {
+            "type": "TRIM",
+            "config": { "sides": "both" }
+          },
+          "sampleData": "  test data  "
+        }
+        ]]>
+      </request-body>
+    </endpoint>
+    
+    <endpoint method="POST" path="/api/pipeline/rules/reload">
+      <description>Hot-reload rules cache</description>
+    </endpoint>
+  </api-endpoints>
+
+  <!-- ========== FILE STRUCTURE ========== -->
+  <file-structure>
+    <backend>
+      <![CDATA[
+      apps/backend/src/pipeline/
+      ├── controllers/
+      │   ├── pipeline.controller.ts          # Existing import endpoints
+      │   └── rules.controller.ts             # NEW: Rules CRUD API
+      ├── services/
+      │   ├── pipeline.service.ts             # Existing import logic
+      │   ├── rule.service.ts                 # NEW: Rules CRUD with caching
+      │   ├── pipeline-orchestrator.service.ts # NEW: Phase coordination
+      │   └── rule-processor.factory.ts       # NEW: Processor factory
+      ├── processors/
+      │   ├── base/
+      │   │   └── rule-processor.interface.ts  # Base processor interface
+      │   ├── clean/
+      │   │   └── trim.processor.ts           # TRIM rule processor
+      │   ├── validate/
+      │   │   └── required-field.processor.ts # Required field processor
+      │   └── map/
+      │       └── field-mapping.processor.ts  # Field mapping processor
+      ├── dto/
+      │   ├── create-rule.dto.ts              # Rule creation DTO
+      │   ├── update-rule.dto.ts              # Rule update DTO
+      │   └── rule-config-validation.dto.ts   # Config validation DTOs
+      ├── interfaces/
+      │   ├── processing-context.interface.ts
+      │   ├── processing-result.interface.ts
+      │   └── phase-result.interface.ts
+      └── pipeline.module.ts                  # Updated module
+      ]]>
+    </backend>
+    
+    <frontend>
+      <![CDATA[
+      apps/frontend/src/components/pipeline/
+      ├── PipelineFlow.tsx                    # Existing pipeline UI
+      ├── rules/
+      │   ├── RulesManagementTab.tsx         # NEW: Rules management UI
+      │   ├── RuleEditor.tsx                 # NEW: Individual rule editor
+      │   ├── RuleTester.tsx                 # NEW: Rule testing interface
+      │   └── RuleConfigValidator.tsx        # NEW: Config validation
+      └── services/
+          └── rulesApi.ts                    # NEW: Rules API client
+      ]]>
+    </frontend>
+  </file-structure>
+
+  <!-- ========== SUCCESS METRICS ========== -->
+  <success-metrics>
+    <metric name="Extensibility Test">
+      <description>Add a new rule type without modifying existing code</description>
+      <acceptance>Create UPPERCASE processor, register in factory, works immediately</acceptance>
+    </metric>
+    
+    <metric name="Hot Reload Test">
+      <description>Modify rule configuration and see immediate effect</description>
+      <acceptance>Change rule config via UI, next import uses new config</acceptance>
+    </metric>
+    
+    <metric name="Phase Isolation Test">
+      <description>Rules only execute in their designated phase</description>
+      <acceptance>CLEAN rules don't execute during VALIDATE phase</acceptance>
+    </metric>
+    
+    <metric name="Error Handling Test">
+      <description>Rule failures don't break entire pipeline</description>
+      <acceptance>Bad rule config logged, pipeline continues with other rules</acceptance>
+    </metric>
+    
+    <metric name="Performance Test">
+      <description>Rules don't significantly impact import performance</description>
+      <acceptance>47-asset import completes in under 5 seconds with rules active</acceptance>
+    </metric>
+  </success-metrics>
+
+  <!-- ========== RISK MITIGATION ========== -->
+  <risks-and-mitigation>
+    <risk level="high">
+      <description>Complex rule system breaks existing pipeline</description>
+      <mitigation>Implement behind feature flag, fallback to current simple mapping</mitigation>
+    </risk>
+    
+    <risk level="medium">
+      <description>Rule configuration UI becomes too complex</description>
+      <mitigation>Start with simple form, phase 2 adds advanced editor</mitigation>
+    </risk>
+    
+    <risk level="medium">
+      <description>Performance degradation with many rules</description>
+      <mitigation>Rule caching, priority-based short-circuiting</mitigation>
+    </risk>
+    
+    <risk level="low">
+      <description>Rule processor factory becomes bottleneck</description>
+      <mitigation>Singleton pattern with lazy loading</mitigation>
+    </risk>
+  </risks-and-mitigation>
+
+</extensible-rules-architecture>

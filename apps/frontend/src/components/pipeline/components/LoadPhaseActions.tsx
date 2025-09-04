@@ -59,6 +59,13 @@ export const LoadPhaseActions: React.FC<LoadPhaseActionsProps> = ({
               {validating ? <CircularProgress size={20} /> : 'Validate Staging Data'}
             </Button>
             <Button 
+              variant="outlined" 
+              color="info"
+              onClick={() => alert('Fill Missing Data feature - will set defaults for empty Room, Building, etc.')}
+            >
+              Fill Missing Data
+            </Button>
+            <Button 
               variant="contained" 
               color="success"
               onClick={onApprove}
