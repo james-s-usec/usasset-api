@@ -392,7 +392,8 @@ const FolderMoveDialog: React.FC<{
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm"
+fullWidth>
       <DialogTitle>Move File</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -474,7 +475,8 @@ const ProjectMoveDialog: React.FC<{
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm"
+fullWidth>
       <DialogTitle>Assign to Project</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>

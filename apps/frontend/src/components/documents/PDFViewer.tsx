@@ -159,7 +159,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
       {/* Toolbar */}
       <Paper elevation={2}>
         <Toolbar sx={{ gap: 2 }}>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }} noWrap>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}
+noWrap>
             {fileName}
           </Typography>
           

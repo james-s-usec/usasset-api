@@ -1,13 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PdfProcessingService } from './pdf-processing.service';
 import { AzureBlobStorageService } from './azure-blob-storage.service';
-import * as path from 'path';
 
 @Injectable()
 export class PdfPreprocessingService {
   private readonly logger = new Logger(PdfPreprocessingService.name);
 
-  constructor(
+  public constructor(
     private readonly pdfProcessor: PdfProcessingService,
     private readonly blobStorage: AzureBlobStorageService,
   ) {}
@@ -57,36 +56,18 @@ export class PdfPreprocessingService {
     fileId: string,
     page: number,
     zoom: number,
-    pdfInfo: any,
+    pdfInfo: {
+      dimensions: { width: number; height: number };
+      tileSize: number;
+    },
   ): Promise<number> {
-    // Calculate how many tiles needed for this zoom level
-    const scale = Math.pow(2, zoom);
-    const pageWidth = pdfInfo.dimensions.width * scale;
-    const pageHeight = pdfInfo.dimensions.height * scale;
-
-    const tilesX = Math.ceil(pageWidth / pdfInfo.tileSize);
-    const tilesY = Math.ceil(pageHeight / pdfInfo.tileSize);
-
-    let tilesGenerated = 0;
-
-    // Generate each tile and store in blob storage
-    for (let x = 0; x < tilesX; x++) {
-      for (let y = 0; y < tilesY; y++) {
-        const tileBuffer = await this.pdfProcessor.getPdfTile(
-          fileId,
-          page,
-          zoom,
-          x,
-          y,
-        );
-
-        // Store tile in blob storage with predictable path
-        const tileBlobName = `tiles/${fileId}/${page}/${zoom}/${x}/${y}.png`;
-        await this.uploadTileToBlob(tileBlobName, tileBuffer);
-
-        tilesGenerated++;
-      }
-    }
+    const tileCounts = this.calculateTileCount(pdfInfo, zoom);
+    const tilesGenerated = await this.generateAllTiles(
+      fileId,
+      page,
+      zoom,
+      tileCounts,
+    );
 
     this.logger.log(
       `📊 Generated ${tilesGenerated} tiles for page ${page} zoom ${zoom}`,
@@ -94,31 +75,87 @@ export class PdfPreprocessingService {
     return tilesGenerated;
   }
 
-  /**
-   * Check if tiles exist for a PDF (for fast serving)
-   */
-  public async tilesExist(
+  private calculateTileCount(
+    pdfInfo: {
+      dimensions: { width: number; height: number };
+      tileSize: number;
+    },
+    zoom: number,
+  ): { x: number; y: number } {
+    const ZOOM_BASE = 2;
+    const scale = Math.pow(ZOOM_BASE, zoom);
+    const pageWidth = pdfInfo.dimensions.width * scale;
+    const pageHeight = pdfInfo.dimensions.height * scale;
+
+    return {
+      x: Math.ceil(pageWidth / pdfInfo.tileSize),
+      y: Math.ceil(pageHeight / pdfInfo.tileSize),
+    };
+  }
+
+  private async generateAllTiles(
     fileId: string,
     page: number,
     zoom: number,
-    x: number,
-    y: number,
-  ): Promise<boolean> {
+    tileCounts: { x: number; y: number },
+  ): Promise<number> {
+    let tilesGenerated = 0;
+
+    for (let x = 0; x < tileCounts.x; x++) {
+      for (let y = 0; y < tileCounts.y; y++) {
+        await this.generateSingleTile({ fileId, page, zoom, x, y });
+        tilesGenerated++;
+      }
+    }
+
+    return tilesGenerated;
+  }
+
+  private async generateSingleTile(params: {
+    fileId: string;
+    page: number;
+    zoom: number;
+    x: number;
+    y: number;
+  }): Promise<void> {
+    const { fileId, page, zoom, x, y } = params;
+    const tileBuffer = await this.pdfProcessor.getPdfTile({
+      fileId,
+      page,
+      zoom,
+      x,
+      y,
+    });
+
     const tileBlobName = `tiles/${fileId}/${page}/${zoom}/${x}/${y}.png`;
+    await this.uploadTileToBlob(tileBlobName, tileBuffer);
+  }
+
+  /**
+   * Check if tiles exist for a PDF (for fast serving)
+   */
+  public async tilesExist(tile: {
+    fileId: string;
+    page: number;
+    zoom: number;
+    x: number;
+    y: number;
+  }): Promise<boolean> {
+    const tileBlobName = `tiles/${tile.fileId}/${tile.page}/${tile.zoom}/${tile.x}/${tile.y}.png`;
     return await this.checkBlobExists(tileBlobName);
   }
 
   /**
    * Get pre-generated tile from blob storage
    */
-  public async getPreGeneratedTile(
-    fileId: string,
-    page: number,
-    zoom: number,
-    x: number,
-    y: number,
-  ): Promise<Buffer> {
-    const tileBlobName = `tiles/${fileId}/${page}/${zoom}/${x}/${y}.png`;
+  public async getPreGeneratedTile(tile: {
+    fileId: string;
+    page: number;
+    zoom: number;
+    x: number;
+    y: number;
+  }): Promise<Buffer> {
+    const tileBlobName = `tiles/${tile.fileId}/${tile.page}/${tile.zoom}/${tile.x}/${tile.y}.png`;
     return await this.blobStorage.downloadFile(tileBlobName);
   }
 
@@ -130,18 +167,12 @@ export class PdfPreprocessingService {
     buffer: Buffer,
   ): Promise<void> {
     try {
-      // Access the blob client directly (we'll need to expose this)
-      const blockBlobClient = (
-        this.blobStorage as any
-      ).containerClient.getBlockBlobClient(blobName);
-
-      await blockBlobClient.uploadData(buffer, {
-        blobHTTPHeaders: {
-          blobContentType: 'image/png',
-          blobCacheControl: 'public, max-age=31536000', // 1 year cache
-        },
-      });
-
+      await this.blobStorage.uploadBuffer(
+        blobName,
+        buffer,
+        'image/png',
+        'public, max-age=31536000', // 1 year cache
+      );
       this.logger.debug(`📁 Uploaded tile: ${blobName}`);
     } catch (error) {
       this.logger.error(`Failed to upload tile ${blobName}:`, error);
@@ -153,30 +184,21 @@ export class PdfPreprocessingService {
    * Check if a blob exists in Azure Storage
    */
   private async checkBlobExists(blobName: string): Promise<boolean> {
-    try {
-      const blockBlobClient = (
-        this.blobStorage as any
-      ).containerClient.getBlockBlobClient(blobName);
-      const response = await blockBlobClient.exists();
-      return response;
-    } catch (error) {
+    const exists = await this.blobStorage.blobExists(blobName);
+    if (!exists) {
       this.logger.debug(`Blob does not exist: ${blobName}`);
-      return false;
     }
+    return exists;
   }
 
   /**
    * Store tile asynchronously (fire and forget for optimization)
    */
   public storeTileAsync(
-    fileId: string,
-    page: number,
-    zoom: number,
-    x: number,
-    y: number,
+    tile: { fileId: string; page: number; zoom: number; x: number; y: number },
     tileBuffer: Buffer,
   ): void {
-    const tileBlobName = `tiles/${fileId}/${page}/${zoom}/${x}/${y}.png`;
+    const tileBlobName = `tiles/${tile.fileId}/${tile.page}/${tile.zoom}/${tile.x}/${tile.y}.png`;
 
     // Fire and forget - don't wait for upload
     this.uploadTileToBlob(tileBlobName, tileBuffer).catch((error) => {

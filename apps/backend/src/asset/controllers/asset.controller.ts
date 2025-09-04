@@ -35,6 +35,54 @@ import { plainToInstance } from 'class-transformer';
 export class AssetController {
   public constructor(private readonly assetService: AssetService) {}
 
+  private convertDecimalToNumber(decimal: unknown): number | null {
+    if (!decimal) return null;
+    // Handle Prisma Decimal type which has toString method
+    if (
+      typeof decimal === 'object' &&
+      decimal !== null &&
+      'toString' in decimal
+    ) {
+      return parseFloat((decimal as { toString(): string }).toString());
+    }
+    // For primitive types (string, number)
+    if (typeof decimal === 'string' || typeof decimal === 'number') {
+      return parseFloat(String(decimal));
+    }
+    return null;
+  }
+
+  private convertPrismaAssetToPlain(
+    asset: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const decimalFields = [
+      'xCoordinate',
+      'yCoordinate',
+      'squareFeet',
+      'weight',
+      'purchaseCost',
+      'installationCost',
+      'annualMaintenanceCost',
+      'estimatedAnnualOperatingCost',
+      'disposalCost',
+      'salvageValue',
+      'totalCostOfOwnership',
+      'currentBookValue',
+      'ratedPowerKw',
+      'actualPowerKw',
+      'dailyOperatingHours',
+      'estimatedAnnualKwh',
+    ];
+
+    const result: Record<string, unknown> = { ...asset };
+
+    for (const field of decimalFields) {
+      result[field] = this.convertDecimalToNumber(asset[field]);
+    }
+
+    return result;
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all assets with pagination' })
   @ApiResponse({ status: 200, description: 'Assets retrieved successfully' })
@@ -51,56 +99,9 @@ export class AssetController {
     );
 
     // Convert Prisma objects to plain objects before DTO transformation
-    const plainAssets = assets.map((asset) => ({
-      ...asset,
-      // Convert Prisma Decimals to numbers/null to avoid transformation errors
-      xCoordinate: asset.xCoordinate
-        ? parseFloat(asset.xCoordinate.toString())
-        : null,
-      yCoordinate: asset.yCoordinate
-        ? parseFloat(asset.yCoordinate.toString())
-        : null,
-      squareFeet: asset.squareFeet
-        ? parseFloat(asset.squareFeet.toString())
-        : null,
-      weight: asset.weight ? parseFloat(asset.weight.toString()) : null,
-      purchaseCost: asset.purchaseCost
-        ? parseFloat(asset.purchaseCost.toString())
-        : null,
-      installationCost: asset.installationCost
-        ? parseFloat(asset.installationCost.toString())
-        : null,
-      annualMaintenanceCost: asset.annualMaintenanceCost
-        ? parseFloat(asset.annualMaintenanceCost.toString())
-        : null,
-      estimatedAnnualOperatingCost: asset.estimatedAnnualOperatingCost
-        ? parseFloat(asset.estimatedAnnualOperatingCost.toString())
-        : null,
-      disposalCost: asset.disposalCost
-        ? parseFloat(asset.disposalCost.toString())
-        : null,
-      salvageValue: asset.salvageValue
-        ? parseFloat(asset.salvageValue.toString())
-        : null,
-      totalCostOfOwnership: asset.totalCostOfOwnership
-        ? parseFloat(asset.totalCostOfOwnership.toString())
-        : null,
-      currentBookValue: asset.currentBookValue
-        ? parseFloat(asset.currentBookValue.toString())
-        : null,
-      ratedPowerKw: asset.ratedPowerKw
-        ? parseFloat(asset.ratedPowerKw.toString())
-        : null,
-      actualPowerKw: asset.actualPowerKw
-        ? parseFloat(asset.actualPowerKw.toString())
-        : null,
-      dailyOperatingHours: asset.dailyOperatingHours
-        ? parseFloat(asset.dailyOperatingHours.toString())
-        : null,
-      estimatedAnnualKwh: asset.estimatedAnnualKwh
-        ? parseFloat(asset.estimatedAnnualKwh.toString())
-        : null,
-    }));
+    const plainAssets = assets.map((asset) =>
+      this.convertPrismaAssetToPlain(asset),
+    );
 
     const safeAssets = plainToInstance(SafeAssetDto, plainAssets, {
       excludeExtraneousValues: true,

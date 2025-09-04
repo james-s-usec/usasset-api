@@ -24,6 +24,8 @@ import { PdfProcessingService } from '../services/pdf-processing.service';
 import { FileResponseDto } from '../dto/file-response.dto';
 import { MulterFile } from '../interfaces/file.interface';
 
+const DEFAULT_PDF_PREVIEW_WIDTH = 800;
+
 @ApiTags('files')
 @Controller('api/files')
 export class FilesController {
@@ -197,7 +199,7 @@ export class FilesController {
     @Query('width') width?: string,
   ): Promise<void> {
     const pageNum = parseInt(page, 10);
-    const widthNum = width ? parseInt(width, 10) : 800;
+    const widthNum = width ? parseInt(width, 10) : DEFAULT_PDF_PREVIEW_WIDTH;
 
     const imageBuffer = await this.pdfService.getPdfPreview(
       id,
@@ -219,13 +221,13 @@ export class FilesController {
     @Res() res: Response,
   ): Promise<void> {
     const tileCoordinates = this.parseTileCoordinates(tileParams);
-    const tileBuffer = await this.pdfService.getPdfTile(
-      id,
-      tileCoordinates.page,
-      tileCoordinates.z,
-      tileCoordinates.x,
-      tileCoordinates.y,
-    );
+    const tileBuffer = await this.pdfService.getPdfTile({
+      fileId: id,
+      page: tileCoordinates.page,
+      zoom: tileCoordinates.z,
+      x: tileCoordinates.x,
+      y: tileCoordinates.y,
+    });
 
     this.setTileResponseHeaders(res);
     res.send(tileBuffer);

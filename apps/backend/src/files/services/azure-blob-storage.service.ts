@@ -105,6 +105,53 @@ export class AzureBlobStorageService {
     }
   }
 
+  private async createFileRecord(data: {
+    file: MulterFile;
+    blobName: string;
+    blobUrl: string;
+    projectId?: string;
+    folderId?: string;
+  }): Promise<File> {
+    return this.prisma.file.create({
+      data: {
+        filename: data.blobName,
+        original_name: data.file.originalname,
+        mimetype: data.file.mimetype,
+        size: data.file.size,
+        blob_url: data.blobUrl,
+        container_name: this.containerName,
+        blob_name: data.blobName,
+        project_id: data.projectId || null,
+        folder_id: data.folderId || null,
+      },
+    });
+  }
+
+  public async uploadBuffer(
+    blobName: string,
+    buffer: Buffer,
+    contentType: string,
+    cacheControl?: string,
+  ): Promise<void> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(blobName);
+    await blockBlobClient.upload(buffer, buffer.length, {
+      blobHTTPHeaders: {
+        blobContentType: contentType,
+        blobCacheControl: cacheControl || 'private',
+      },
+    });
+  }
+
+  public async blobExists(blobName: string): Promise<boolean> {
+    try {
+      const blockBlobClient = this.containerClient.getBlockBlobClient(blobName);
+      const response = await blockBlobClient.exists();
+      return response;
+    } catch {
+      return false;
+    }
+  }
+
   public async upload(
     file: MulterFile,
     folderId?: string,
@@ -127,18 +174,12 @@ export class AzureBlobStorageService {
       },
     });
 
-    const fileEntity = await this.prisma.file.create({
-      data: {
-        filename: blobName,
-        original_name: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        blob_url: blockBlobClient.url,
-        container_name: this.containerName,
-        blob_name: blobName,
-        project_id: projectId || null,
-        folder_id: folderId || null,
-      },
+    const fileEntity = await this.createFileRecord({
+      file,
+      blobName,
+      blobUrl: blockBlobClient.url,
+      projectId,
+      folderId,
     });
 
     this.logger.log(`File uploaded: ${blobName} (${file.size} bytes)`);
@@ -197,6 +238,17 @@ export class AzureBlobStorageService {
     return (page - 1) * limit;
   }
 
+  private getFileIncludeClause(): Record<string, unknown> {
+    return {
+      folder: {
+        select: { id: true, name: true, color: true },
+      },
+      project: {
+        select: { id: true, name: true },
+      },
+    };
+  }
+
   private async fetchFilesAndCount(
     skip: number,
     limit: number,
@@ -213,25 +265,9 @@ export class AzureBlobStorageService {
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
-        include: {
-          folder: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
-          },
-          project: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
+        include: this.getFileIncludeClause(),
       }),
-      this.prisma.file.count({
-        where: whereClause,
-      }),
+      this.prisma.file.count({ where: whereClause }),
     ]);
   }
 
@@ -504,6 +540,45 @@ export class AzureBlobStorageService {
     };
   }
 
+  private async validateFolder(folderId?: string): Promise<void> {
+    if (!folderId) return;
+
+    const folder = await this.prisma.folder.findUnique({
+      where: { id: folderId, is_deleted: false },
+    });
+    if (!folder) {
+      throw new BadRequestException(`Folder with ID ${folderId} not found`);
+    }
+  }
+
+  private async validateProject(projectId?: string): Promise<void> {
+    if (!projectId) return;
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId, is_deleted: false },
+    });
+    if (!project) {
+      throw new BadRequestException(`Project with ID ${projectId} not found`);
+    }
+  }
+
+  private buildUpdateData(updateData: {
+    folder_id?: string;
+    project_id?: string;
+  }): Record<string, unknown> {
+    return {
+      folder_id:
+        updateData.folder_id !== undefined
+          ? updateData.folder_id || null
+          : undefined,
+      project_id:
+        updateData.project_id !== undefined
+          ? updateData.project_id || null
+          : undefined,
+      updated_at: new Date(),
+    };
+  }
+
   public async updateFile(
     fileId: string,
     updateData: { folder_id?: string; project_id?: string },
@@ -513,59 +588,13 @@ export class AzureBlobStorageService {
       project?: { id: string; name: string };
     }
   > {
-    // Validate folder exists if folder_id is provided
-    if (updateData.folder_id) {
-      const folder = await this.prisma.folder.findUnique({
-        where: { id: updateData.folder_id, is_deleted: false },
-      });
-      if (!folder) {
-        throw new BadRequestException(
-          `Folder with ID ${updateData.folder_id} not found`,
-        );
-      }
-    }
+    await this.validateFolder(updateData.folder_id);
+    await this.validateProject(updateData.project_id);
 
-    // Validate project exists if project_id is provided
-    if (updateData.project_id) {
-      const project = await this.prisma.project.findUnique({
-        where: { id: updateData.project_id, is_deleted: false },
-      });
-      if (!project) {
-        throw new BadRequestException(
-          `Project with ID ${updateData.project_id} not found`,
-        );
-      }
-    }
-
-    // Update the file
     const updatedFile = await this.prisma.file.update({
       where: { id: fileId, is_deleted: false },
-      data: {
-        folder_id:
-          updateData.folder_id !== undefined
-            ? updateData.folder_id || null
-            : undefined,
-        project_id:
-          updateData.project_id !== undefined
-            ? updateData.project_id || null
-            : undefined,
-        updated_at: new Date(),
-      },
-      include: {
-        folder: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
+      data: this.buildUpdateData(updateData),
+      include: this.getFileIncludeClause(),
     });
 
     this.logger.log(
@@ -654,6 +683,27 @@ export class AzureBlobStorageService {
     return result.count;
   }
 
+  private async deleteBlobsFromStorage(
+    files: Array<{ blob_name: string }>,
+  ): Promise<number> {
+    let blobDeleteErrors = 0;
+    for (const file of files) {
+      try {
+        const blockBlobClient = this.containerClient.getBlockBlobClient(
+          file.blob_name,
+        );
+        await blockBlobClient.deleteIfExists();
+        this.logger.log(`Deleted blob: ${file.blob_name}`);
+      } catch (error) {
+        this.logger.error(
+          `Failed to delete blob ${file.blob_name}: ${String(error)}`,
+        );
+        blobDeleteErrors++;
+      }
+    }
+    return blobDeleteErrors;
+  }
+
   public async bulkDelete(fileIds: string[]): Promise<number> {
     if (fileIds.length === 0) {
       return 0;
@@ -672,20 +722,7 @@ export class AzureBlobStorageService {
       return 0;
     }
 
-    // Delete blobs from Azure Storage
-    let blobDeleteErrors = 0;
-    for (const file of filesToDelete) {
-      try {
-        const blockBlobClient = this.containerClient.getBlockBlobClient(
-          file.blob_name,
-        );
-        await blockBlobClient.deleteIfExists();
-        this.logger.log(`Deleted blob: ${file.blob_name}`);
-      } catch (error) {
-        this.logger.error(`Failed to delete blob ${file.blob_name}: ${error}`);
-        blobDeleteErrors++;
-      }
-    }
+    const blobDeleteErrors = await this.deleteBlobsFromStorage(filesToDelete);
 
     // Mark files as deleted in database
     const result = await this.prisma.file.updateMany({

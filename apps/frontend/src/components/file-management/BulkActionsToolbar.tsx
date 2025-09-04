@@ -232,7 +232,8 @@ export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
       </Collapse>
 
       {/* Project Assignment Dialog */}
-      <Dialog open={projectDialogOpen} onClose={() => setProjectDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={projectDialogOpen} onClose={() => setProjectDialogOpen(false)} maxWidth="sm"
+fullWidth>
         <DialogTitle>Assign {selectedCount} Files to Project</DialogTitle>
         <DialogContent>
           <FormControl fullWidth sx={{ mt: 2 }}>
@@ -274,7 +275,8 @@ export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
       </Dialog>
 
       {/* Folder Move Dialog */}
-      <Dialog open={folderDialogOpen} onClose={() => setFolderDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={folderDialogOpen} onClose={() => setFolderDialogOpen(false)} maxWidth="sm"
+fullWidth>
         <DialogTitle>Move {selectedCount} Files to Folder</DialogTitle>
         <DialogContent>
           <FormControl fullWidth sx={{ mt: 2 }}>
@@ -317,7 +319,8 @@ export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm"
+fullWidth>
         <DialogTitle>Delete {selectedCount} Files</DialogTitle>
         <DialogContent>
           <Typography variant="body1" gutterBottom>
@@ -330,7 +333,8 @@ export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                 {selectedFileNames.map((name) => (
-                  <Chip key={name} label={name} size="small" variant="outlined" />
+                  <Chip key={name} label={name} size="small"
+variant="outlined" />
                 ))}
                 {remainingCount > 0 && (
                   <Chip label={`+${remainingCount} more files`} size="small" variant="outlined" />
@@ -343,7 +347,8 @@ export const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
           <Button onClick={() => setDeleteDialogOpen(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleBulkDelete} variant="contained" color="error" disabled={loading}>
+          <Button onClick={handleBulkDelete} variant="contained" color="error"
+disabled={loading}>
             {loading ? 'Deleting...' : 'Delete All'}
           </Button>
         </DialogActions>

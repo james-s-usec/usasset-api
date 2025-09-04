@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsEnum,
   IsUUID,
-  IsDecimal,
   IsInt,
   IsBoolean,
   IsDateString,
@@ -238,12 +237,16 @@ export class CreateAssetDto {
   public propertyZoneServed?: string;
 
   @ApiPropertyOptional({ description: 'X coordinate', type: 'number' })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public xCoordinate?: number;
 
   @ApiPropertyOptional({ description: 'Y coordinate', type: 'number' })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public yCoordinate?: number;
 
@@ -253,12 +256,16 @@ export class CreateAssetDto {
     type: 'number',
     example: 15000.5,
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public purchaseCost?: number;
 
   @ApiPropertyOptional({ description: 'Installation cost', type: 'number' })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public installationCost?: number;
 
@@ -266,7 +273,9 @@ export class CreateAssetDto {
     description: 'Annual maintenance cost',
     type: 'number',
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public annualMaintenanceCost?: number;
 
@@ -274,7 +283,9 @@ export class CreateAssetDto {
     description: 'Estimated annual operating cost',
     type: 'number',
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public estimatedAnnualOperatingCost?: number;
 
@@ -282,7 +293,9 @@ export class CreateAssetDto {
     description: 'Expected disposal cost',
     type: 'number',
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public disposalCost?: number;
 
@@ -290,12 +303,16 @@ export class CreateAssetDto {
     description: 'Expected salvage value',
     type: 'number',
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public salvageValue?: number;
 
   @ApiPropertyOptional({ description: 'Calculated TCO', type: 'number' })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public totalCostOfOwnership?: number;
 
@@ -305,7 +322,9 @@ export class CreateAssetDto {
   public depreciationMethod?: string;
 
   @ApiPropertyOptional({ description: 'Current book value', type: 'number' })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public currentBookValue?: number;
 
@@ -315,7 +334,9 @@ export class CreateAssetDto {
     type: 'number',
     example: 12.5,
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public ratedPowerKw?: number;
 
@@ -323,7 +344,9 @@ export class CreateAssetDto {
     description: 'Actual measured power in kilowatts',
     type: 'number',
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public actualPowerKw?: number;
 
@@ -331,7 +354,9 @@ export class CreateAssetDto {
     description: 'Average daily operating hours',
     type: 'number',
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public dailyOperatingHours?: number;
 
@@ -339,18 +364,24 @@ export class CreateAssetDto {
     description: 'Estimated annual kWh consumption',
     type: 'number',
   })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public estimatedAnnualKwh?: number;
 
   @ApiPropertyOptional({ description: 'Voltage', type: 'integer' })
-  @Transform(({ value }) => (value ? parseInt(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseInt(value as string, 10) : undefined,
+  )
   @IsInt()
   @IsOptional()
   public voltage?: number;
 
   @ApiPropertyOptional({ description: 'BTU rating', type: 'integer' })
-  @Transform(({ value }) => (value ? parseInt(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseInt(value as string, 10) : undefined,
+  )
   @IsInt()
   @IsOptional()
   public btuRating?: number;
@@ -378,7 +409,9 @@ export class CreateAssetDto {
     description: 'Service life in years',
     type: 'integer',
   })
-  @Transform(({ value }) => (value ? parseInt(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseInt(value as string, 10) : undefined,
+  )
   @IsInt()
   @IsOptional()
   public serviceLife?: number;
@@ -387,7 +420,9 @@ export class CreateAssetDto {
     description: 'Expected lifetime in years',
     type: 'integer',
   })
-  @Transform(({ value }) => (value ? parseInt(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseInt(value as string, 10) : undefined,
+  )
   @IsInt()
   @IsOptional()
   public expectedLifetime?: number;
@@ -409,18 +444,24 @@ export class CreateAssetDto {
   public unit?: string;
 
   @ApiPropertyOptional({ description: 'Quantity', type: 'integer' })
-  @Transform(({ value }) => (value ? parseInt(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseInt(value as string, 10) : undefined,
+  )
   @IsInt()
   @IsOptional()
   public quantity?: number;
 
   @ApiPropertyOptional({ description: 'Square feet', type: 'number' })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public squareFeet?: number;
 
   @ApiPropertyOptional({ description: 'Weight', type: 'number' })
-  @Transform(({ value }) => (value ? parseFloat(value) : undefined))
+  @Transform(({ value }: { value: unknown }) =>
+    value ? parseFloat(value as string) : undefined,
+  )
   @IsOptional()
   public weight?: number;
 
@@ -442,7 +483,9 @@ export class CreateAssetDto {
 
   // Status & metadata
   @ApiPropertyOptional({ description: 'Data verified flag', type: 'boolean' })
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(
+    ({ value }: { value: unknown }) => value === 'true' || value === true,
+  )
   @IsBoolean()
   @IsOptional()
   public verified?: boolean;

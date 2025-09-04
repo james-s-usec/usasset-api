@@ -125,7 +125,8 @@ const MainContent: React.FC<MainContentProps> = ({
       </ToggleButtonGroup>
     </Box>
     {error && <ErrorAlert error={error} onClose={onErrorClose} />}
-    <FileUploadSection uploading={uploading} onFileUpload={onFileUpload} fetchFolders={fetchFolders} fetchProjects={fetchProjects} />
+    <FileUploadSection uploading={uploading} onFileUpload={onFileUpload} fetchFolders={fetchFolders}
+fetchProjects={fetchProjects} />
     
     <FileFilterBar
       files={files}
