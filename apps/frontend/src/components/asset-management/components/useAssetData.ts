@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { AssetService } from "../assetService";
 import type { Asset } from "../types";
 
-export const useAssetData = () => {
+export const useAssetData = (): { assets: Asset[]; loading: boolean; error: string | null; fetchAssets: () => Promise<void> } => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { AssetService } from "../assetService";
 import type { Asset } from "../types";
 
-export const useAssetActions = (fetchAssets: () => Promise<void>) => {
+export const useAssetActions = (fetchAssets: () => Promise<void>): { handleAdd: () => void; handleEdit: (asset: Asset) => void; handleDelete: (id: string) => Promise<void> } => {
   const handleAdd = useCallback((): void => {
     alert("Add asset functionality coming soon!");
   }, []);

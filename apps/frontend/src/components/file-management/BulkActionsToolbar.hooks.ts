@@ -1,5 +1,10 @@
 // Custom hooks for BulkActionsToolbar
-import { useState, useCallback } from 'react';
+import { useState } from "react";
+import {
+  useBulkProjectHandler,
+  useBulkFolderHandler,
+  useBulkDeleteHandler,
+} from "./BulkActionsHandlers";
 
 interface DialogState {
   project: boolean;
@@ -34,8 +39,8 @@ export const useDialogState = (): {
   });
   
   const [selected, setSelected] = useState<SelectedState>({
-    projectId: '',
-    folderId: '',
+    projectId: "",
+    folderId: "",
   });
   
   const [loading, setLoading] = useState(false);
@@ -59,67 +64,39 @@ interface BulkActionHandlerParams {
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const useBulkActionHandlers = ({
-  selectedFiles,
-  selected,
-  handlers,
-  setDialogs,
-  setSelected,
-  setLoading,
-}: BulkActionHandlerParams): {
+export const useBulkActionHandlers = (
+  params: BulkActionHandlerParams
+): {
   handleBulkAssignProject: () => Promise<void>;
   handleBulkMoveToFolder: () => Promise<void>;
   handleBulkDelete: () => Promise<void>;
 } => {
-  const handleBulkAssignProject = useCallback(async (): Promise<void> => {
-    if (selectedFiles.size === 0) return;
-    setLoading(true);
-    try {
-      await handlers.onBulkAssignProject(
-        Array.from(selectedFiles), 
-        selected.projectId || null
-      );
-      setDialogs(prev => ({ ...prev, project: false }));
-      setSelected(prev => ({ ...prev, projectId: '' }));
-      handlers.onClearSelection();
-    } catch (error) {
-      console.error('Bulk assign project failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedFiles, selected.projectId, handlers, setDialogs, setSelected, setLoading]);
+  const { selectedFiles, selected, handlers, setDialogs, setSelected, setLoading } = params;
 
-  const handleBulkMoveToFolder = useCallback(async (): Promise<void> => {
-    if (selectedFiles.size === 0) return;
-    setLoading(true);
-    try {
-      await handlers.onBulkMoveToFolder(
-        Array.from(selectedFiles), 
-        selected.folderId || null
-      );
-      setDialogs(prev => ({ ...prev, folder: false }));
-      setSelected(prev => ({ ...prev, folderId: '' }));
-      handlers.onClearSelection();
-    } catch (error) {
-      console.error('Bulk move to folder failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedFiles, selected.folderId, handlers, setDialogs, setSelected, setLoading]);
+  const handleBulkAssignProject = useBulkProjectHandler({
+    selectedFiles,
+    projectId: selected.projectId,
+    handlers,
+    setDialogs,
+    setSelected,
+    setLoading,
+  });
 
-  const handleBulkDelete = useCallback(async (): Promise<void> => {
-    if (selectedFiles.size === 0) return;
-    setLoading(true);
-    try {
-      await handlers.onBulkDelete(Array.from(selectedFiles));
-      setDialogs(prev => ({ ...prev, delete: false }));
-      handlers.onClearSelection();
-    } catch (error) {
-      console.error('Bulk delete failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedFiles, handlers, setDialogs, setLoading]);
+  const handleBulkMoveToFolder = useBulkFolderHandler({
+    selectedFiles,
+    folderId: selected.folderId,
+    handlers,
+    setDialogs,
+    setSelected,
+    setLoading,
+  });
+
+  const handleBulkDelete = useBulkDeleteHandler({
+    selectedFiles,
+    handlers,
+    setDialogs,
+    setLoading,
+  });
 
   return {
     handleBulkAssignProject,
@@ -141,16 +118,9 @@ export const useBulkActions = (
   handleBulkMoveToFolder: () => Promise<void>;
   handleBulkDelete: () => Promise<void>;
 } => {
-  const {
-    dialogs,
-    setDialogs,
-    selected,
-    setSelected,
-    loading,
-    setLoading,
-  } = useDialogState();
-
-  const bulkHandlers = useBulkActionHandlers({
+  const { dialogs, setDialogs, selected, setSelected, loading, setLoading } = useDialogState();
+  
+  const actionHandlers = useBulkActionHandlers({
     selectedFiles,
     selected,
     handlers,
@@ -165,6 +135,6 @@ export const useBulkActions = (
     selected,
     setSelected,
     loading,
-    ...bulkHandlers,
+    ...actionHandlers,
   };
 };

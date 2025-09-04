@@ -89,43 +89,68 @@ interface FileTreeNodeProps {
   onPreview?: (fileId: string) => Promise<string>;
 }
 
-const FileActionButtons: React.FC<{
+interface FileActionButtonsProps {
   file: FileData;
   onDownload: (fileId: string) => Promise<void>;
   onDelete: (fileId: string, fileName: string) => Promise<void>;
   onPreview?: (fileId: string) => Promise<string>;
-}> = ({ file, onDownload, onDelete, onPreview }) => {
+}
+
+const canFileBePreviewedPredicate = (file: FileData): boolean => {
   const isImage = file.mimetype.startsWith('image/');
   const isCSV = file.mimetype.includes('csv') || file.original_name.toLowerCase().endsWith('.csv');
   const isPDF = file.mimetype === 'application/pdf';
-  const canPreview = (isImage || isCSV || isPDF) && onPreview;
+  return isImage || isCSV || isPDF;
+};
+
+const PreviewButton: React.FC<{
+  file: FileData;
+  onPreview: (fileId: string) => Promise<string>;
+}> = ({ file, onPreview }) => (
+  <IconButton
+    size="small"
+    onClick={() => onPreview(file.id)}
+    title="Preview"
+  >
+    <PreviewIcon fontSize="small" />
+  </IconButton>
+);
+
+const DownloadButton: React.FC<{
+  file: FileData;
+  onDownload: (fileId: string) => Promise<void>;
+}> = ({ file, onDownload }) => (
+  <IconButton
+    size="small"
+    onClick={() => onDownload(file.id)}
+    title="Download"
+  >
+    <DownloadIcon fontSize="small" />
+  </IconButton>
+);
+
+const DeleteButton: React.FC<{
+  file: FileData;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+}> = ({ file, onDelete }) => (
+  <IconButton
+    size="small"
+    color="error"
+    onClick={() => onDelete(file.id, file.original_name)}
+    title="Delete"
+  >
+    <DeleteIcon fontSize="small" />
+  </IconButton>
+);
+
+const FileActionButtons: React.FC<FileActionButtonsProps> = ({ file, onDownload, onDelete, onPreview }) => {
+  const canPreview = canFileBePreviewedPredicate(file) && onPreview;
 
   return (
     <Box sx={{ display: 'flex', gap: 0.5 }}>
-      {canPreview && (
-        <IconButton
-          size="small"
-          onClick={() => onPreview(file.id)}
-          title="Preview"
-        >
-          <PreviewIcon fontSize="small" />
-        </IconButton>
-      )}
-      <IconButton
-        size="small"
-        onClick={() => onDownload(file.id)}
-        title="Download"
-      >
-        <DownloadIcon fontSize="small" />
-      </IconButton>
-      <IconButton
-        size="small"
-        color="error"
-        onClick={() => onDelete(file.id, file.original_name)}
-        title="Delete"
-      >
-        <DeleteIcon fontSize="small" />
-      </IconButton>
+      {canPreview && <PreviewButton file={file} onPreview={onPreview} />}
+      <DownloadButton file={file} onDownload={onDownload} />
+      <DeleteButton file={file} onDelete={onDelete} />
     </Box>
   );
 };
@@ -166,13 +191,32 @@ interface FolderTreeNodeProps {
   onPreview?: (fileId: string) => Promise<string>;
 }
 
-const FolderHeader: React.FC<{
+interface FolderHeaderProps {
   folder: Folder;
   expanded: boolean;
   fileCount: number;
   level: number;
   onClick: () => void;
-}> = ({ folder, expanded, fileCount, level, onClick }) => (
+}
+
+const FolderIconWithIndicator: React.FC<{
+  folder: Folder;
+  expanded: boolean;
+}> = ({ folder, expanded }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    {expanded ? <FolderOpenIcon color="primary" /> : <FolderIcon color="primary" />}
+    <Box
+      sx={{
+        width: 8,
+        height: 8,
+        borderRadius: 1,
+        bgcolor: folder.color || '#gray',
+      }}
+    />
+  </Box>
+);
+
+const FolderHeader: React.FC<FolderHeaderProps> = ({ folder, expanded, fileCount, level, onClick }) => (
   <ListItem
     component="div"
     onClick={onClick}
@@ -186,17 +230,7 @@ const FolderHeader: React.FC<{
       {expanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
     </ListItemIcon>
     <ListItemIcon>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {expanded ? <FolderOpenIcon color="primary" /> : <FolderIcon color="primary" />}
-        <Box
-          sx={{
-            width: 8,
-            height: 8,
-            borderRadius: 1,
-            bgcolor: folder.color || '#gray',
-          }}
-        />
-      </Box>
+      <FolderIconWithIndicator folder={folder} expanded={expanded} />
     </ListItemIcon>
     <ListItemText
       primary={folder.name}
@@ -217,6 +251,28 @@ const EmptyFolderMessage: React.FC<{ level: number }> = ({ level }) => (
   </ListItem>
 );
 
+const FolderFileList: React.FC<{
+  files: FileData[];
+  level: number;
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ files, level, onDownload, onDelete, onPreview }) => (
+  <List component="div" disablePadding>
+    {files.map((file) => (
+      <FileTreeNode
+        key={file.id}
+        file={file}
+        level={level + 1}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    ))}
+    {files.length === 0 && <EmptyFolderMessage level={level} />}
+  </List>
+);
+
 const FolderTreeNode: React.FC<FolderTreeNodeProps> = ({ folder, files, level, onDownload, onDelete, onPreview }) => {
   const [expanded, setExpanded] = useState(false);
   const folderFiles = files.filter(file => file.folder?.id === folder.id);
@@ -235,21 +291,13 @@ const FolderTreeNode: React.FC<FolderTreeNodeProps> = ({ folder, files, level, o
         onClick={toggleExpanded}
       />
       <Collapse in={expanded} timeout="auto" unmountOnExit>
-        <List component="div" disablePadding>
-          {folderFiles.map((file) => (
-            <FileTreeNode
-              key={file.id}
-              file={file}
-              level={level + 1}
-              onDownload={onDownload}
-              onDelete={onDelete}
-              onPreview={onPreview}
-            />
-          ))}
-          {folderFiles.length === 0 && (
-            <EmptyFolderMessage level={level} />
-          )}
-        </List>
+        <FolderFileList
+          files={folderFiles}
+          level={level}
+          onDownload={onDownload}
+          onDelete={onDelete}
+          onPreview={onPreview}
+        />
       </Collapse>
     </>
   );
@@ -264,12 +312,19 @@ interface ProjectTreeNodeProps {
   onPreview?: (fileId: string) => Promise<string>;
 }
 
-const ProjectHeader: React.FC<{
+interface ProjectHeaderProps {
   project: Project;
   expanded: boolean;
   fileCount: number;
   onClick: () => void;
-}> = ({ project, expanded, fileCount, onClick }) => (
+}
+
+const formatProjectSecondaryText = (fileCount: number, description?: string): string => {
+  const fileText = `${fileCount} file${fileCount !== 1 ? 's' : ''}`;
+  return description ? `${fileText} • ${description}` : fileText;
+};
+
+const ProjectHeader: React.FC<ProjectHeaderProps> = ({ project, expanded, fileCount, onClick }) => (
   <ListItem
     component="div"
     onClick={onClick}
@@ -287,7 +342,7 @@ const ProjectHeader: React.FC<{
     </ListItemIcon>
     <ListItemText
       primary={project.name}
-      secondary={`${fileCount} file${fileCount !== 1 ? 's' : ''} ${project.description ? '• ' + project.description : ''}`}
+      secondary={formatProjectSecondaryText(fileCount, project.description)}
     />
   </ListItem>
 );
@@ -304,13 +359,91 @@ const EmptyProjectMessage: React.FC = () => (
   </ListItem>
 );
 
-const ProjectTreeNode: React.FC<ProjectTreeNodeProps> = ({ project, files, folders, onDownload, onDelete, onPreview }) => {
-  const [expanded, setExpanded] = useState(false);
+const ProjectFolderList: React.FC<{
+  folders: Folder[];
+  files: FileData[];
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ folders, files, onDownload, onDelete, onPreview }) => (
+  <>
+    {folders.map((folder) => (
+      <FolderTreeNode
+        key={folder.id}
+        folder={folder}
+        files={files}
+        level={1}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    ))}
+  </>
+);
+
+const ProjectFileList: React.FC<{
+  files: FileData[];
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ files, onDownload, onDelete, onPreview }) => (
+  <>
+    {files.map((file) => (
+      <FileTreeNode
+        key={file.id}
+        file={file}
+        level={1}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    ))}
+  </>
+);
+
+const useProjectData = (project: Project, files: FileData[], folders: Folder[]): {
+  projectFiles: FileData[];
+  projectFolders: Folder[];
+  unorganizedFiles: FileData[];
+} => {
   const projectFiles = files.filter(file => file.project?.id === project.id);
   const projectFolders = folders.filter(folder => 
     projectFiles.some(file => file.folder?.id === folder.id)
   );
   const unorganizedFiles = projectFiles.filter(file => !file.folder);
+  
+  return { projectFiles, projectFolders, unorganizedFiles };
+};
+
+const ProjectContent: React.FC<{
+  projectFolders: Folder[];
+  projectFiles: FileData[];
+  unorganizedFiles: FileData[];
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ projectFolders, projectFiles, unorganizedFiles, onDownload, onDelete, onPreview }) => (
+  <List component="div" disablePadding>
+    <ProjectFolderList
+      folders={projectFolders}
+      files={projectFiles}
+      onDownload={onDownload}
+      onDelete={onDelete}
+      onPreview={onPreview}
+    />
+    <ProjectFileList
+      files={unorganizedFiles}
+      onDownload={onDownload}
+      onDelete={onDelete}
+      onPreview={onPreview}
+    />
+    {projectFiles.length === 0 && <EmptyProjectMessage />}
+  </List>
+);
+
+const ProjectTreeNode: React.FC<ProjectTreeNodeProps> = ({ project, files, folders, onDownload, onDelete, onPreview }) => {
+  const [expanded, setExpanded] = useState(false);
+  const { projectFiles, projectFolders, unorganizedFiles } = useProjectData(project, files, folders);
 
   const toggleExpanded = (): void => {
     setExpanded(!expanded);
@@ -325,62 +458,74 @@ const ProjectTreeNode: React.FC<ProjectTreeNodeProps> = ({ project, files, folde
         onClick={toggleExpanded}
       />
       <Collapse in={expanded} timeout="auto" unmountOnExit>
-        <List component="div" disablePadding>
-          {projectFolders.map((folder) => (
-            <FolderTreeNode
-              key={folder.id}
-              folder={folder}
-              files={projectFiles}
-              level={1}
-              onDownload={onDownload}
-              onDelete={onDelete}
-              onPreview={onPreview}
-            />
-          ))}
-          {unorganizedFiles.map((file) => (
-            <FileTreeNode
-              key={file.id}
-              file={file}
-              level={1}
-              onDownload={onDownload}
-              onDelete={onDelete}
-              onPreview={onPreview}
-            />
-          ))}
-          {projectFiles.length === 0 && (
-            <EmptyProjectMessage />
-          )}
-        </List>
+        <ProjectContent
+          projectFolders={projectFolders}
+          projectFiles={projectFiles}
+          unorganizedFiles={unorganizedFiles}
+          onDownload={onDownload}
+          onDelete={onDelete}
+          onPreview={onPreview}
+        />
       </Collapse>
     </>
   );
 };
 
-const TreeHeader: React.FC<{ onRefresh?: () => Promise<void> }> = ({ onRefresh }) => (
-  <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-    <Box>
-      <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <ProjectIcon />
-        File Tree View
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        Files organized by Project → Folder hierarchy
-      </Typography>
-    </Box>
-    {onRefresh && (
-      <Button
-        variant="outlined"
-        size="small"
-        startIcon={<RefreshIcon />}
-        onClick={onRefresh}
-      >
-        Refresh
-      </Button>
-    )}
+interface TreeHeaderProps {
+  onRefresh?: () => Promise<void>;
+}
+
+const TreeHeaderTitle: React.FC = () => (
+  <Box>
+    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <ProjectIcon />
+      File Tree View
+    </Typography>
+    <Typography variant="body2" color="text.secondary">
+      Files organized by Project → Folder hierarchy
+    </Typography>
   </Box>
 );
 
-const UnassignedSection: React.FC<{
+const RefreshButton: React.FC<{ onRefresh: () => Promise<void> }> = ({ onRefresh }) => (
+  <Button
+    variant="outlined"
+    size="small"
+    startIcon={<RefreshIcon />}
+    onClick={onRefresh}
+  >
+    Refresh
+  </Button>
+);
+
+const TreeHeader: React.FC<TreeHeaderProps> = ({ onRefresh }) => (
+  <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <TreeHeaderTitle />
+    {onRefresh && <RefreshButton onRefresh={onRefresh} />}
+  </Box>
+);
+
+interface UnassignedSectionProps {
+  folders: Folder[];
+  files: FileData[];
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}
+
+const UnassignedSectionHeader: React.FC<{ fileCount: number }> = ({ fileCount }) => (
+  <ListItem>
+    <ListItemIcon>
+      <ProjectIcon color="disabled" />
+    </ListItemIcon>
+    <ListItemText
+      primary="Unassigned Files"
+      secondary={`${fileCount} file${fileCount !== 1 ? 's' : ''} without project assignment`}
+    />
+  </ListItem>
+);
+
+const UnassignedFolders: React.FC<{
   folders: Folder[];
   files: FileData[];
   onDownload: (fileId: string) => Promise<void>;
@@ -388,17 +533,6 @@ const UnassignedSection: React.FC<{
   onPreview?: (fileId: string) => Promise<string>;
 }> = ({ folders, files, onDownload, onDelete, onPreview }) => (
   <>
-    <Divider sx={{ my: 1 }} />
-    <ListItem>
-      <ListItemIcon>
-        <ProjectIcon color="disabled" />
-      </ListItemIcon>
-      <ListItemText
-        primary="Unassigned Files"
-        secondary={`${files.length} file${files.length !== 1 ? 's' : ''} without project assignment`}
-      />
-    </ListItem>
-    
     {folders.map((folder) => (
       <FolderTreeNode
         key={folder.id}
@@ -410,7 +544,16 @@ const UnassignedSection: React.FC<{
         onPreview={onPreview}
       />
     ))}
-    
+  </>
+);
+
+const OrphanFiles: React.FC<{
+  files: FileData[];
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ files, onDownload, onDelete, onPreview }) => (
+  <>
     {files.filter(file => !file.folder).map((file) => (
       <FileTreeNode
         key={file.id}
@@ -421,6 +564,17 @@ const UnassignedSection: React.FC<{
         onPreview={onPreview}
       />
     ))}
+  </>
+);
+
+const UnassignedSection: React.FC<UnassignedSectionProps> = ({ folders, files, onDownload, onDelete, onPreview }) => (
+  <>
+    <Divider sx={{ my: 1 }} />
+    <UnassignedSectionHeader fileCount={files.length} />
+    <UnassignedFolders folders={folders} files={files} onDownload={onDownload}
+onDelete={onDelete} onPreview={onPreview} />
+    <OrphanFiles files={files} onDownload={onDownload} onDelete={onDelete}
+onPreview={onPreview} />
   </>
 );
 
@@ -436,6 +590,78 @@ const EmptyTreeMessage: React.FC = () => (
   </ListItem>
 );
 
+const useFileTreeData = (files: FileData[], folders: Folder[]): {
+  unassignedFiles: FileData[];
+  unassignedFolders: Folder[];
+  hasUnassignedFiles: boolean;
+} => {
+  const unassignedFiles = files.filter(file => !file.project);
+  const unassignedFolders = folders.filter(folder =>
+    unassignedFiles.some(file => file.folder?.id === folder.id)
+  );
+  const hasUnassignedFiles = unassignedFolders.length > 0 || unassignedFiles.some(file => !file.folder);
+  
+  return { unassignedFiles, unassignedFolders, hasUnassignedFiles };
+};
+
+const ProjectList: React.FC<{
+  projects: Project[];
+  files: FileData[];
+  folders: Folder[];
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ projects, files, folders, onDownload, onDelete, onPreview }) => (
+  <>
+    {projects.map((project) => (
+      <ProjectTreeNode
+        key={project.id}
+        project={project}
+        files={files}
+        folders={folders}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    ))}
+  </>
+);
+
+const TreeContent: React.FC<{
+  projects: Project[];
+  files: FileData[];
+  folders: Folder[];
+  unassignedFiles: FileData[];
+  unassignedFolders: Folder[];
+  hasUnassignedFiles: boolean;
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}> = ({ projects, files, folders, unassignedFiles, unassignedFolders, hasUnassignedFiles, onDownload, onDelete, onPreview }) => (
+  <List sx={{ maxHeight: 600, overflow: 'auto' }}>
+    <ProjectList
+      projects={projects}
+      files={files}
+      folders={folders}
+      onDownload={onDownload}
+      onDelete={onDelete}
+      onPreview={onPreview}
+    />
+
+    {hasUnassignedFiles && (
+      <UnassignedSection
+        folders={unassignedFolders}
+        files={unassignedFiles}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    )}
+
+    {files.length === 0 && <EmptyTreeMessage />}
+  </List>
+);
+
 export const FileTreeView: React.FC<FileTreeViewProps> = ({
   files,
   folders,
@@ -445,41 +671,22 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
   onPreview,
   onRefresh,
 }) => {
-  const unassignedFiles = files.filter(file => !file.project);
-  const unassignedFolders = folders.filter(folder =>
-    unassignedFiles.some(file => file.folder?.id === folder.id)
-  );
-  const hasUnassignedFiles = unassignedFolders.length > 0 || unassignedFiles.some(file => !file.folder);
+  const { unassignedFiles, unassignedFolders, hasUnassignedFiles } = useFileTreeData(files, folders);
 
   return (
     <Paper sx={{ mt: 2 }}>
       <TreeHeader onRefresh={onRefresh} />
-      
-      <List sx={{ maxHeight: 600, overflow: 'auto' }}>
-        {projects.map((project) => (
-          <ProjectTreeNode
-            key={project.id}
-            project={project}
-            files={files}
-            folders={folders}
-            onDownload={onDownload}
-            onDelete={onDelete}
-            onPreview={onPreview}
-          />
-        ))}
-
-        {hasUnassignedFiles && (
-          <UnassignedSection
-            folders={unassignedFolders}
-            files={unassignedFiles}
-            onDownload={onDownload}
-            onDelete={onDelete}
-            onPreview={onPreview}
-          />
-        )}
-
-        {files.length === 0 && <EmptyTreeMessage />}
-      </List>
+      <TreeContent
+        projects={projects}
+        files={files}
+        folders={folders}
+        unassignedFiles={unassignedFiles}
+        unassignedFolders={unassignedFolders}
+        hasUnassignedFiles={hasUnassignedFiles}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
     </Paper>
   );
 };
