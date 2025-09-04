@@ -10,7 +10,6 @@ export class AssetBulkService {
 
   public constructor(private readonly prisma: PrismaService) {}
 
-  // eslint-disable-next-line max-lines-per-function
   public async bulkCreate(
     assets: CreateAssetDto[],
   ): Promise<BulkOperationResult> {
@@ -22,29 +21,24 @@ export class AssetBulkService {
       successfulIds: [],
     };
 
-    // Use transaction for consistency
-    await this.prisma.$transaction(async (tx) => {
-      for (let i = 0; i < assets.length; i++) {
-        try {
-          const asset = await tx.asset.create({
-            data: assets[i],
-          });
-          result.successful++;
-          result.successfulIds.push(asset.id);
-        } catch (error) {
-          result.failed++;
-          result.errors.push({
-            index: i,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            field: this.extractFieldFromError(error),
-          });
-          this.logger.error(
-            `Bulk create failed for asset at index ${i}:`,
-            error,
-          );
-        }
+    // Process each asset individually to avoid transaction rollback issues
+    for (let i = 0; i < assets.length; i++) {
+      try {
+        const asset = await this.prisma.asset.create({
+          data: assets[i],
+        });
+        result.successful++;
+        result.successfulIds.push(asset.id);
+      } catch (error) {
+        result.failed++;
+        result.errors.push({
+          index: i,
+          error: this.sanitizeErrorMessage(error),
+          field: this.extractFieldFromError(error),
+        });
+        this.logger.error(`Bulk create failed for asset at index ${i}:`, error);
       }
-    });
+    }
 
     return result;
   }
@@ -93,7 +87,7 @@ export class AssetBulkService {
           result.failed++;
           result.errors.push({
             id: updateData.id,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: this.sanitizeErrorMessage(error),
             field: this.extractFieldFromError(error),
           });
           this.logger.error(
@@ -158,7 +152,7 @@ export class AssetBulkService {
           result.failed++;
           result.errors.push({
             id,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: this.sanitizeErrorMessage(error),
           });
           this.logger.error(`Bulk delete failed for asset ${id}:`, error);
         }
@@ -205,12 +199,69 @@ export class AssetBulkService {
     } catch (error) {
       result.failed = result.total;
       result.errors.push({
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: this.sanitizeErrorMessage(error),
       });
       this.logger.error('Bulk update by search failed:', error);
     }
 
     return result;
+  }
+
+  private sanitizeErrorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return this.cleanErrorMessage(error);
+    }
+
+    if (error instanceof Error) {
+      return this.cleanErrorMessage(error.message);
+    }
+
+    const errorObj = error as Record<string, unknown>;
+
+    // Handle Prisma unique constraint errors
+    if (this.isUniqueConstraintError(errorObj)) {
+      const field = this.extractUniqueConstraintField(
+        errorObj.message as string,
+      );
+      return field
+        ? `Asset with this ${field} already exists`
+        : 'Duplicate asset data';
+    }
+
+    // Handle other Prisma errors with clean messages
+    if (errorObj.message && typeof errorObj.message === 'string') {
+      return this.cleanErrorMessage(errorObj.message);
+    }
+
+    return 'Unknown error occurred';
+  }
+
+  private cleanErrorMessage(message: string): string {
+    // Remove stack traces and file paths
+    if (message.includes('Invalid `') && message.includes('invocation')) {
+      // Extract the constraint error part
+      const constraintMatch = message.match(
+        /Unique constraint failed on the fields: \(`([^`]+)`\)/,
+      );
+      if (constraintMatch) {
+        return `Asset with this ${constraintMatch[1]} already exists`;
+      }
+      return 'Database constraint violation';
+    }
+
+    // Clean up common Prisma error patterns
+    if (message.includes('Unique constraint failed')) {
+      return message.replace(
+        /.*Unique constraint failed/,
+        'Unique constraint failed',
+      );
+    }
+
+    // Remove file paths and line numbers
+    return message
+      .replace(/\n.*\/.*\.ts.*\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private extractFieldFromError(error: unknown): string | undefined {

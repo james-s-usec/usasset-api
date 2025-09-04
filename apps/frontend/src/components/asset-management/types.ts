@@ -12,7 +12,8 @@ export interface Asset {
   catalogItemId?: string;
   
   // Status and core info
-  status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED';
+  status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED' | 'INACTIVE' | 'LOST' | 'STOLEN';
+  condition?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL' | 'UNKNOWN' | 'NOT_APPLICABLE';
   location?: string;
   projectId?: string;
   
@@ -61,7 +62,7 @@ export interface Asset {
   depreciationMethod?: string;
   currentBookValue?: number;
   
-  // Energy fields (15 fields)
+  // Energy fields (comprehensive - 30+ fields)
   ratedPowerKw?: number;
   actualPowerKw?: number;
   dailyOperatingHours?: number;
@@ -69,19 +70,42 @@ export interface Asset {
   voltage?: number;
   btuRating?: number;
   
-  // Lifecycle dates (8 fields)
+  // Additional energy calculation fields
+  powerFactor?: number;
+  amperage?: number;
+  phase?: number;
+  loadFactor?: number;
+  energyEfficiencyRating?: string;
+  energyEfficiencyValue?: number;
+  peakDemandKw?: number;
+  gasConsumptionRate?: number;
+  annualGasConsumption?: number;
+  annualOperatingDays?: number;
+  annualCarbonEmissions?: number;
+  estimatedAnnualElectricityCost?: number;
+  estimatedAnnualGasCost?: number;
+  totalAnnualEnergyCost?: number;
+  estimatedOperatingHours?: number;
+  
+  // Lifecycle dates (comprehensive - 12+ fields)
   installDate?: string;
   manufactureDate?: string;
   serviceLife?: number;
   expectedLifetime?: number;
+  industryServiceLife?: number;
+  observedRemainingLife?: number;
+  estimatedReplacementDate?: string;
+  warrantyExpirationDate?: string;
   
-  // Size & measurement (8 fields)
+  // Size & measurement (comprehensive - 10+ fields)
   equipmentSize?: string;
   size?: string;
   unit?: string;
   quantity?: number;
   squareFeet?: number;
   weight?: number;
+  assetSizeRounded?: string;
+  idUnit?: string;
   
   // Vendor & service (3 fields)
   vendor?: string;
@@ -92,8 +116,45 @@ export interface Asset {
   verified?: boolean;
   ownerId?: string;
   
-  // Notes (1 field)
+  // Technical specifications (missing HVAC/mechanical fields)
+  motorHp?: number;
+  numberOfCircuits?: number;
+  supplyFanMotorSize?: string;
+  returnFanMotorSize?: string;
+  beltSize?: string;
+  beltQuantity?: number;
+  filterType?: string;
+  filterSize?: string;
+  filterQuantity?: number;
+  refrigerant?: string;
+  refrigerantDefaultDescription?: string;
+  refrigerantDescription?: string;
+  refrigerantQuantity?: number;
+  ratingName?: string;
+  ratingValue?: string;
+  
+  // Structured notes system (6 note fields)
   notes?: string;
+  note1Subject?: string;
+  note1?: string;
+  note2Subject?: string;
+  note2?: string;
+  note3Subject?: string;
+  note3?: string;
+  note4Subject?: string;
+  note4?: string;
+  note5Subject?: string;
+  note5?: string;
+  note6Subject?: string;
+  note6?: string;
+  
+  // Legacy integration fields (6 fields)
+  legacyBranchId?: string;
+  legacyClientSiteEquipmentRn?: string;
+  legacyClientSiteEquipmentName?: string;
+  legacyInternalAssetId?: string;
+  legacyUsAssetId?: string;
+  legacyUseAssetId?: string;
   
   // Timestamps
   created_at: string;
@@ -113,7 +174,8 @@ export interface CreateAssetData {
   catalogItemId?: string;
   
   // Status and core info
-  status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED';
+  status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED' | 'INACTIVE' | 'LOST' | 'STOLEN';
+  condition?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL' | 'UNKNOWN' | 'NOT_APPLICABLE';
   location?: string;
   projectId?: string;
   
@@ -162,39 +224,88 @@ export interface CreateAssetData {
   depreciationMethod?: string;
   currentBookValue?: number;
   
-  // Energy fields
+  // Energy calculation fields (comprehensive)
   ratedPowerKw?: number;
   actualPowerKw?: number;
   dailyOperatingHours?: number;
   estimatedAnnualKwh?: number;
   voltage?: number;
   btuRating?: number;
-  
-  // Lifecycle dates
+  powerFactor?: number;
+  amperage?: number;
+  phase?: number;
+  loadFactor?: number;
+  energyEfficiencyRating?: string;
+  energyEfficiencyValue?: number;
+  peakDemandKw?: number;
+  gasConsumptionRate?: number;
+  annualGasConsumption?: number;
+  annualOperatingDays?: number;
+  annualCarbonEmissions?: number;
+  estimatedAnnualElectricityCost?: number;
+  estimatedAnnualGasCost?: number;
+  totalAnnualEnergyCost?: number;
+  estimatedOperatingHours?: number;
+
+  // Lifecycle dates (comprehensive)
   installDate?: string;
   manufactureDate?: string;
   serviceLife?: number;
   expectedLifetime?: number;
-  
-  // Size & measurement
+  industryServiceLife?: number;
+  observedRemainingLife?: number;
+  estimatedReplacementDate?: string;
+  warrantyExpirationDate?: string;
+
+  // Size & measurement (comprehensive)
   equipmentSize?: string;
   size?: string;
   unit?: string;
   quantity?: number;
   squareFeet?: number;
   weight?: number;
-  
-  // Vendor & service
-  vendor?: string;
-  vendorWebsite?: string;
-  serviceId?: string;
-  
-  // Status & metadata
-  verified?: boolean;
-  ownerId?: string;
-  
-  // Notes
+  assetSizeRounded?: string;
+  idUnit?: string;
+
+  // Technical specifications (HVAC/mechanical)
+  motorHp?: number;
+  numberOfCircuits?: number;
+  supplyFanMotorSize?: string;
+  returnFanMotorSize?: string;
+  beltSize?: string;
+  beltQuantity?: number;
+  filterType?: string;
+  filterSize?: string;
+  filterQuantity?: number;
+  refrigerant?: string;
+  refrigerantDefaultDescription?: string;
+  refrigerantDescription?: string;
+  refrigerantQuantity?: number;
+  ratingName?: string;
+  ratingValue?: string;
+
+  // Structured notes system
   notes?: string;
+  note1Subject?: string;
+  note1?: string;
+  note2Subject?: string;
+  note2?: string;
+  note3Subject?: string;
+  note3?: string;
+  note4Subject?: string;
+  note4?: string;
+  note5Subject?: string;
+  note5?: string;
+  note6Subject?: string;
+  note6?: string;
+
+  // Legacy integration fields
+  legacyBranchId?: string;
+  legacyClientSiteEquipmentRn?: string;
+  legacyClientSiteEquipmentName?: string;
+  legacyInternalAssetId?: string;
+  legacyUsAssetId?: string;
+  legacyUseAssetId?: string;
 }
 
 export interface UpdateAssetData {
@@ -210,7 +321,8 @@ export interface UpdateAssetData {
   catalogItemId?: string;
   
   // Status and core info
-  status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED';
+  status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED' | 'INACTIVE' | 'LOST' | 'STOLEN';
+  condition?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL' | 'UNKNOWN' | 'NOT_APPLICABLE';
   location?: string;
   projectId?: string;
   
