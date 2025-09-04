@@ -25,6 +25,14 @@ interface PDFFile {
   size: number;
   created_at: string;
   pageCount?: number;
+  mimetype?: string;
+}
+
+interface FileResponse {
+  success: boolean;
+  data: {
+    files: PDFFile[];
+  };
 }
 
 export const DocumentsPage: React.FC = () => {
@@ -42,13 +50,13 @@ export const DocumentsPage: React.FC = () => {
       const result = await response.json();
       
       if (result.success) {
-        const pdfs = result.data.files.filter((file: any) => 
+        const pdfs = (result as FileResponse).data.files.filter((file) => 
           file.mimetype === 'application/pdf'
         );
         
         // Get page count for each PDF
         const pdfsWithPageCount = await Promise.all(
-          pdfs.map(async (pdf: any) => {
+          pdfs.map(async (pdf) => {
             try {
               const infoResponse = await fetch(`${config.api.baseUrl}/api/files/${pdf.id}/pdf-info`);
               const infoResult = await infoResponse.json();
@@ -121,8 +129,7 @@ export const DocumentsPage: React.FC = () => {
       ) : (
         <Grid container spacing={3}>
           {pdfFiles.map((file) => (
-            <Grid item xs={12} sm={6}
-md={4} key={file.id} {...{} as any}>
+            <Grid key={file.id} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardMedia sx={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.100' }}>
                   <PdfIcon sx={{ fontSize: 48, color: 'text.secondary' }} />

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography, Button, Alert } from '@mui/material';
 import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { AgGridReact } from 'ag-grid-react';
+import type { ICellRendererParams, GridReadyEvent } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import './AssetGrid.css';
@@ -65,12 +66,12 @@ export const AssetGridManagement: React.FC = () => {
   }, []);
 
   // Actions cell renderer component
-  const ActionsCellRenderer = useCallback((params: any) => (
+  const ActionsCellRenderer = useCallback((params: ICellRendererParams<Asset>) => (
     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', height: '100%' }}>
       <Button 
         size="small" 
         variant="outlined"
-        onClick={() => handleEdit(params.data)}
+        onClick={() => params.data && handleEdit(params.data)}
       >
         Edit
       </Button>
@@ -78,7 +79,7 @@ export const AssetGridManagement: React.FC = () => {
         size="small" 
         variant="outlined" 
         color="error"
-        onClick={() => handleDelete(params.data.id)}
+        onClick={() => params.data && handleDelete(params.data.id)}
       >
         Delete
       </Button>
@@ -86,7 +87,7 @@ export const AssetGridManagement: React.FC = () => {
   ), [handleEdit, handleDelete]);
 
   // Status cell renderer component
-  const StatusCellRenderer = useCallback((params: any) => {
+  const StatusCellRenderer = useCallback((params: ICellRendererParams) => {
     const status = params.value || 'ACTIVE';
     const colors = {
       ACTIVE: '#4caf50',
@@ -126,7 +127,7 @@ export const AssetGridManagement: React.FC = () => {
 
   // Use the imported default column definition
 
-  const handleGridReady = useCallback((params: any) => {
+  const handleGridReady = useCallback((params: GridReadyEvent) => {
     params.api.sizeColumnsToFit();
   }, []);
 

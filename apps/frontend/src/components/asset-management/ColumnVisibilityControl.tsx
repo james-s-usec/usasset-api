@@ -3,15 +3,11 @@ import {
   Box,
   Button,
   Menu,
-  MenuItem,
-  FormControlLabel,
-  Switch,
-  Typography,
-  Divider,
   Chip,
 } from '@mui/material';
 import { ViewColumn as ViewColumnIcon } from '@mui/icons-material';
 import type { ColumnCategory } from './columnConfig';
+import { ColumnMenuContent } from './ColumnMenu';
 
 interface ColumnVisibilityControlProps {
   categories: ColumnCategory[];
@@ -25,15 +21,15 @@ export const ColumnVisibilityControl: React.FC<ColumnVisibilityControlProps> = (
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+  const handleClick = (event: React.MouseEvent<HTMLElement>): void => {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleClose = () => {
+  const handleClose = (): void => {
     setAnchorEl(null);
   };
 
-  const handleToggle = (categoryId: string) => {
+  const handleToggle = (categoryId: string): void => {
     onCategoryToggle(categoryId);
   };
 
@@ -68,53 +64,7 @@ export const ColumnVisibilityControl: React.FC<ColumnVisibilityControlProps> = (
           },
         }}
       >
-        <Box sx={{ px: 2, py: 1 }}>
-          <Typography variant="subtitle2" color="text.secondary">
-            Column Categories
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Toggle column groups to customize your view
-          </Typography>
-        </Box>
-        <Divider />
-        
-        {categories.map((category) => (
-          <MenuItem
-            key={category.id}
-            onClick={() => handleToggle(category.id)}
-            dense
-            sx={{ py: 1 }}
-          >
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={category.enabled}
-                  onChange={() => handleToggle(category.id)}
-                  size="small"
-                  color="primary"
-                />
-              }
-              label={
-                <Box>
-                  <Typography variant="body2">
-                    {category.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {category.columns.length} columns
-                  </Typography>
-                </Box>
-              }
-              sx={{ m: 0, width: '100%' }}
-            />
-          </MenuItem>
-        ))}
-        
-        <Divider />
-        <Box sx={{ px: 2, py: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            Core columns (Asset Tag, Name, Status, Actions) are always visible
-          </Typography>
-        </Box>
+        <ColumnMenuContent categories={categories} onToggle={handleToggle} />
       </Menu>
     </Box>
   );

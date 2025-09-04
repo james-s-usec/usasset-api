@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { File } from '@prisma/client';
 import { MulterFile } from '../interfaces/file.interface';
+import { FileNotFoundException } from '../exceptions/file.exceptions';
 
 const BYTES_PER_KB = 1024;
 const BYTES_PER_MB = BYTES_PER_KB * BYTES_PER_KB;
@@ -47,7 +48,9 @@ export class AzureBlobStorageService {
     );
 
     if (!connectionString) {
-      throw new Error('AZURE_STORAGE_CONNECTION_STRING is required');
+      throw new BadRequestException(
+        'AZURE_STORAGE_CONNECTION_STRING is required',
+      );
     }
 
     this.parseStorageCredentials(connectionString);
@@ -192,7 +195,7 @@ export class AzureBlobStorageService {
     });
 
     if (!file) {
-      throw new Error(`File with ID ${fileId} not found`);
+      throw new FileNotFoundException(fileId);
     }
 
     if (!this.storageAccountName || !this.storageAccountKey) {
@@ -289,7 +292,7 @@ export class AzureBlobStorageService {
     });
 
     if (!file) {
-      throw new Error(`File with ID ${fileId} not found`);
+      throw new FileNotFoundException(fileId);
     }
 
     const blockBlobClient = this.containerClient.getBlockBlobClient(
@@ -311,7 +314,7 @@ export class AzureBlobStorageService {
     });
 
     if (!file) {
-      throw new BadRequestException(`File with ID ${fileId} not found`);
+      throw new FileNotFoundException(fileId);
     }
 
     const blockBlobClient = this.containerClient.getBlockBlobClient(
@@ -387,7 +390,7 @@ export class AzureBlobStorageService {
     });
 
     if (!file) {
-      throw new BadRequestException(`File with ID ${fileId} not found`);
+      throw new FileNotFoundException(fileId);
     }
 
     if (!file.mimetype.startsWith('image/')) {

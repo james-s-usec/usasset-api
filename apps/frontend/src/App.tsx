@@ -16,18 +16,18 @@ import { FilesPage } from './pages/FilesPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { DocumentsPage } from './components/documents/DocumentsPage'
 
-const NavigationBar = (): React.ReactElement => {
-  const navItems = [
-    { label: 'Users', path: '/users' },
-    { label: 'Projects', path: '/projects' },
-    { label: 'Assets', path: '/assets' },
-    { label: 'Files', path: '/files' },
-    { label: 'Documents', path: '/documents' },
-    { label: 'Debug', path: '/debug' },
-    { label: 'Settings', path: '/settings' }
-  ]
-  
-  return (
+const navItems = [
+  { label: 'Users', path: '/users' },
+  { label: 'Projects', path: '/projects' },
+  { label: 'Assets', path: '/assets' },
+  { label: 'Files', path: '/files' },
+  { label: 'Documents', path: '/documents' },
+  { label: 'Debug', path: '/debug' },
+  { label: 'Settings', path: '/settings' }
+]
+
+const NavigationBar = (): React.ReactElement => (
+
     <AppBar position="static">
       <Toolbar>
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
@@ -46,8 +46,7 @@ const NavigationBar = (): React.ReactElement => {
         <Box sx={{ ml: 2 }}><DbStatus /></Box>
       </Toolbar>
     </AppBar>
-  )
-}
+)
 
 const HomePage = (): React.ReactElement => {
   const navigate = useNavigate()

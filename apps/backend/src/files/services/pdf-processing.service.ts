@@ -1,14 +1,10 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AzureBlobStorageService } from './azure-blob-storage.service';
 import { File } from '@prisma/client';
 import * as sharp from 'sharp';
 import { renderPageAsImage, getDocumentProxy } from 'unpdf';
+import { FileNotFoundException } from '../exceptions/file.exceptions';
 
 interface PDFInfo {
   pageCount: number;
@@ -203,38 +199,73 @@ export class PdfProcessingService {
     const cacheKey = `${fileId}_${page}_${zoom}`;
 
     // Check cache first
-    if (this.pageCache.has(cacheKey)) {
-      this.logger.log(`💾 Cache Hit - Page ${page}, Zoom ${zoom}`);
-      const cachedBuffer = this.pageCache.get(cacheKey)!;
-
-      // Get actual image dimensions from cached buffer
-      const metadata = await sharp(cachedBuffer).metadata();
-      return {
-        buffer: cachedBuffer,
-        width: metadata.width,
-        height: metadata.height,
-      };
+    const cachedResult = await this.getFromCache(cacheKey, page, zoom);
+    if (cachedResult) {
+      return cachedResult;
     }
 
     // Check if already rendering
-    if (this.renderingInProgress.has(cacheKey)) {
-      this.logger.log(
-        `⏳ Waiting for render in progress - Page ${page}, Zoom ${zoom}`,
-      );
-      return await this.renderingInProgress.get(cacheKey)!;
+    const inProgressResult = await this.getFromInProgressRender(
+      cacheKey,
+      page,
+      zoom,
+    );
+    if (inProgressResult) {
+      return inProgressResult;
     }
 
     // Start rendering
-    this.logger.log(`🔄 Cache Miss - Rendering page ${page}, zoom ${zoom}`);
+    return await this.startNewRender(fileId, page, zoom, cacheKey);
+  }
 
+  private async getFromCache(
+    cacheKey: string,
+    page: number,
+    zoom: number,
+  ): Promise<{ buffer: Buffer; width: number; height: number } | null> {
+    if (!this.pageCache.has(cacheKey)) {
+      return null;
+    }
+
+    this.logger.log(`💾 Cache Hit - Page ${page}, Zoom ${zoom}`);
+    const cachedBuffer = this.pageCache.get(cacheKey)!;
+    const metadata = await sharp(cachedBuffer).metadata();
+
+    return {
+      buffer: cachedBuffer,
+      width: metadata.width,
+      height: metadata.height,
+    };
+  }
+
+  private async getFromInProgressRender(
+    cacheKey: string,
+    page: number,
+    zoom: number,
+  ): Promise<{ buffer: Buffer; width: number; height: number } | null> {
+    if (!this.renderingInProgress.has(cacheKey)) {
+      return null;
+    }
+
+    this.logger.log(
+      `⏳ Waiting for render in progress - Page ${page}, Zoom ${zoom}`,
+    );
+    return await this.renderingInProgress.get(cacheKey)!;
+  }
+
+  private async startNewRender(
+    fileId: string,
+    page: number,
+    zoom: number,
+    cacheKey: string,
+  ): Promise<{ buffer: Buffer; width: number; height: number }> {
+    this.logger.log(`🔄 Cache Miss - Rendering page ${page}, zoom ${zoom}`);
     const renderPromise = this.doRenderPage(fileId, page, zoom, cacheKey);
     this.renderingInProgress.set(cacheKey, renderPromise);
 
     try {
-      const result = await renderPromise;
-      return result;
+      return await renderPromise;
     } finally {
-      // Clean up the in-progress tracking
       this.renderingInProgress.delete(cacheKey);
     }
   }
@@ -352,7 +383,21 @@ export class PdfProcessingService {
     dimensions: { width: number; height: number },
     cacheKey: string,
   ): Promise<{ buffer: Buffer; width: number; height: number }> {
-    const errorBuffer = await sharp({
+    const errorBuffer = await this.generateErrorTileBuffer(page, dimensions);
+    this.cacheErrorTile(cacheKey, errorBuffer, page, zoom);
+
+    return {
+      buffer: errorBuffer,
+      width: dimensions.width,
+      height: dimensions.height,
+    };
+  }
+
+  private async generateErrorTileBuffer(
+    page: number,
+    dimensions: { width: number; height: number },
+  ): Promise<Buffer> {
+    return sharp({
       create: {
         width: dimensions.width,
         height: dimensions.height,
@@ -360,26 +405,32 @@ export class PdfProcessingService {
         background: { r: 248, g: 249, b: 250 },
       },
     })
-      .composite([
-        {
-          input: Buffer.from(
-            `<svg width="${dimensions.width}" height="${dimensions.height}"><text x="50%" y="50%" text-anchor="middle" font-size="24" fill="#666">Page ${page} - Rendering Error</text></svg>`,
-          ),
-          top: 0,
-          left: 0,
-        },
-      ])
+      .composite([this.createErrorOverlay(page, dimensions)])
       .png()
       .toBuffer();
+  }
 
+  private createErrorOverlay(
+    page: number,
+    dimensions: { width: number; height: number },
+  ): { input: Buffer; top: number; left: number } {
+    return {
+      input: Buffer.from(
+        `<svg width="${dimensions.width}" height="${dimensions.height}"><text x="50%" y="50%" text-anchor="middle" font-size="24" fill="#666">Page ${page} - Rendering Error</text></svg>`,
+      ),
+      top: 0,
+      left: 0,
+    };
+  }
+
+  private cacheErrorTile(
+    cacheKey: string,
+    errorBuffer: Buffer,
+    page: number,
+    zoom: number,
+  ): void {
     this.pageCache.set(cacheKey, errorBuffer);
     this.logger.log(`🚫 Error Fallback Created - Page ${page}, Zoom ${zoom}`);
-
-    return {
-      buffer: errorBuffer,
-      width: dimensions.width,
-      height: dimensions.height,
-    };
   }
 
   public async getPdfTile(params: {
@@ -394,40 +445,15 @@ export class PdfProcessingService {
 
     try {
       const startTime = Date.now();
-      this.logger.log(
-        `🎯 Tile Request - Page: ${page}, Zoom: ${zoom}, Coords: [${x}, ${y}]`,
-      );
+      this.logTileRequest(page, zoom, x, y);
 
-      const {
-        buffer: imageBuffer,
-        width: fullWidth,
-        height: fullHeight,
-      } = await this.getOrRenderPage(fileId, page, zoom);
-
-      const tileCoords = { x: x * TILE_SIZE, y: y * TILE_SIZE };
-
-      if (this.isTileOutOfBounds(tileCoords, fullWidth, fullHeight)) {
-        return this.createBlankTile(zoom, x, y);
-      }
-
-      const extractDimensions = this.calculateExtractDimensions(
-        tileCoords,
-        fullWidth,
-        fullHeight,
-      );
-
-      if (extractDimensions.width <= 0 || extractDimensions.height <= 0) {
-        this.logger.warn(
-          `🚫 Invalid extract dimensions - Width: ${extractDimensions.width}, Height: ${extractDimensions.height}`,
-        );
-        return this.createBlankTile();
-      }
-
-      const tileBuffer = await this.extractAndProcessTile(
-        imageBuffer,
-        tileCoords,
-        extractDimensions,
-      );
+      const renderedPage = await this.getOrRenderPage(fileId, page, zoom);
+      const tileBuffer = await this.processTile({
+        renderedPage,
+        zoom,
+        x,
+        y,
+      });
 
       this.logTileCompletion({ zoom, x, y, startTime, tileBuffer });
       return tileBuffer;
@@ -437,6 +463,89 @@ export class PdfProcessingService {
         `Failed to generate PDF tile: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
+  }
+
+  private logTileRequest(
+    page: number,
+    zoom: number,
+    x: number,
+    y: number,
+  ): void {
+    this.logger.log(
+      `🎯 Tile Request - Page: ${page}, Zoom: ${zoom}, Coords: [${x}, ${y}]`,
+    );
+  }
+
+  private async processTile(params: {
+    renderedPage: { buffer: Buffer; width: number; height: number };
+    zoom: number;
+    x: number;
+    y: number;
+  }): Promise<Buffer> {
+    const { renderedPage, zoom, x, y } = params;
+    const tileCoords = this.calculateTileCoordinates(x, y);
+
+    return this.extractTileFromRenderedPage({
+      renderedPage,
+      tileCoords,
+      zoom,
+      x,
+      y,
+    });
+  }
+
+  private async extractTileFromRenderedPage(params: {
+    renderedPage: { buffer: Buffer; width: number; height: number };
+    tileCoords: { x: number; y: number };
+    zoom: number;
+    x: number;
+    y: number;
+  }): Promise<Buffer> {
+    if (
+      this.isTileOutOfBounds(
+        params.tileCoords,
+        params.renderedPage.width,
+        params.renderedPage.height,
+      )
+    ) {
+      return this.createBlankTile(params.zoom, params.x, params.y);
+    }
+
+    const extractDimensions = this.calculateExtractDimensions(
+      params.tileCoords,
+      params.renderedPage.width,
+      params.renderedPage.height,
+    );
+
+    if (!this.isValidExtractDimensions(extractDimensions)) {
+      return this.createBlankTile();
+    }
+
+    return this.extractAndProcessTile(
+      params.renderedPage.buffer,
+      params.tileCoords,
+      extractDimensions,
+    );
+  }
+
+  private calculateTileCoordinates(
+    x: number,
+    y: number,
+  ): { x: number; y: number } {
+    return { x: x * TILE_SIZE, y: y * TILE_SIZE };
+  }
+
+  private isValidExtractDimensions(dimensions: {
+    width: number;
+    height: number;
+  }): boolean {
+    if (dimensions.width <= 0 || dimensions.height <= 0) {
+      this.logger.warn(
+        `🚫 Invalid extract dimensions - Width: ${dimensions.width}, Height: ${dimensions.height}`,
+      );
+      return false;
+    }
+    return true;
   }
 
   private async getPdfBuffer(fileId: string): Promise<Buffer> {
@@ -590,7 +699,7 @@ export class PdfProcessingService {
     });
 
     if (!file) {
-      throw new NotFoundException(`File with ID ${fileId} not found`);
+      throw new FileNotFoundException(fileId);
     }
 
     if (file.mimetype !== 'application/pdf') {

@@ -480,7 +480,7 @@ fullWidth>
       <DialogTitle>Assign to Project</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>
-          Assign "{fileName}" to a project
+          Assign &quot;{fileName}&quot; to a project
         </Typography>
         <FormControl fullWidth sx={{ mt: 2 }}>
           <InputLabel id="project-move-select-label">Project</InputLabel>

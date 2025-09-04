@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { LogEntry, LogLevel } from '@prisma/client';
 import { LogsRepository } from './repositories/logs.repository';
 import {
@@ -86,7 +86,7 @@ export class LogsService {
   private validateLogLevel(level: string): LogLevel {
     const upperLevel = level.toUpperCase();
     if (!Object.values(LogLevel).includes(upperLevel as LogLevel)) {
-      throw new Error(`Invalid log level: ${level}`);
+      throw new BadRequestException(`Invalid log level: ${level}`);
     }
     return upperLevel as LogLevel;
   }

@@ -12,20 +12,20 @@ export interface ColumnCategory {
 const statusCellRenderer = 'statusRenderer';
 
 // Standard value formatter for null/undefined values
-const nullValueFormatter = (params: any) => params.value || '-';
+const nullValueFormatter = (params: { value?: unknown }): string => params.value ? String(params.value) : '-';
 
 // Date formatter for consistent date display
-const dateFormatter = (params: any) => {
+const dateFormatter = (params: { value?: string | Date }): string => {
   return params.value ? new Date(params.value).toLocaleDateString() : '-';
 };
 
 // Currency formatter for cost fields
-const currencyFormatter = (params: any) => {
+const currencyFormatter = (params: { value?: number }): string => {
   return params.value ? `$${params.value.toLocaleString()}` : '-';
 };
 
 // Number formatter with appropriate decimal places
-const numberFormatter = (params: any, decimals: number = 2) => {
+const numberFormatter = (params: { value?: number | string }, decimals: number = 2): string => {
   return params.value !== null && params.value !== undefined 
     ? Number(params.value).toFixed(decimals) 
     : '-';

@@ -14,7 +14,10 @@ import 'leaflet/dist/leaflet.css';
 import { config } from '../../config';
 
 // Fix Leaflet default marker icons in React
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+interface LeafletIconDefault extends L.Icon.Default {
+  _getIconUrl?: string;
+}
+delete (L.Icon.Default.prototype as LeafletIconDefault)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -100,7 +103,7 @@ const PDFLeafletViewer: React.FC<{ fileId: string; getPdfInfo: (fileId: string) 
   const tileUrl = `${config.api.baseUrl}/api/files/${fileId}/pdf-tiles/1/{z}/{x}/{y}.png`;
 
   // Component to auto-fit PDF on load
-  const FitBoundsOnLoad: React.FC<{ bounds: any }> = ({ bounds }) => {
+  const FitBoundsOnLoad: React.FC<{ bounds: L.LatLngBoundsExpression }> = ({ bounds }) => {
     const map = useMapEvents({});
     
     React.useEffect(() => {

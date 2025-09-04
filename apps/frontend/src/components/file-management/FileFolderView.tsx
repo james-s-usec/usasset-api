@@ -178,7 +178,7 @@ export const FileFolderView: React.FC<FileFolderViewProps> = ({
 }) => {
   // Group files by folder and project
   const groupedData = React.useMemo(() => {
-    const groups = new Map<string, { type: 'project' | 'folder' | 'unorganized', data: any, files: FileData[] }>();
+    const groups = new Map<string, { type: 'project' | 'folder' | 'unorganized', data: Project | Folder | null, files: FileData[] }>();
     
     // Initialize groups
     projects.forEach(project => {
@@ -240,12 +240,12 @@ export const FileFolderView: React.FC<FileFolderViewProps> = ({
     setExpandedPanels(newExpanded);
   };
 
-  const getGroupTitle = (type: string, data: any) => {
+  const getGroupTitle = (type: string, data: Project | Folder | null): string => {
     switch (type) {
       case 'project':
-        return data.name;
+        return data ? (data as Project).name : 'Unknown Project';
       case 'folder':
-        return data.name;
+        return data ? (data as Folder).name : 'Unknown Folder';
       case 'unorganized':
         return 'Unorganized Files';
       default:
@@ -253,12 +253,12 @@ export const FileFolderView: React.FC<FileFolderViewProps> = ({
     }
   };
 
-  const getGroupIcon = (type: string, data: any) => {
+  const getGroupIcon = (type: string, data: Project | Folder | null): React.ReactElement => {
     switch (type) {
       case 'project':
         return <ProjectIcon color="primary" />;
       case 'folder':
-        return expandedPanels.has(`folder-${data.id}`) ? 
+        return data && expandedPanels.has(`folder-${data.id}`) ? 
           <FolderOpenIcon color="primary" /> : 
           <FolderIcon color="primary" />;
       case 'unorganized':
@@ -331,7 +331,7 @@ export const FileFolderView: React.FC<FileFolderViewProps> = ({
                       width: 12,
                       height: 12,
                       borderRadius: 1,
-                      bgcolor: group.data.color || '#gray',
+                      bgcolor: (group.type === 'folder' && group.data && 'color' in group.data ? (group.data as Folder).color : '#gray'),
                       ml: 1,
                     }}
                   />
