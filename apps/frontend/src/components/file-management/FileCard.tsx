@@ -36,13 +36,13 @@ const MIMETYPE_LABELS: Record<string, string> = {
 // Check mimetype patterns
 const getMimetypePattern = (mimetype: string): string => {
   const patterns = [
-    { check: (m: string) => m.includes("wordprocessingml.document"), label: "DOCX" },
-    { check: (m: string) => m.includes("presentationml.presentation"), label: "PPTX" },
-    { check: (m: string) => m.includes("spreadsheetml.sheet"), label: "XLSX" },
-    { check: (m: string) => m.includes("csv"), label: "CSV" },
-    { check: (m: string) => m.startsWith("image/jpeg"), label: "JPEG" },
-    { check: (m: string) => m.startsWith("image/png"), label: "PNG" },
-    { check: (m: string) => m.startsWith("image/"), label: "Image" },
+    { check: (m: string): boolean => m.includes("wordprocessingml.document"), label: "DOCX" },
+    { check: (m: string): boolean => m.includes("presentationml.presentation"), label: "PPTX" },
+    { check: (m: string): boolean => m.includes("spreadsheetml.sheet"), label: "XLSX" },
+    { check: (m: string): boolean => m.includes("csv"), label: "CSV" },
+    { check: (m: string): boolean => m.startsWith("image/jpeg"), label: "JPEG" },
+    { check: (m: string): boolean => m.startsWith("image/png"), label: "PNG" },
+    { check: (m: string): boolean => m.startsWith("image/"), label: "Image" },
   ];
   
   const match = patterns.find(p => p.check(mimetype));
@@ -142,7 +142,8 @@ const FileActions: React.FC<{
     <IconButton size="small" onClick={() => onDownload(file.id)} title="Download">
       <DownloadIcon fontSize="small" />
     </IconButton>
-    <IconButton size="small" color="error" onClick={() => onDelete(file.id, file.original_name)} title="Delete">
+    <IconButton size="small" color="error" onClick={() => onDelete(file.id, file.original_name)}
+title="Delete">
       <DeleteIcon fontSize="small" />
     </IconButton>
   </Box>

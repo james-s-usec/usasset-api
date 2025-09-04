@@ -68,7 +68,7 @@ interface BulkActionHandlerParams {
 const createHandlerParams = (
   params: BulkActionHandlerParams,
   type: 'project' | 'folder' | 'delete'
-): any => {
+): Record<string, unknown> => {
   const base = {
     selectedFiles: params.selectedFiles,
     handlers: params.handlers,

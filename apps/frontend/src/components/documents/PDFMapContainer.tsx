@@ -20,12 +20,25 @@ interface PDFMapContainerProps {
 }
 
 // Helper to create map props
+interface MapProps {
+  crs: L.CRS;
+  center: [number, number];
+  zoom: number;
+  minZoom: number;
+  maxZoom: number;
+  bounds: LatLngBounds;
+  maxBounds: LatLngBounds;
+  style: { width: string; height: string };
+  zoomControl: boolean;
+  attributionControl: boolean;
+}
+
 const getMapProps = (
   logicalWidth: number, 
   logicalHeight: number, 
   bounds: LatLngBounds,
   maxZoom: number
-): any => ({
+): MapProps => ({
   crs: createPDFCRS(logicalWidth, logicalHeight),
   center: [logicalHeight / 2, logicalWidth / 2] as [number, number],
   zoom: 1,

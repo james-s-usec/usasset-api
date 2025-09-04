@@ -5,6 +5,7 @@ import {
   Typography,
   IconButton,
 } from '@mui/material';
+import type { SxProps, Theme } from '@mui/material/styles';
 import {
   SelectAll as SelectAllIcon,
   CheckBox as CheckBoxIcon,
@@ -62,40 +63,55 @@ const ActionButtons: React.FC<{
   </Box>
 );
 
-export const BulkActionsHeader: React.FC<BulkActionsHeaderProps> = ({
-  selectedCount,
-  totalCount,
-  allSelected,
-  someSelected,
-  onSelectAll,
-  onClearSelection,
-  onProjectClick,
-  onFolderClick,
-  onDeleteClick,
-}) => (
-  <Box sx={{ 
-    position: 'sticky', 
-    top: 0, 
-    zIndex: 10, 
-    bgcolor: 'primary.main',
-    color: 'primary.contrastText',
-    borderRadius: 1,
-    mb: 1,
-  }}>
-    <Toolbar variant="dense" sx={{ minHeight: 48 }}>
-      <SelectionToggleButton
-        allSelected={allSelected}
-        someSelected={someSelected}
-        onSelectAll={onSelectAll}
-      />
-      <SelectionCounter selectedCount={selectedCount} totalCount={totalCount} />
-      <Box sx={{ flexGrow: 1 }} />
-      <ActionButtons
-        onProjectClick={onProjectClick}
-        onFolderClick={onFolderClick}
-        onDeleteClick={onDeleteClick}
-        onClearSelection={onClearSelection}
-      />
-    </Toolbar>
+// Styling for the sticky header container
+const getHeaderContainerStyles = (): SxProps<Theme> => ({
+  position: 'sticky',
+  top: 0,
+  zIndex: 10,
+  bgcolor: 'primary.main',
+  color: 'primary.contrastText',
+  borderRadius: 1,
+  mb: 1,
+});
+
+// Props interface for HeaderToolbar to reduce inline type definition
+interface HeaderToolbarProps {
+  allSelected: boolean;
+  someSelected: boolean;
+  selectedCount: number;
+  totalCount: number;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
+  onProjectClick: () => void;
+  onFolderClick: () => void;
+  onDeleteClick: () => void;
+}
+
+// Main toolbar content with selection controls and actions
+const HeaderToolbar: React.FC<HeaderToolbarProps> = (props) => (
+  <Toolbar variant="dense" sx={{ minHeight: 48 }}>
+    <SelectionToggleButton
+      allSelected={props.allSelected}
+      someSelected={props.someSelected}
+      onSelectAll={props.onSelectAll}
+    />
+    <SelectionCounter 
+      selectedCount={props.selectedCount} 
+      totalCount={props.totalCount} 
+    />
+    <Box sx={{ flexGrow: 1 }} />
+    <ActionButtons
+      onProjectClick={props.onProjectClick}
+      onFolderClick={props.onFolderClick}
+      onDeleteClick={props.onDeleteClick}
+      onClearSelection={props.onClearSelection}
+    />
+  </Toolbar>
+);
+
+// Main component - now just handles composition
+export const BulkActionsHeader: React.FC<BulkActionsHeaderProps> = (props) => (
+  <Box sx={getHeaderContainerStyles()}>
+    <HeaderToolbar {...props} />
   </Box>
 );

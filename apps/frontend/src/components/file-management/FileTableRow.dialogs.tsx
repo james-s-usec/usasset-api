@@ -188,7 +188,8 @@ export const FolderMoveDialog: React.FC<FolderMoveDialogProps> = ({
   const { selectedFolderId, setSelectedFolderId, moving, handleMove } = useFolderMove(open, currentFolder);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm"
+fullWidth>
       <DialogTitle>Move File</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -267,7 +268,8 @@ export const ProjectMoveDialog: React.FC<ProjectMoveDialogProps> = ({
   const { selectedProjectId, setSelectedProjectId, moving, handleMove } = useProjectMove(open, currentProject);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm"
+fullWidth>
       <DialogTitle>Assign to Project</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>

@@ -52,18 +52,67 @@ const createDialogHandlers = (
 });
 
 // Type-safe dialog sections
-type DialogSectionProps = any;
+interface BaseDialogProps {
+  selectedFileNames: string[];
+  selectedCount: number;
+  loading: boolean;
+}
 
-const ProjectDialogSection: React.FC<DialogSectionProps> = (props) => (
+const ProjectDialogSection: React.FC<BaseDialogProps> = (props) => (
   <BulkProjectDialog {...props} />
 );
 
-const FolderDialogSection: React.FC<DialogSectionProps> = (props) => (
+const FolderDialogSection: React.FC<BaseDialogProps> = (props) => (
   <BulkFolderDialog {...props} />
 );
 
-const DeleteDialogSection: React.FC<DialogSectionProps> = (props) => (
+const DeleteDialogSection: React.FC<BaseDialogProps> = (props) => (
   <BulkDeleteDialog {...props} />
+);
+
+// Render all three dialogs
+const DialogsContainer: React.FC<{
+  dialogs: DialogState;
+  selected: SelectedState;
+  loading: boolean;
+  projects: Project[];
+  folders: Folder[];
+  selectedCount: number;
+  handlers: DialogHandlers;
+  baseProps: BaseDialogProps;
+  handleBulkAssignProject: () => Promise<void>;
+  handleBulkMoveToFolder: () => Promise<void>;
+  handleBulkDelete: () => Promise<void>;
+}> = ({ 
+  dialogs, selected, projects, folders, handlers, baseProps,
+  handleBulkAssignProject, handleBulkMoveToFolder, handleBulkDelete 
+}) => (
+  <>
+    <ProjectDialogSection
+      {...baseProps}
+      open={dialogs.project}
+      onClose={handlers.closeProject}
+      onConfirm={handleBulkAssignProject}
+      selectedProjectId={selected.projectId}
+      onProjectChange={handlers.setProjectId}
+      projects={projects}
+    />
+    <FolderDialogSection
+      {...baseProps}
+      open={dialogs.folder}
+      onClose={handlers.closeFolder}
+      onConfirm={handleBulkMoveToFolder}
+      selectedFolderId={selected.folderId}
+      onFolderChange={handlers.setFolderId}
+      folders={folders}
+    />
+    <DeleteDialogSection
+      {...baseProps}
+      open={dialogs.delete}
+      onClose={handlers.closeDelete}
+      onConfirm={handleBulkDelete}
+    />
+  </>
 );
 
 // Main component - now under 30 lines
@@ -77,31 +126,18 @@ export const BulkActionsDialogs: React.FC<BulkActionsDialogsProps> = (props) => 
   const baseProps = { selectedFileNames: fileNames, selectedCount, loading };
 
   return (
-    <>
-      <ProjectDialogSection
-        {...baseProps}
-        open={dialogs.project}
-        onClose={handlers.closeProject}
-        onConfirm={handleBulkAssignProject}
-        selectedProjectId={selected.projectId}
-        onProjectChange={handlers.setProjectId}
-        projects={projects}
-      />
-      <FolderDialogSection
-        {...baseProps}
-        open={dialogs.folder}
-        onClose={handlers.closeFolder}
-        onConfirm={handleBulkMoveToFolder}
-        selectedFolderId={selected.folderId}
-        onFolderChange={handlers.setFolderId}
-        folders={folders}
-      />
-      <DeleteDialogSection
-        {...baseProps}
-        open={dialogs.delete}
-        onClose={handlers.closeDelete}
-        onConfirm={handleBulkDelete}
-      />
-    </>
+    <DialogsContainer
+      dialogs={dialogs}
+      selected={selected}
+      loading={loading}
+      projects={projects}
+      folders={folders}
+      selectedCount={selectedCount}
+      handlers={handlers}
+      baseProps={baseProps}
+      handleBulkAssignProject={handleBulkAssignProject}
+      handleBulkMoveToFolder={handleBulkMoveToFolder}
+      handleBulkDelete={handleBulkDelete}
+    />
   );
 };

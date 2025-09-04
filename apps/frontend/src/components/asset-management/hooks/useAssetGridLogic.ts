@@ -8,7 +8,7 @@ interface UseAssetGridLogicProps {
   onDelete: (id: string) => Promise<void>;
 }
 
-export const useAssetGridLogic = ({ onEdit, onDelete }: UseAssetGridLogicProps) => {
+export const useAssetGridLogic = ({ onEdit, onDelete }: UseAssetGridLogicProps): { columnDefs: ColDef[]; components: { actionsRenderer: (params: ICellRendererParams) => React.ReactElement; statusRenderer: (params: ICellRendererParams) => React.ReactElement }; onGridReady: (params: GridReadyEvent) => void } => {
   const actionsCellRenderer = useActionsCellRenderer({ onEdit, onDelete });
   const statusCellRenderer = useStatusCellRenderer();
   const components = useGridComponents(actionsCellRenderer, statusCellRenderer);
