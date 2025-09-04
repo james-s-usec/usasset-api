@@ -20,21 +20,9 @@ import {
   LastPage,
   FitScreen,
 } from '@mui/icons-material';
-// Leaflet dependencies not available - PDF viewer disabled
-// import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
-// import L, { CRS, LatLngBounds } from 'leaflet';
-// import 'leaflet/dist/leaflet.css';
-
-// Stub types for build
-const L: any = { 
-  extend: () => ({}), 
-  Transformation: class {},
-  latLngBounds: () => ({})
-};
-const CRS: any = { Simple: {} };
-const MapContainer: any = () => null;
-const TileLayer: any = () => null;
-const useMapEvents: any = () => ({});
+import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
+import L, { CRS, LatLngBounds } from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { config } from '../../config';
 
 interface PDFViewerProps {
@@ -119,6 +107,13 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
       }
     });
     
+    // Fit bounds on initial load for better mobile experience
+    React.useEffect(() => {
+      if (pdfInfo && bounds) {
+        map.fitBounds(bounds);
+      }
+    }, [pdfInfo, bounds, map]);
+    
     // Sync zoom when our state changes
     React.useEffect(() => {
       if (map.getZoom() !== zoom) {
@@ -150,10 +145,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
   // Use logical PDF dimensions (divide backend 4x scale back to original)
   const logicalWidth = pdfInfo.dimensions.width / 4;
   const logicalHeight = pdfInfo.dimensions.height / 4;
-  const bounds = L.latLngBounds([0, 0], [logicalHeight, logicalWidth]);
+  const bounds = new LatLngBounds([0, 0], [logicalHeight, logicalWidth]);
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ 
+      height: { 
+        xs: '100dvh', // Dynamic viewport height for mobile
+        sm: '100vh'   // Standard viewport height for desktop
+      }, 
+      display: 'flex', 
+      flexDirection: 'column' 
+    }}>
       {/* Toolbar */}
       <Paper elevation={2}>
         <Toolbar sx={{ gap: 2 }}>
@@ -225,7 +227,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileId, fileName }) => {
         <MapContainer
           crs={createPDFCRS(logicalWidth, logicalHeight)}
           center={[logicalHeight / 2, logicalWidth / 2]}
-          zoom={0}
+          zoom={1}
           minZoom={0}
           maxZoom={pdfInfo.maxZoom}
           bounds={bounds}
