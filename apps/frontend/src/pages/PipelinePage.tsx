@@ -41,8 +41,7 @@ const useFileSelection = (): {
 };
 
 const useImportProcess = (
-  selectedFile: string | null, 
-  onFileSelect: (fileId: string, fileName?: string) => void
+  selectedFile: string | null
 ): {
   currentJobId: string | null;
   importError: string | null;
@@ -92,7 +91,7 @@ const usePipelineState = (): {
   onStartImport: () => Promise<void>;
 } => {
   const fileSelection = useFileSelection();
-  const importProcess = useImportProcess(fileSelection.selectedFile, fileSelection.onFileSelect);
+  const importProcess = useImportProcess(fileSelection.selectedFile);
 
   return { ...fileSelection, ...importProcess };
 };

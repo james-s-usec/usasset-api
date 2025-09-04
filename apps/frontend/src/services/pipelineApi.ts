@@ -9,7 +9,7 @@ export interface FileInfo {
 
 export interface JobStatus {
   id: string;
-  status: string;
+  status: 'PENDING' | 'RUNNING' | 'STAGED' | 'APPROVED' | 'COMPLETED' | 'FAILED';
   progress?: {
     total: number;
     processed: number;
@@ -54,6 +54,49 @@ export const pipelineApi = {
 
   getStagedData: async (jobId: string): Promise<StagedDataResponse> => {
     const response = await apiService.get<{ success: boolean; data: StagedDataResponse }>(`/api/pipeline/staging/${jobId}`);
+    return response.data;
+  },
+
+  previewFile: async (fileId: string): Promise<{ data: Record<string, string>[]; columns: string[]; totalRows: number }> => {
+    console.log(`[PipelineAPI] Fetching preview for file: ${fileId}`);
+    const response = await apiService.get<{ success: boolean; data: { data: Record<string, string>[]; columns: string[]; totalRows: number } }>(`/api/pipeline/preview/${fileId}`);
+    console.log('[PipelineAPI] Preview data:', response.data);
+    return response.data;
+  },
+
+  approveImport: async (jobId: string): Promise<{ message: string; importedCount: number }> => {
+    console.log(`[PipelineAPI] Approving import for job: ${jobId}`);
+    const response = await apiService.post<{ success: boolean; data: { message: string; importedCount: number } }>(`/api/pipeline/approve/${jobId}`);
+    console.log('[PipelineAPI] Approve response:', response);
+    return response.data;
+  },
+
+  rejectImport: async (jobId: string): Promise<{ message: string; clearedCount: number }> => {
+    console.log(`[PipelineAPI] Rejecting import for job: ${jobId}`);
+    const response = await apiService.post<{ success: boolean; data: { message: string; clearedCount: number } }>(`/api/pipeline/reject/${jobId}`);
+    console.log('[PipelineAPI] Reject response:', response);
+    return response.data;
+  },
+
+  validateFile: async (fileId: string): Promise<{
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    errors: string[];
+    sampleValidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }>;
+    sampleInvalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }>;
+  }> => {
+    console.log(`[PipelineAPI] Validating file: ${fileId}`);
+    const response = await apiService.post<{ success: boolean; data: any }>(`/api/pipeline/validate/${fileId}`);
+    console.log('[PipelineAPI] Validation response:', response.data);
     return response.data;
   },
 };

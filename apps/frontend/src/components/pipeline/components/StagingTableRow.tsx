@@ -46,7 +46,9 @@ export const StagingTableRow: React.FC<StagingTableRowProps> = ({
     </TableCell>
     {columns.map(col => (
       <TableCell key={col}>
-        {row.mappedData?.[col] || '-'}
+        {row.mappedData?.[col] !== undefined && row.mappedData?.[col] !== null 
+          ? String(row.mappedData[col]) 
+          : '-'}
       </TableCell>
     ))}
   </TableRow>

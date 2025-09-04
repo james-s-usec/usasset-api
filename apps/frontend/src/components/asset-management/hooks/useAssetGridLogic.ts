@@ -12,7 +12,7 @@ interface UseAssetGridLogicProps {
 export interface UseAssetGridLogicResult {
   columnDefs: ColDef[];
   components: {
-    actionsRenderer: (params: ICellRendererParams) => React.ReactElement;
+    actionsRenderer: (params: ICellRendererParams<Asset>) => React.ReactElement;
     statusRenderer: (params: ICellRendererParams) => React.ReactElement;
   };
   onGridReady: (params: GridReadyEvent) => void;

@@ -7,12 +7,18 @@ interface LoadPhaseProps {
   jobStatus: JobStatus | null;
   onApprove: () => void;
   onReject: () => void;
+  onStartNewImport?: () => void;
+  isProcessing?: boolean;
+  showNewImportOnly?: boolean;
 }
 
 export const LoadPhase: React.FC<LoadPhaseProps> = ({
   jobStatus,
   onApprove,
   onReject,
+  onStartNewImport,
+  isProcessing = false,
+  showNewImportOnly = false,
 }) => (
   <Card sx={{ mb: 3 }}>
     <CardContent>
@@ -20,13 +26,16 @@ export const LoadPhase: React.FC<LoadPhaseProps> = ({
         Phase 3: LOAD
       </Typography>
       <Typography variant="body2" color="text.secondary" gutterBottom>
-        Review staged data and decide to import or reject
+        {showNewImportOnly ? 'Import completed - ready for next file' : 'Review staged data and decide to import or reject'}
       </Typography>
       
       <LoadPhaseActions 
         jobStatus={jobStatus}
         onApprove={onApprove}
         onReject={onReject}
+        onStartNewImport={onStartNewImport}
+        isProcessing={isProcessing}
+        showNewImportOnly={showNewImportOnly}
       />
     </CardContent>
   </Card>

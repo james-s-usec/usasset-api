@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, Typography, Alert, Divider } from '@mui/material';
 import { StagingDataPreview } from '../StagingDataPreview';
+import { TransformRules } from '../rules/TransformRules';
 import type { JobStatus } from '../types';
 
 interface TransformPhaseProps {
@@ -20,6 +21,8 @@ export const TransformPhase: React.FC<TransformPhaseProps> = ({
       <Typography variant="body2" color="text.secondary" gutterBottom>
         Validate and transform data for staging
       </Typography>
+      
+      <TransformRules />
       
       {jobStatus?.status === 'RUNNING' && (
         <Alert severity="info" sx={{ mt: 2 }}>

@@ -1,4 +1,4 @@
-import { JobStatus } from '../types';
+import type { JobStatus } from '../types';
 
 export const PIPELINE_STEPS = [
   { label: 'Extract', description: 'Select source file' },

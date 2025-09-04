@@ -2,7 +2,28 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AzureBlobStorageService } from '../files/services/azure-blob-storage.service';
 import { CsvParserService } from './services/csv-parser.service';
 import { PrismaService } from '../database/prisma.service';
-import { ImportJob, JobStatus as PrismaJobStatus } from '@prisma/client';
+import {
+  JobStatus as PrismaJobStatus,
+  AssetStatus,
+  AssetCondition,
+  Prisma,
+} from '@prisma/client';
+
+// Constants to eliminate magic numbers
+const CONSTANTS = {
+  HEADER_ROW_OFFSET: 2,
+  MAX_STRING_LENGTH: 200,
+  MAX_PREVIEW_STRING_LENGTH: 100,
+  PREVIEW_ROWS_LIMIT: 10,
+  VALIDATION_SAMPLE_SIZE: 50,
+  MAX_SAMPLE_ITEMS: 5,
+  MAX_ERROR_DISPLAY: 20,
+  DEFAULT_CLEANUP_HOURS: 24,
+  SECONDS_PER_MINUTE: 60,
+  MINUTES_PER_HOUR: 60,
+  MILLISECONDS_PER_SECOND: 1000,
+  MILLISECONDS_PER_HOUR: 60 * 60 * 1000, // 60 seconds * 60 minutes * 1000ms
+} as const;
 
 interface FileInfo {
   id: string;
@@ -19,6 +40,29 @@ interface JobStatus {
     processed: number;
   };
   errors?: string[];
+}
+
+interface MappedAssetData {
+  assetTag: string;
+  name: string;
+  description?: string;
+  buildingName?: string;
+  floor?: string;
+  room?: string;
+  status?: string;
+  conditionAssessment?: string;
+  manufacturer?: string;
+  modelNumber?: string;
+  serialNumber?: string;
+}
+
+interface StagedDataRowResponse {
+  rowNumber: number;
+  isValid: boolean;
+  willImport: boolean;
+  rawData: Record<string, unknown>;
+  mappedData: Record<string, unknown>;
+  errors: string[] | null;
 }
 
 @Injectable()
@@ -66,113 +110,157 @@ export class PipelineService {
     return job.id;
   }
 
+  private async updateJobStatus(
+    jobId: string,
+    status: PrismaJobStatus,
+    errors?: string[],
+  ): Promise<void> {
+    await this.prisma.importJob.update({
+      where: { id: jobId },
+      data: {
+        status,
+        errors,
+        completed_at: status !== 'RUNNING' ? new Date() : undefined,
+      },
+    });
+  }
+
+  private validateAssetData(assetData: MappedAssetData): string[] {
+    const validationErrors: string[] = [];
+
+    if (!assetData.assetTag) {
+      validationErrors.push('Missing required field: Asset Tag');
+    }
+    if (!assetData.name) {
+      validationErrors.push('Missing required field: Name');
+    }
+
+    return validationErrors;
+  }
+
+  private createStagingRecord(
+    jobId: string,
+    rowIndex: number,
+    row: Record<string, string>,
+    assetData: MappedAssetData,
+    validationErrors: string[],
+  ): Prisma.StagingAssetCreateManyInput {
+    const isValid = validationErrors.length === 0;
+    // Truncate large raw data values to prevent memory issues
+    const truncatedRow: Record<string, string> = {};
+    for (const [key, value] of Object.entries(row)) {
+      truncatedRow[key] =
+        typeof value === 'string' && value.length > CONSTANTS.MAX_STRING_LENGTH
+          ? value.substring(0, CONSTANTS.MAX_STRING_LENGTH) + '...'
+          : value;
+    }
+
+    return {
+      import_job_id: jobId,
+      row_number: rowIndex + CONSTANTS.HEADER_ROW_OFFSET,
+      raw_data: truncatedRow as unknown as Prisma.InputJsonValue,
+      mapped_data: assetData as unknown as Prisma.InputJsonValue,
+      validation_errors:
+        validationErrors.length > 0
+          ? (validationErrors as Prisma.InputJsonValue)
+          : undefined,
+      is_valid: isValid,
+      will_import: isValid,
+    };
+  }
+
+  private async processCsvRows(
+    jobId: string,
+    rows: Record<string, string>[],
+  ): Promise<{
+    stagingAssets: Prisma.StagingAssetCreateManyInput[];
+    errors: string[];
+    processedCount: number;
+  }> {
+    const errors: string[] = [];
+    const stagingAssets: Prisma.StagingAssetCreateManyInput[] = [];
+    let processedCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+
+      try {
+        const assetData = this.mapRowToAsset(row);
+        const validationErrors = this.validateAssetData(assetData);
+        const stagingRecord = this.createStagingRecord(
+          jobId,
+          i,
+          row,
+          assetData,
+          validationErrors,
+        );
+
+        stagingAssets.push(stagingRecord);
+
+        if (validationErrors.length === 0) {
+          processedCount++;
+        } else {
+          errors.push(
+            `Row ${i + CONSTANTS.HEADER_ROW_OFFSET}: ${validationErrors.join(', ')}`,
+          );
+        }
+      } catch (error) {
+        errors.push(
+          `Row ${i + CONSTANTS.HEADER_ROW_OFFSET}: Failed to process - ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+      }
+    }
+
+    return { stagingAssets, errors, processedCount };
+  }
+
   private async processImport(jobId: string, fileId: string): Promise<void> {
     try {
-      // Update job status to running
-      await this.prisma.importJob.update({
-        where: { id: jobId },
-        data: { status: 'RUNNING' },
-      });
+      await this.updateJobStatus(jobId, PrismaJobStatus.RUNNING);
 
-      // Parse the CSV
       const parseResult = await this.csvParser.parseFileFromBlob(fileId);
 
       if (parseResult.errors.length > 0 && parseResult.rows.length === 0) {
-        // Complete failure
-        await this.prisma.importJob.update({
-          where: { id: jobId },
-          data: {
-            status: 'FAILED',
-            errors: parseResult.errors,
-            completed_at: new Date(),
-          },
-        });
+        await this.updateJobStatus(
+          jobId,
+          PrismaJobStatus.FAILED,
+          parseResult.errors,
+        );
         return;
       }
 
-      // Process rows into staging table
-      let processedCount = 0;
-      const errors: string[] = [...parseResult.errors];
-      const stagingAssets = [];
+      const { stagingAssets, errors, processedCount } =
+        await this.processCsvRows(jobId, parseResult.rows);
+      const allErrors = [...parseResult.errors, ...errors];
 
-      for (let i = 0; i < parseResult.rows.length; i++) {
-        const row = parseResult.rows[i];
-        try {
-          // Basic field mapping - will be configurable in future phases
-          const assetData = this.mapRowToAsset(row);
-
-          // Validate required fields
-          const validationErrors = [];
-          if (!assetData.assetTag) {
-            validationErrors.push('Missing required field: Asset Tag');
-          }
-          if (!assetData.name) {
-            validationErrors.push('Missing required field: Name');
-          }
-
-          const isValid = validationErrors.length === 0;
-
-          // Create staging record
-          stagingAssets.push({
-            import_job_id: jobId,
-            row_number: i + 2, // +2 because row 1 is headers, arrays are 0-indexed
-            raw_data: row,
-            mapped_data: assetData,
-            validation_errors:
-              validationErrors.length > 0 ? validationErrors : undefined,
-            is_valid: isValid,
-            will_import: isValid, // Default to true if valid
-          });
-
-          if (isValid) {
-            processedCount++;
-          } else {
-            errors.push(`Row ${i + 2}: ${validationErrors.join(', ')}`);
-          }
-        } catch (error) {
-          errors.push(
-            `Row ${i + 2}: Failed to process - ${error instanceof Error ? error.message : 'Unknown error'}`,
-          );
-        }
-      }
-
-      // Bulk insert to staging table
       if (stagingAssets.length > 0) {
-        await this.prisma.stagingAsset.createMany({
-          data: stagingAssets,
-        });
+        await this.prisma.stagingAsset.createMany({ data: stagingAssets });
       }
 
-      // Update job with STAGED status for review
       await this.prisma.importJob.update({
         where: { id: jobId },
         data: {
-          status: 'STAGED',
+          status: PrismaJobStatus.STAGED,
           total_rows: parseResult.rows.length,
           processed_rows: processedCount,
           error_rows: parseResult.rows.length - processedCount,
-          errors: errors,
+          errors: allErrors,
           completed_at: new Date(),
         },
       });
     } catch (error) {
       this.logger.error(`Import job ${jobId} failed:`, error);
-      await this.prisma.importJob.update({
-        where: { id: jobId },
-        data: {
-          status: 'FAILED',
-          errors: [error instanceof Error ? error.message : 'Unknown error'],
-          completed_at: new Date(),
-        },
-      });
+      await this.updateJobStatus(jobId, PrismaJobStatus.FAILED, [
+        error instanceof Error ? error.message : 'Unknown error',
+      ]);
     }
   }
 
-  private mapRowToAsset(row: Record<string, string>): any {
+  private mapRowToAsset(row: Record<string, string>): MappedAssetData {
     // Simple mapping - will be enhanced with configurable rules in future phases
     return {
-      assetTag: row['Asset ID'] || row['Asset Tag'] || row['ID'],
-      name: row['Name'] || row['Asset Name'],
+      assetTag: row['Asset ID'] || row['Asset Tag'] || row['ID'] || '',
+      name: row['Name'] || row['Asset Name'] || '',
       description: row['Description'],
       buildingName: row['Building'],
       floor: row['Floor'],
@@ -207,8 +295,41 @@ export class PipelineService {
     };
   }
 
+  public async previewCsvFile(fileId: string): Promise<{
+    data: Record<string, string>[];
+    columns: string[];
+    totalRows: number;
+  }> {
+    // Parse CSV to get preview - limit to first 100 rows to prevent memory issues
+    const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+
+    // Limit preview to first few rows and truncate long values
+    const previewData = parseResult.rows
+      .slice(0, CONSTANTS.PREVIEW_ROWS_LIMIT)
+      .map((row) => {
+        const truncatedRow: Record<string, string> = {};
+        for (const [key, value] of Object.entries(row)) {
+          // Truncate long values to prevent memory issues
+          truncatedRow[key] =
+            typeof value === 'string' &&
+            value.length > CONSTANTS.MAX_PREVIEW_STRING_LENGTH
+              ? value.substring(0, CONSTANTS.MAX_PREVIEW_STRING_LENGTH) + '...'
+              : value;
+        }
+        return truncatedRow;
+      });
+
+    const columns = previewData.length > 0 ? Object.keys(previewData[0]) : [];
+
+    return {
+      data: previewData,
+      columns,
+      totalRows: parseResult.rows.length,
+    };
+  }
+
   public async getStagedData(jobId: string): Promise<{
-    data: any[];
+    data: StagedDataRowResponse[];
     validCount: number;
     invalidCount: number;
   }> {
@@ -231,12 +352,302 @@ export class PipelineService {
         rowNumber: asset.row_number,
         isValid: asset.is_valid,
         willImport: asset.will_import,
-        rawData: asset.raw_data,
-        mappedData: asset.mapped_data,
-        errors: asset.validation_errors,
+        rawData: asset.raw_data as Record<string, unknown>,
+        mappedData: asset.mapped_data as Record<string, unknown>,
+        errors: asset.validation_errors as string[] | null,
       })),
       validCount,
       invalidCount,
+    };
+  }
+
+  public async approveImport(jobId: string): Promise<{
+    message: string;
+    importedCount: number;
+  }> {
+    // Get all valid staged assets
+    const stagedAssets = await this.prisma.stagingAsset.findMany({
+      where: {
+        import_job_id: jobId,
+        is_valid: true,
+        will_import: true,
+      },
+    });
+
+    if (stagedAssets.length === 0) {
+      return {
+        message: 'No valid assets to import',
+        importedCount: 0,
+      };
+    }
+
+    // Create assets from staged data
+    const assets = stagedAssets.map((staged) => {
+      const data = staged.mapped_data as unknown as MappedAssetData;
+      return {
+        assetTag: data.assetTag || `IMPORT-${staged.row_number}`,
+        name: data.name || 'Unnamed Asset',
+        description: data.description || null,
+        buildingName: data.buildingName || null,
+        floor: data.floor || null,
+        roomNumber: data.room || null, // Fixed: use roomNumber field
+        status: (data.status as AssetStatus) || AssetStatus.ACTIVE,
+        condition:
+          (data.conditionAssessment as AssetCondition) || AssetCondition.GOOD, // Fixed: use condition field
+        manufacturer: data.manufacturer || null,
+        modelNumber: data.modelNumber || null,
+        serialNumber: data.serialNumber || null,
+      };
+    });
+
+    // Bulk insert assets
+    const result = await this.prisma.asset.createMany({
+      data: assets,
+      skipDuplicates: true, // Skip if asset_tag already exists
+    });
+
+    // Update job status to COMPLETED
+    await this.prisma.importJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'COMPLETED',
+        completed_at: new Date(),
+      },
+    });
+
+    // Clear staging data after successful import
+    await this.prisma.stagingAsset.deleteMany({
+      where: { import_job_id: jobId },
+    });
+
+    this.logger.log(
+      `Approved import job ${jobId}: ${result.count} assets imported`,
+    );
+
+    return {
+      message: `Successfully imported ${result.count} assets`,
+      importedCount: result.count,
+    };
+  }
+
+  public async rejectImport(jobId: string): Promise<{
+    message: string;
+    clearedCount: number;
+  }> {
+    // Clear staging data
+    const deleted = await this.prisma.stagingAsset.deleteMany({
+      where: { import_job_id: jobId },
+    });
+
+    // Update job status to FAILED
+    await this.prisma.importJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'FAILED',
+        errors: ['Import rejected by user'],
+        completed_at: new Date(),
+      },
+    });
+
+    this.logger.log(
+      `Rejected import job ${jobId}: ${deleted.count} staging records cleared`,
+    );
+
+    return {
+      message: `Import rejected. ${deleted.count} staging records cleared`,
+      clearedCount: deleted.count,
+    };
+  }
+
+  public async cleanupOldJobs(
+    olderThanHours: number = CONSTANTS.DEFAULT_CLEANUP_HOURS,
+  ): Promise<{
+    message: string;
+    jobsDeleted: number;
+    stagingRecordsDeleted: number;
+  }> {
+    const cutoffDate = new Date(
+      Date.now() - olderThanHours * CONSTANTS.MILLISECONDS_PER_HOUR,
+    );
+
+    // Find old completed/failed jobs
+    const oldJobs = await this.prisma.importJob.findMany({
+      where: {
+        completed_at: {
+          lt: cutoffDate,
+        },
+        status: {
+          in: ['COMPLETED', 'FAILED'],
+        },
+      },
+      select: { id: true },
+    });
+
+    if (oldJobs.length === 0) {
+      return {
+        message: 'No old jobs to cleanup',
+        jobsDeleted: 0,
+        stagingRecordsDeleted: 0,
+      };
+    }
+
+    const jobIds = oldJobs.map((job) => job.id);
+
+    // Delete staging records first (foreign key constraint)
+    const stagingDeleted = await this.prisma.stagingAsset.deleteMany({
+      where: { import_job_id: { in: jobIds } },
+    });
+
+    // Delete import jobs
+    const jobsDeleted = await this.prisma.importJob.deleteMany({
+      where: { id: { in: jobIds } },
+    });
+
+    this.logger.log(
+      `Cleanup completed: ${jobsDeleted.count} jobs, ${stagingDeleted.count} staging records`,
+    );
+
+    return {
+      message: `Cleaned up ${jobsDeleted.count} old jobs and ${stagingDeleted.count} staging records`,
+      jobsDeleted: jobsDeleted.count,
+      stagingRecordsDeleted: stagingDeleted.count,
+    };
+  }
+
+  public async clearAllJobs(): Promise<{
+    message: string;
+    jobsDeleted: number;
+    stagingRecordsDeleted: number;
+    logsDeleted: number;
+  }> {
+    // Delete all staging records first (foreign key constraint)
+    const stagingDeleted = await this.prisma.stagingAsset.deleteMany({});
+
+    // Delete all import jobs
+    const jobsDeleted = await this.prisma.importJob.deleteMany({});
+
+    // Clear all logs too
+    const logsDeleted = await this.prisma.logEntry.deleteMany({});
+
+    this.logger.log(
+      `Emergency cleanup: ${jobsDeleted.count} jobs, ${stagingDeleted.count} staging records, ${logsDeleted.count} logs`,
+    );
+
+    return {
+      message: `Cleared ALL data: ${jobsDeleted.count} jobs, ${stagingDeleted.count} staging records, ${logsDeleted.count} logs`,
+      jobsDeleted: jobsDeleted.count,
+      stagingRecordsDeleted: stagingDeleted.count,
+      logsDeleted: logsDeleted.count,
+    };
+  }
+
+  public async validateCsvFile(fileId: string): Promise<{
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    errors: string[];
+    sampleValidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }>;
+    sampleInvalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }>;
+  }> {
+    // Parse CSV file
+    const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+
+    if (parseResult.errors.length > 0 && parseResult.rows.length === 0) {
+      return {
+        totalRows: 0,
+        validRows: 0,
+        invalidRows: 0,
+        errors: parseResult.errors,
+        sampleValidData: [],
+        sampleInvalidData: [],
+      };
+    }
+
+    const validData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }> = [];
+    const invalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }> = [];
+    const allErrors: string[] = [...parseResult.errors];
+    let validCount = 0;
+    let invalidCount = 0;
+
+    // Process first batch of rows for validation samples
+    const sampleSize = Math.min(
+      parseResult.rows.length,
+      CONSTANTS.VALIDATION_SAMPLE_SIZE,
+    );
+
+    for (let i = 0; i < sampleSize; i++) {
+      const row = parseResult.rows[i];
+      const rowNumber = i + CONSTANTS.HEADER_ROW_OFFSET;
+
+      try {
+        const assetData = this.mapRowToAsset(row);
+        const validationErrors = this.validateAssetData(assetData);
+
+        if (validationErrors.length === 0) {
+          validCount++;
+          if (validData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
+            validData.push({
+              rowNumber,
+              rawData: row,
+              mappedData: assetData as unknown as Record<string, string>,
+            });
+          }
+        } else {
+          invalidCount++;
+          if (invalidData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
+            invalidData.push({
+              rowNumber,
+              rawData: row,
+              errors: validationErrors,
+            });
+          }
+          allErrors.push(`Row ${rowNumber}: ${validationErrors.join(', ')}`);
+        }
+      } catch (error) {
+        invalidCount++;
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        if (invalidData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
+          invalidData.push({
+            rowNumber,
+            rawData: row,
+            errors: [errorMessage],
+          });
+        }
+        allErrors.push(`Row ${rowNumber}: ${errorMessage}`);
+      }
+    }
+
+    // Estimate totals for larger files
+    const validPercentage = sampleSize > 0 ? validCount / sampleSize : 0;
+    const estimatedValidRows = Math.round(
+      parseResult.rows.length * validPercentage,
+    );
+    const estimatedInvalidRows = parseResult.rows.length - estimatedValidRows;
+
+    return {
+      totalRows: parseResult.rows.length,
+      validRows: estimatedValidRows,
+      invalidRows: estimatedInvalidRows,
+      errors: allErrors.slice(0, CONSTANTS.MAX_ERROR_DISPLAY),
+      sampleValidData: validData,
+      sampleInvalidData: invalidData,
     };
   }
 }

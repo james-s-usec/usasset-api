@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Alert } from '@mui/material';
-import type { ColDef, GridReadyEvent } from 'ag-grid-community';
+import type { ColDef, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
 import type { Asset } from './types';
 import type { ColumnCategory } from './columnConfig';
 import { useAssets } from './hooks/useAssets';
@@ -15,8 +15,8 @@ const AssetManagementContent: React.FC<{
   error: string | null;
   columnDefs: ColDef[];
   components: {
-    actionsRenderer: (params: unknown) => React.ReactElement;
-    statusRenderer: (params: unknown) => React.ReactElement;
+    actionsRenderer: (params: ICellRendererParams<Asset>) => React.ReactElement;
+    statusRenderer: (params: ICellRendererParams) => React.ReactElement;
   };
   onGridReady: (params: GridReadyEvent) => void;
   onAdd: () => void;

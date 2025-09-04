@@ -1,22 +1,73 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { pipelineApi } from '../../../services/pipelineApi';
 
-export const usePipelineActions = (jobId: string | null): {
-  handleApprove: () => Promise<void>;
-  handleReject: () => Promise<void>;
-} => {
+interface ActionResult {
+  success: boolean;
+  message: string;
+}
+
+export const usePipelineActions = (jobId: string | null, onReset?: () => void) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
+
   const handleApprove = useCallback(async () => {
     if (!jobId) return;
-    // TODO: Implement approve endpoint
-    console.log('Approve import for job:', jobId);
-    alert('Approve functionality coming soon - will move staging data to assets table');
+    
+    setIsProcessing(true);
+    setActionResult(null);
+    
+    try {
+      const result = await pipelineApi.approveImport(jobId);
+      setActionResult({ 
+        success: true, 
+        message: `${result.message} (${result.importedCount} assets imported)`
+      });
+      // Don't reload - let user see the result and start new import
+    } catch (error) {
+      console.error('Failed to approve import:', error);
+      setActionResult({ 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to approve import' 
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   }, [jobId]);
 
   const handleReject = useCallback(async () => {
     if (!jobId) return;
-    // TODO: Implement reject endpoint
-    console.log('Reject import for job:', jobId);
-    alert('Reject functionality coming soon - will clear staging data');
+    
+    setIsProcessing(true);
+    setActionResult(null);
+    
+    try {
+      const result = await pipelineApi.rejectImport(jobId);
+      setActionResult({ 
+        success: true, 
+        message: `${result.message} (${result.clearedCount} records cleared)`
+      });
+      // Don't reload - let user see the result and start new import
+    } catch (error) {
+      console.error('Failed to reject import:', error);
+      setActionResult({ 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to reject import' 
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   }, [jobId]);
 
-  return { handleApprove, handleReject };
+  const handleStartNewImport = useCallback(() => {
+    setActionResult(null);
+    onReset?.();
+  }, [onReset]);
+
+  return { 
+    handleApprove, 
+    handleReject, 
+    handleStartNewImport,
+    isProcessing, 
+    actionResult 
+  };
 };
