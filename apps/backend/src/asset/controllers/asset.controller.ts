@@ -168,7 +168,11 @@ export class AssetController {
   public async findAll(
     @Query(ValidationPipe) query: AssetSearchWithPaginationDto,
   ): Promise<{ assets: SafeAssetDto[]; pagination: Record<string, number> }> {
-    const { page = DEFAULT_PAGE, limit = DEFAULT_PAGE_SIZE, ...searchParams } = query;
+    const {
+      page = DEFAULT_PAGE,
+      limit = DEFAULT_PAGE_SIZE,
+      ...searchParams
+    } = query;
     const { assets, total } = await this.assetQueryService.findManyWithSearch(
       searchParams,
       page,

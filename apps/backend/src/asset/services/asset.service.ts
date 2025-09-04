@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { Asset } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateAssetDto } from '../dto/create-asset.dto';
@@ -47,9 +47,18 @@ export class AssetService {
   }
 
   public async create(createAssetDto: CreateAssetDto): Promise<Asset> {
-    return this.prisma.asset.create({
-      data: createAssetDto,
-    });
+    try {
+      return await this.prisma.asset.create({
+        data: createAssetDto,
+      });
+    } catch (error: unknown) {
+      if (this.isPrismaUniqueConstraintError(error)) {
+        throw new ConflictException(
+          `Asset with tag '${createAssetDto.assetTag}' already exists`,
+        );
+      }
+      throw error;
+    }
   }
 
   public async update(
@@ -61,10 +70,19 @@ export class AssetService {
       throw new AssetNotFoundException(id);
     }
 
-    return this.prisma.asset.update({
-      where: { id },
-      data: updateAssetDto,
-    });
+    try {
+      return await this.prisma.asset.update({
+        where: { id },
+        data: updateAssetDto,
+      });
+    } catch (error: unknown) {
+      if (this.isPrismaUniqueConstraintError(error)) {
+        throw new ConflictException(
+          `Asset with tag '${updateAssetDto.assetTag}' already exists`,
+        );
+      }
+      throw error;
+    }
   }
 
   public async delete(id: string): Promise<void> {
@@ -77,5 +95,16 @@ export class AssetService {
       where: { id },
       data: { is_deleted: true },
     });
+  }
+
+  private isPrismaUniqueConstraintError(
+    error: unknown,
+  ): error is { code: string } {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code: string }).code === 'P2002'
+    );
   }
 }

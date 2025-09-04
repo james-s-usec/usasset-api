@@ -80,11 +80,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   private handleGenericError(exception: Error): ErrorDetails {
+    const isProduction = process.env.NODE_ENV === 'production';
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       code: 'INTERNAL_SERVER_ERROR',
       message: exception.message,
-      details: exception.stack,
+      details: isProduction ? undefined : exception.stack,
     };
   }
 
