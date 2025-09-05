@@ -58,6 +58,16 @@ src/
 │   ├── health.repository.ts
 │   └── health.service.ts
 ├── logs/                # Logging endpoints
+├── pipeline/            # ETL Pipeline system (see pipeline/CLAUDE.md)
+│   ├── constants/       # Pipeline constants and configurations
+│   ├── dto/             # Pipeline DTOs and validation
+│   ├── interfaces/      # Pipeline type definitions
+│   ├── orchestrator/    # Pipeline orchestration service
+│   ├── phases/          # Individual processing phases
+│   ├── processors/      # Rule processors and factories
+│   ├── repositories/    # Pipeline data access layer
+│   ├── services/        # Pipeline business logic services
+│   └── pipeline.module.ts # Pipeline NestJS module
 ├── user/                # User management feature
 │   ├── controllers/
 │   ├── dto/
@@ -127,6 +137,9 @@ npm run test:e2e        # Run e2e tests
 - ✅ Jest testing setup
 - ✅ ESLint configured
 - ✅ Swagger/OpenAPI documentation (/api-docs)
+- 🔄 **ETL Pipeline System** with 6-phase processing (Extract → Validate → Clean → Transform → Map → Load)
+- ⚙️ **Rules Engine** with 8 rule types and priority-based execution
+- 📊 **Job Management** with real-time status tracking and progress monitoring
 
 ## 📚 API Documentation (Swagger)
 

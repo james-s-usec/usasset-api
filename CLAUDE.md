@@ -64,6 +64,11 @@ USAsset3/
 - 🦆 **[Debugging Guide](./docs/DEBUGGING_GUIDE.md)** - Rubber duck debugging, troubleshooting commands
 - 📚 **[Pragmatic Principles](./docs/PRAGMATIC_PRINCIPLES.md)** - Pragmatic Programmer principles applied
 
+### 🔧 Feature-Specific Documentation
+- 🔄 **[Pipeline System](./apps/backend/src/pipeline/CLAUDE.md)** - ETL pipeline backend processing
+- 🎨 **[Pipeline UI Components](./apps/frontend/src/components/pipeline/CLAUDE.md)** - Frontend pipeline interface
+- ⚙️ **[Rules Management](./apps/frontend/src/components/pipeline/rules/CLAUDE.md)** - Rules engine interface
+
 ## 🎯 NEW: Complete Asset Management Feature
 **FULLY IMPLEMENTED** - 130+ field comprehensive asset tracking system:
 - **Backend API**: Complete CRUD with all fields from asset-schema-reconciliation.md
@@ -71,6 +76,16 @@ USAsset3/
 - **Swagger Documentation**: http://localhost:3000/api-docs - Interactive API explorer
 - **Frontend AG-Grid**: Column configuration ready for all asset fields
 - **Field Coverage**: 100% of CSV requirements + enhanced enums and calculations
+
+## 🔄 NEW: ETL Pipeline & Rules Management System
+**COMPREHENSIVE DATA PROCESSING PIPELINE** with extensible rules engine:
+- **6-Phase ETL Pipeline**: Extract → Validate → Clean → Transform → Map → Load
+- **8 Rule Types**: trim, regex_replace, exact_match, fuzzy_match, date_format, number_format, case_transform, custom
+- **Real-time Processing**: Job tracking, progress monitoring, error handling
+- **Visual Rules Editor**: Drag-and-drop interface, rule testing, validation
+- **Responsive UI**: Desktop split-panel, mobile overlay, touch-friendly controls
+- **API Endpoints**: `/api/pipeline/*` for job management and `/api/pipeline/rules/*` for rules CRUD
+- **Advanced Features**: Batch testing, rule templates, performance metrics, priority-based execution
 
 ## Essential Commands
 ```bash

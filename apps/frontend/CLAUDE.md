@@ -37,7 +37,14 @@ React + TypeScript frontend built with Vite, configured for Azure Static Web App
 src/
 ├── assets/             # Static assets (images, icons)
 ├── components/         # React components
-│   └── DbStatus.tsx    # Database status indicator component
+│   ├── DbStatus.tsx    # Database status indicator component
+│   └── pipeline/       # ETL Pipeline UI (see pipeline/CLAUDE.md)
+│       ├── components/     # Reusable pipeline UI components
+│       ├── hooks/          # Pipeline-specific React hooks
+│       ├── phases/         # Phase-specific components
+│       ├── rules/          # Rules management UI (see rules/CLAUDE.md)
+│       ├── types.ts        # Pipeline type definitions
+│       └── utils/          # Pipeline utilities
 ├── config/             # Configuration
 │   └── index.ts        # API URLs and environment config
 ├── services/           # API services
@@ -87,6 +94,9 @@ npm run lint      # Run ESLint
 - 📦 Production-ready build optimization
 - 🌐 Environment-based API configuration
 - 🔒 CORS-ready for backend communication
+- 🔄 **ETL Pipeline UI** with responsive design and real-time progress tracking
+- ⚙️ **Rules Management Interface** with visual editor and testing capabilities
+- 📱 **Mobile-First Design** with touch-friendly controls and adaptive layouts
 
 ## Dependencies
 - **Framework**: React 18.x
