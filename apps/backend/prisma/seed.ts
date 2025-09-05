@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, ProjectStatus, PipelinePhase, RuleType } from '@prisma/client';
+import { PrismaClient, UserRole, ProjectStatus, PipelinePhase, RuleType, AssetStatus, AssetCondition, FileType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -77,70 +77,281 @@ async function main() {
 
   console.log('✅ Seeded users:', { admin, superAdmin, user, tomPoeling, leviMorgan, jamesSwanson });
 
-  // Create default folders
-  const defaultFolders = [
-    { name: 'Calculations', description: 'Engineering calculations and analysis', color: '#2196F3' },
-    { name: 'Controls', description: 'Control systems and automation', color: '#FF9800' },
-    { name: 'Cost Estimates', description: 'Project cost estimates and budgets', color: '#4CAF50' },
-    { name: 'Drawings', description: 'Technical drawings and schematics', color: '#9C27B0' },
-    { name: 'Field', description: 'Field reports and documentation', color: '#607D8B' },
-    { name: 'For Encore', description: 'Documents for Encore review', color: '#E91E63' },
-    { name: 'Issues Log', description: 'Issue tracking and resolution', color: '#F44336' },
-    { name: 'Photos', description: 'Project photos and images', color: '#00BCD4' },
-    { name: 'Submittals', description: 'Contractor submittals and approvals', color: '#8BC34A' },
-  ];
-
-  const createdFolders = [];
-  for (const folderData of defaultFolders) {
-    const folder = await prisma.folder.upsert({
-      where: { name: folderData.name },
-      update: {},
-      create: {
-        ...folderData,
-        is_default: true, // Mark as system folder
-      },
-    });
-    createdFolders.push(folder);
-  }
-
-  console.log('✅ Seeded folders:', createdFolders.map(f => f.name).join(', '));
-
-  // Create sample projects
+  // Create sample projects FIRST
   const sampleProjects = [
     { 
       name: 'Edwards Pavillion', 
       description: 'Healthcare facility asset management project',
-      status: ProjectStatus.ACTIVE,
+      status: 'ACTIVE',
       owner_id: tomPoeling.id // Assign to Tom Poeling as project owner
     },
     { 
       name: 'Shaw Cancer Center', 
       description: 'Cancer treatment facility asset tracking and management',
-      status: ProjectStatus.ACTIVE,
+      status: 'ACTIVE',
       owner_id: jamesSwanson.id // Assign to James Swanson as project owner
     },
     { 
       name: 'Wichita Animal Hospital', 
       description: 'Veterinary hospital equipment and asset management',
-      status: ProjectStatus.ACTIVE,
+      status: 'ACTIVE',
       owner_id: tomPoeling.id // Assign to Tom Poeling as project owner
     },
   ];
 
   const createdProjects = [];
   for (const projectData of sampleProjects) {
-    const project = await prisma.project.upsert({
-      where: { name: projectData.name },
-      update: {},
-      create: {
-        ...projectData,
-        created_by: 'system',
-      },
+    // Check if project already exists by name
+    let project = await prisma.project.findFirst({
+      where: { name: projectData.name }
     });
+    
+    if (!project) {
+      project = await prisma.project.create({
+        data: {
+          ...projectData,
+          status: ProjectStatus.ACTIVE,
+          created_by: 'system',
+        },
+      });
+    }
     createdProjects.push(project);
   }
 
   console.log('✅ Seeded projects:', createdProjects.map(p => p.name).join(', '));
+
+  // Create sample assets (after projects are created)
+  const sampleAssets = [
+    // Edwards Pavillion Assets
+    {
+      assetTag: 'HVAC-001',
+      name: 'Main Chiller Unit',
+      manufacturer: 'Carrier',
+      modelNumber: 'Carrier-30GT-150',
+      serialNumber: 'GT150-2024-001',
+      status: AssetStatus.ACTIVE,
+      condition: AssetCondition.EXCELLENT,
+      location: 'Mechanical Room A',
+      description: 'Primary chiller for building cooling',
+      projectId: null, // Will be set after projects are created
+      buildingName: 'Edwards Pavillion',
+      floor: 'Basement',
+      assetCategory: 'HVAC',
+      assetType: 'Chiller',
+      installDate: new Date('2024-01-15'),
+      purchaseCost: 125000.00,
+      motorHp: 150.0,
+      btuRating: 500000,
+      note1Subject: 'Installation Notes',
+      note1: 'Installed with custom mounting due to space constraints. Requires annual maintenance.',
+    },
+    {
+      assetTag: 'HVAC-002',
+      name: 'Rooftop Unit #1',
+      manufacturer: 'Trane',
+      modelNumber: 'Trane-RTU-50',
+      serialNumber: 'RTU50-2024-002',
+      status: AssetStatus.ACTIVE,
+      condition: AssetCondition.GOOD,
+      location: 'Rooftop East',
+      description: 'Rooftop HVAC unit serving patient areas',
+      projectId: null,
+      buildingName: 'Edwards Pavillion',
+      floor: 'Roof',
+      assetCategory: 'HVAC',
+      assetType: 'Rooftop Unit',
+      installDate: new Date('2024-02-20'),
+      purchaseCost: 35000.00,
+      motorHp: 25.0,
+      filterType: 'MERV 13',
+      filterQuantity: 4,
+      note1Subject: 'Maintenance Schedule',
+      note1: 'Filter change required every 3 months. Belt inspection quarterly.',
+    },
+    {
+      assetTag: 'ELEC-001',
+      name: 'Main Electrical Panel',
+      manufacturer: 'GE',
+      modelNumber: 'GE-MP-400A',
+      serialNumber: 'MP400-2024-003',
+      status: AssetStatus.ACTIVE,
+      condition: AssetCondition.EXCELLENT,
+      location: 'Electrical Room',
+      description: 'Main electrical distribution panel',
+      projectId: null,
+      buildingName: 'Edwards Pavillion',
+      floor: 'Basement',
+      assetCategory: 'Electrical',
+      assetType: 'Distribution Panel',
+      installDate: new Date('2023-12-10'),
+      purchaseCost: 15000.00,
+      voltage: 480,
+      amperage: 400.0,
+    },
+    // Shaw Cancer Center Assets
+    {
+      assetTag: 'HVAC-101',
+      name: 'Operating Room HVAC',
+      manufacturer: 'Johnson Controls',
+      modelNumber: 'JC-OR-HVAC-100',
+      serialNumber: 'OR100-2024-004',
+      status: AssetStatus.ACTIVE,
+      condition: AssetCondition.NEW,
+      location: 'OR Suite 1',
+      description: 'Specialized HVAC for operating room positive pressure',
+      projectId: null,
+      buildingName: 'Shaw Cancer Center',
+      floor: '2nd Floor',
+      assetCategory: 'HVAC',
+      assetType: 'Medical HVAC',
+      installDate: new Date('2024-03-01'),
+      purchaseCost: 85000.00,
+      motorHp: 15.0,
+      filterType: 'HEPA',
+      note1Subject: 'Medical Requirements',
+      note1: 'Must maintain positive pressure differential. HEPA filters replaced monthly.',
+    },
+    {
+      assetTag: 'MED-001',
+      name: 'MRI Cooling System',
+      manufacturer: 'Siemens',
+      modelNumber: 'Siemens-MRI-Cool-3T',
+      serialNumber: 'MRI3T-2024-005',
+      status: AssetStatus.ACTIVE,
+      condition: AssetCondition.NEW,
+      location: 'MRI Room',
+      description: 'Dedicated cooling system for 3T MRI machine',
+      projectId: null,
+      buildingName: 'Shaw Cancer Center',
+      floor: '1st Floor',
+      assetCategory: 'Medical Equipment',
+      assetType: 'Cooling System',
+      installDate: new Date('2024-04-15'),
+      purchaseCost: 450000.00,
+      note1Subject: 'Critical System',
+      note1: 'System failure will damage MRI equipment. 24/7 monitoring required.',
+    },
+    // Wichita Animal Hospital Assets
+    {
+      assetTag: 'HVAC-201',
+      name: 'Kennel Ventilation System',
+      manufacturer: 'Carrier',
+      modelNumber: 'Carrier-KV-500',
+      serialNumber: 'KV500-2024-006',
+      status: AssetStatus.ACTIVE,
+      condition: AssetCondition.GOOD,
+      location: 'Kennel Area',
+      description: 'Specialized ventilation for animal kennel areas',
+      projectId: null,
+      buildingName: 'Wichita Animal Hospital',
+      floor: '1st Floor',
+      assetCategory: 'HVAC',
+      assetType: 'Ventilation System',
+      installDate: new Date('2024-05-10'),
+      purchaseCost: 25000.00,
+      motorHp: 10.0,
+      filterType: 'MERV 11',
+      note1Subject: 'Animal Safety',
+      note1: 'System designed for animal odor control and air quality. Extra filtration required.',
+    },
+  ];
+
+  const createdAssets = [];
+  for (const assetData of sampleAssets) {
+    // Find the matching project and assign the projectId
+    const matchingProject = createdProjects.find(p => {
+      if (assetData.assetTag.startsWith('HVAC-00') || assetData.assetTag.startsWith('ELEC-')) {
+        return p.name === 'Edwards Pavillion';
+      } else if (assetData.assetTag.startsWith('HVAC-10') || assetData.assetTag.startsWith('MED-')) {
+        return p.name === 'Shaw Cancer Center';
+      } else if (assetData.assetTag.startsWith('HVAC-20')) {
+        return p.name === 'Wichita Animal Hospital';
+      }
+      return false;
+    });
+
+    // Check if asset already exists by assetTag
+    let asset = await prisma.asset.findFirst({
+      where: { assetTag: assetData.assetTag }
+    });
+    
+    if (!asset) {
+      const { projectId, ...createData } = assetData; // Extract projectId
+      
+      asset = await prisma.asset.create({
+        data: {
+          ...createData,
+          ...(matchingProject && { projectId: matchingProject.id }), // Only add projectId if we have a project
+        },
+      });
+    }
+    createdAssets.push(asset);
+  }
+
+  console.log('✅ Seeded assets:', createdAssets.map(a => `${a.assetTag} (${a.name})`).join(', '));
+
+  // Create project-scoped folders (realistic folder structures for each project type)
+  const projectFolders = [
+    // Edwards Pavillion (Healthcare Facility) - 7 folders
+    { projectName: 'Edwards Pavillion', name: 'Calculations', description: 'HVAC load calculations and engineering analysis', color: '#2196F3' },
+    { projectName: 'Edwards Pavillion', name: 'Drawings', description: 'Architectural and mechanical drawings', color: '#9C27B0' },
+    { projectName: 'Edwards Pavillion', name: 'Photos', description: 'Construction and equipment photos', color: '#00BCD4' },
+    { projectName: 'Edwards Pavillion', name: 'Controls', description: 'Building automation and control systems', color: '#FF9800' },
+    { projectName: 'Edwards Pavillion', name: 'Submittals', description: 'Contractor submittals and shop drawings', color: '#8BC34A' },
+    { projectName: 'Edwards Pavillion', name: 'Commissioning', description: 'Commissioning reports and testing', color: '#607D8B' },
+    { projectName: 'Edwards Pavillion', name: 'As-Built', description: 'As-built drawings and documentation', color: '#795548' },
+    
+    // Shaw Cancer Center (Medical Facility) - 7 folders
+    { projectName: 'Shaw Cancer Center', name: 'Calculations', description: 'Engineering calculations and analysis', color: '#2196F3' },
+    { projectName: 'Shaw Cancer Center', name: 'Medical Equipment', description: 'Medical equipment specifications and manuals', color: '#E91E63' },
+    { projectName: 'Shaw Cancer Center', name: 'HVAC Systems', description: 'Clean room and medical HVAC documentation', color: '#4CAF50' },
+    { projectName: 'Shaw Cancer Center', name: 'Electrical', description: 'Medical electrical and backup power systems', color: '#FFC107' },
+    { projectName: 'Shaw Cancer Center', name: 'Safety Systems', description: 'Fire safety and emergency systems', color: '#F44336' },
+    { projectName: 'Shaw Cancer Center', name: 'Compliance', description: 'Healthcare compliance and regulatory docs', color: '#9C27B0' },
+    { projectName: 'Shaw Cancer Center', name: 'Commissioning', description: 'Medical equipment commissioning', color: '#607D8B' },
+    
+    // Wichita Animal Hospital (Veterinary Facility) - 6 folders
+    { projectName: 'Wichita Animal Hospital', name: 'Photos', description: 'Site and equipment photos', color: '#00BCD4' },
+    { projectName: 'Wichita Animal Hospital', name: 'HVAC', description: 'Kennel ventilation and climate control', color: '#4CAF50' },
+    { projectName: 'Wichita Animal Hospital', name: 'Plumbing', description: 'Water systems and drainage', color: '#2196F3' },
+    { projectName: 'Wichita Animal Hospital', name: 'Equipment', description: 'Veterinary equipment documentation', color: '#E91E63' },
+    { projectName: 'Wichita Animal Hospital', name: 'Construction', description: 'Construction documents and permits', color: '#795548' },
+    { projectName: 'Wichita Animal Hospital', name: 'Inspections', description: 'Building and safety inspections', color: '#FF9800' },
+  ];
+
+  // Create project-scoped folders (NEW: true project-scoped implementation)
+  const createdFolders = [];
+  for (const folderData of projectFolders) {
+    // Find the matching project for this folder
+    const matchingProject = createdProjects.find(p => p.name === folderData.projectName);
+    if (!matchingProject) {
+      console.log(`⚠️  Skipping folder for unknown project: ${folderData.projectName}`);
+      continue;
+    }
+
+    // Check if folder already exists for this project
+    let folder = await prisma.folder.findFirst({
+      where: { 
+        name: folderData.name,
+        project_id: matchingProject.id 
+      }
+    });
+    
+    if (!folder) {
+      folder = await prisma.folder.create({
+        data: {
+          name: folderData.name, // Clean name without project prefix
+          description: folderData.description,
+          color: folderData.color,
+          is_default: false, // These are project-specific, not system folders
+          project_id: matchingProject.id, // Required project association
+        },
+      });
+    }
+    createdFolders.push(folder);
+  }
+
+  console.log('✅ Seeded project folders:', createdFolders.map(f => f.name).join(', '));
 
   // Create asset column aliases for CSV import mapping
   const assetAliases = [
@@ -293,14 +504,19 @@ async function main() {
 
   const createdRules = [];
   for (const ruleData of pipelineRules) {
-    const rule = await prisma.pipelineRule.upsert({
-      where: { name: ruleData.name },
-      update: {},
-      create: {
-        ...ruleData,
-        created_by: 'system',
-      },
+    // Check if rule already exists by name
+    let rule = await prisma.pipelineRule.findFirst({
+      where: { name: ruleData.name }
     });
+    
+    if (!rule) {
+      rule = await prisma.pipelineRule.create({
+        data: {
+          ...ruleData,
+          created_by: 'system',
+        },
+      });
+    }
     createdRules.push(rule);
   }
 
@@ -309,7 +525,8 @@ async function main() {
   console.log('📊 Summary:');
   console.log(`   • Users: ${6} (${3} development + ${3} production)`);
   console.log(`   • Projects: ${createdProjects.length}`);
-  console.log(`   • Folders: ${createdFolders.length}`);
+  console.log(`   • Assets: ${createdAssets.length} (properly distributed across projects)`);
+  console.log(`   • Project folders: ${createdFolders.length} (realistic folder structures per project type)`);
   console.log(`   • Asset column aliases: ${createdAliases.length}`);
   console.log(`   • Pipeline rules: ${createdRules.length}`);
 }

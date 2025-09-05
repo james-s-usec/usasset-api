@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, CircularProgress, Box, Button, Typography, Divider } from '@mui/material';
 import { RawDataPreview } from '../../components/RawDataPreview';
 import { ValidationResults } from './ValidationResults';
+import { FieldMappingsPreview } from './FieldMappingsPreview';
 import type { ExtractData, ValidationResult } from '../../hooks/useExtractPhase';
 
 interface ExtractPhaseContentProps {
@@ -87,6 +88,21 @@ const ValidationSection: React.FC<{
   return <ValidationResults validationResult={validationResult} />;
 };
 
+// Component for field mappings preview section
+const FieldMappingsSection: React.FC<{
+  rawData: Record<string, string>[];
+  currentJobId: string | null;
+}> = ({ rawData, currentJobId }) => {
+  if (!rawData || currentJobId) return null;
+  
+  return (
+    <>
+      <Divider sx={{ my: 2 }} />
+      <FieldMappingsPreview csvHeaders={Object.keys(rawData[0] || {})} />
+    </>
+  );
+};
+
 // Component for raw data preview section
 const RawDataSection: React.FC<{
   rawData: Record<string, string>[];
@@ -159,6 +175,10 @@ const MainContent: React.FC<{
   
   return (
     <>
+      <FieldMappingsSection 
+        rawData={rawData || []} 
+        currentJobId={currentJobId} 
+      />
       <RawDataSection 
         rawData={rawData || []} 
         totalRows={totalRows} 

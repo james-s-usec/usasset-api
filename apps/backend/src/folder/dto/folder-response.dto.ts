@@ -26,6 +26,12 @@ export class FolderResponseDto {
   public file_count!: number;
 
   @ApiProperty({
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Project ID that this folder belongs to',
+  })
+  public project_id!: string;
+
+  @ApiProperty({
     example: '2023-09-03T18:30:00Z',
     description: 'Creation timestamp',
   })

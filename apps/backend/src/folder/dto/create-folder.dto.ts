@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsHexColor, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsHexColor,
+  MaxLength,
+  IsUUID,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 const MAX_FOLDER_NAME_LENGTH = 50;
@@ -26,4 +32,12 @@ export class CreateFolderDto {
   @IsOptional()
   @IsHexColor()
   public color?: string;
+
+  @ApiProperty({
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Project ID - folders are now scoped to projects',
+  })
+  @IsString()
+  @IsUUID()
+  public project_id!: string;
 }

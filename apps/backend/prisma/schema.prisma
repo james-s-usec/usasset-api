@@ -84,6 +84,7 @@ model Project {
   // Relations
   owner       User?         @relation(fields: [owner_id], references: [id])
   members     ProjectMember[]
+  folders     Folder[]      // Project can have many folders
   files       File[]        // Project can have many files
   assets      Asset[]       // Project can have many assets
   
@@ -126,18 +127,21 @@ enum ProjectRole {
 
 model Folder {
   id          String   @id @default(uuid())
-  name        String   @unique
+  name        String   
   description String?
   color       String?   // For UI theming
   is_default  Boolean  @default(false) // System folders can't be deleted
+  project_id  String   // Required for project-scoped folders
   is_deleted  Boolean  @default(false)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
   
   // Relations
+  project     Project  @relation(fields: [project_id], references: [id])
   files       File[]
   
-  @@index([name])
+  @@unique([name, project_id]) // Names unique within project only
+  @@index([project_id])
   @@index([is_deleted])
   @@map("folders")
 }
@@ -153,6 +157,8 @@ model File {
   blob_name     String
   project_id    String?  // Optional - files can exist without a project during development
   folder_id     String?  // Optional - files can be unorganized
+  asset_id      String?  // Optional - files can be linked to specific assets
+  file_type     FileType @default(DOCUMENT) // Categorize files for better organization
   is_deleted    Boolean  @default(false)
   created_at    DateTime @default(now())
   created_by    String?
@@ -164,13 +170,27 @@ model File {
   // Relations
   project       Project? @relation(fields: [project_id], references: [id])
   folder        Folder?  @relation(fields: [folder_id], references: [id])
+  asset         Asset?   @relation(fields: [asset_id], references: [id])
   import_jobs   ImportJob[]
   
   @@index([project_id])
   @@index([folder_id])
+  @@index([asset_id])
+  @@index([file_type])
   @@index([created_at])
   @@index([is_deleted])
   @@map("files")
+}
+
+enum FileType {
+  DOCUMENT
+  MANUAL
+  SPECIFICATION
+  PHOTO
+  DRAWING
+  CERTIFICATE
+  MAINTENANCE
+  OTHER
 }
 
 model Asset {
@@ -334,6 +354,7 @@ model Asset {
   // Project relationship
   projectId    String?
   project      Project?    @relation(fields: [projectId], references: [id])
+  files        File[]      // Asset can have many files
   
   // Audit fields
   is_deleted   Boolean     @default(false)
@@ -513,4 +534,34 @@ model AssetColumnAlias {
   @@index([asset_field])
   @@index([csv_alias])
   @@map("asset_column_aliases")
+}
+
+// Asset Value Mappings - Maps raw values to standardized values (Phase 2)
+model AssetValueMapping {
+  id            String          @id @default(uuid())
+  asset_field   String          // Which field this applies to (manufacturer, status, etc.)
+  mapping_type  ValueMappingType // How to match the source value
+  source_value  String          // Raw value from CSV (or pattern for REGEX)
+  target_value  String          // Standardized value to use
+  confidence    Decimal         @default(1.0) // Match confidence (0.0 to 1.0)
+  is_active     Boolean         @default(true)
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+  created_by    String?
+  
+  @@index([asset_field])
+  @@index([mapping_type])
+  @@index([source_value])
+  @@index([is_active])
+  @@unique([asset_field, source_value]) // Prevent duplicate exact mappings
+  @@map("asset_value_mappings")
+}
+
+enum ValueMappingType {
+  EXACT_MATCH    // "JCI" → "Johnson Controls" (exact string match)
+  FUZZY_MATCH    // "Johnsen Controls" → "Johnson Controls" (handle typos)
+  REGEX          // "Bldg (\\d+)" → "Building $1" (pattern replacement)  
+  CATEGORY       // "AHU" → "HVAC_UNIT" (category standardization)
+  RANGE          // "1-5" → "POOR", "6-8" → "GOOD" (numeric ranges)
+  CONTAINS       // "Johnson" anywhere → "Johnson Controls"
 }

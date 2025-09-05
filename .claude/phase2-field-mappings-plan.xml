@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phase2-field-mappings-plan version="1.0" date="2025-09-05">
+  
+  <project-context>
+    <name>USAsset Phase 2 Field Mappings</name>
+    <technology>NestJS/React/Prisma/PostgreSQL</technology>
+    <goal>Implement value standardization through reference tables + lookup pipes</goal>
+    <current-status>Phase 1 complete (CSV headers → Asset fields), Phase 2 needed (raw values → standardized values)</current-status>
+  </project-context>
+
+  <problem-definition>
+    <current-state>
+      <item>Phase 1 Complete: CSV column headers → Asset fields (via asset_column_aliases table)</item>
+      <item>Raw values still unstandardized: "JCI" vs "Johnson Controls" vs "Johnsen Controls"</item>
+      <item>Data quality issues from manufacturer/category/status variations</item>
+      <item>No systematic way to handle typos and abbreviations</item>
+    </current-state>
+    
+    <requirements>
+      <requirement>Standardize manufacturer names ("JCI" → "Johnson Controls")</requirement>
+      <requirement>Normalize asset categories ("AHU" → "HVAC_UNIT")</requirement>
+      <requirement>Handle building name variations</requirement>
+      <requirement>Fast lookup performance during ETL processing</requirement>
+      <requirement>Easy maintenance through UI</requirement>
+    </requirements>
+  </problem-definition>
+
+  <proposed-solution>
+    
+    <architecture-approach>
+      <title>Reference Tables + Lookup Pipes</title>
+      <description>Replace complex mapping rules with simple reference tables + fast indexed lookups</description>
+      
+      <benefits>
+        <benefit>Simple: Just indexed table lookups, no complex rule engine</benefit>
+        <benefit>Fast: Database indexes for O(1) lookups</benefit>
+        <benefit>Maintainable: Reference data managed through UI</benefit>
+        <benefit>Extensible: Same pattern applies to any field needing standardization</benefit>
+        <benefit>Performance: Much faster than regex/fuzzy matching</benefit>
+      </benefits>
+    </architecture-approach>
+
+    <database-schema>
+      <model name="ManufacturerReference">
+        <purpose>Store canonical manufacturer names with metadata</purpose>
+        <fields>
+          <field>id: UUID primary key</field>
+          <field>canonical_name: String unique (e.g., "Johnson Controls")</field>
+          <field>display_name: String (e.g., "Johnson Controls Inc.")</field>
+          <field>website: String optional</field>
+          <field>is_active: Boolean default true</field>
+          <field>created_at: DateTime</field>
+        </fields>
+        <relations>
+          <relation>aliases: ManufacturerAlias[]</relation>
+        </relations>
+      </model>
+      
+      <model name="ManufacturerAlias">
+        <purpose>Store all variations/typos that map to canonical manufacturer</purpose>
+        <fields>
+          <field>id: UUID primary key</field>
+          <field>alias: String unique (e.g., "JCI", "Johnson-Controls", "Johnsen Controls")</field>
+          <field>manufacturer_ref_id: String foreign key</field>
+          <field>confidence: Decimal default 1.0</field>
+        </fields>
+        <relations>
+          <relation>manufacturer_ref: ManufacturerReference</relation>
+        </relations>
+        <indexes>
+          <index>alias (for fast lookups)</index>
+        </indexes>
+      </model>
+    </database-schema>
+
+    <reference-tables-needed>
+      <table>ManufacturerReference + ManufacturerAlias</table>
+      <table>AssetCategoryReference + AssetCategoryAlias</table>
+      <table>BuildingReference + BuildingAlias</table>
+      <table>StatusReference + StatusAlias</table>
+    </reference-tables-needed>
+
+  </proposed-solution>
+
+  <pipeline-integration>
+    
+    <processing-flow>
+      <phase name="Extract">Parse CSV columns (existing Phase 1)</phase>
+      <phase name="Transform">Apply reference table lookups via pipes</phase>
+      <phase name="Load">Use canonical values for standardized data</phase>
+    </processing-flow>
+
+    <lookup-pipe-logic>
+      <example>
+        <input>Raw CSV value: "JCI Model 123"</input>
+        <process>Lookup "JCI" in manufacturer_aliases table</process>
+        <result>Find canonical_name "Johnson Controls"</result>
+        <output>Store: manufacturer = "Johnson Controls"</output>
+      </example>
+      
+      <implementation>
+        <code-snippet>
+          // In pipeline processing
+          const manufacturer = await lookupManufacturer(rawValue);
+          if (manufacturer) {
+            assetData.manufacturer = manufacturer.canonical_name;
+          } else {
+            assetData.manufacturer = rawValue; // Keep original if no match
+            // Log for review: unmapped manufacturer found
+          }
+        </code-snippet>
+      </implementation>
+    </lookup-pipe-logic>
+
+  </pipeline-integration>
+
+  <implementation-steps>
+    
+    <step number="1" status="pending">
+      <title>Create Reference Table Schema</title>
+      <tasks>
+        <task>Add ManufacturerReference + ManufacturerAlias models to schema.prisma</task>
+        <task>Create migration with Prisma</task>
+        <task>Verify database schema deployment</task>
+      </tasks>
+    </step>
+
+    <step number="2" status="pending">  
+      <title>Build Lookup Pipe Service</title>
+      <tasks>
+        <task>Create ManufacturerLookupService with fast indexed queries</task>
+        <task>Add caching layer for performance</task>
+        <task>Handle case-insensitive matching</task>
+      </tasks>
+    </step>
+
+    <step number="3" status="pending">
+      <title>Integrate Into Pipeline Processing</title>
+      <tasks>
+        <task>Update pipeline-import.service.ts to use lookups</task>
+        <task>Add lookup calls in mapRowToAsset method</task>
+        <task>Test with existing CSV import flow</task>
+      </tasks>
+    </step>
+
+    <step number="4" status="pending">
+      <title>Create Management UI</title>
+      <tasks>
+        <task>Add Reference Tables tab to Rules Management</task>
+        <task>CRUD interface for manufacturers and aliases</task>
+        <task>Import/export functionality for bulk management</task>
+      </tasks>
+    </step>
+
+    <step number="5" status="pending">
+      <title>Seed Reference Data</title>
+      <tasks>
+        <task>Research common HVAC manufacturers</task>
+        <task>Add seed data with common aliases/typos</task>
+        <task>Create seeding script for deployment</task>
+      </tasks>
+    </step>
+
+  </implementation-steps>
+
+  <success-criteria>
+    <criteria>Fast lookups: &lt;10ms per manufacturer lookup</criteria>
+    <criteria>High match rate: &gt;90% of manufacturer variants found</criteria>
+    <criteria>Easy maintenance: Non-technical users can add aliases through UI</criteria>
+    <criteria>Extensible: Same pattern works for categories, buildings, statuses</criteria>
+    <criteria>Data quality: Consistent canonical names in final asset data</criteria>
+  </success-criteria>
+
+  <next-actions>
+    <action>User to provide reference examples from previous project iteration</action>
+    <action>Review existing reference table patterns</action>
+    <action>Proceed with schema design based on established patterns</action>
+  </next-actions>
+
+</phase2-field-mappings-plan>

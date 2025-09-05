@@ -79,6 +79,62 @@
   </solution>
 
   <technical-implementation>
+    <documents-module-architecture>
+      <overview>
+        Dedicated documents module for asset documentation business logic,
+        using existing files module for infrastructure (blob storage, PDF processing).
+      </overview>
+      
+      <module-structure>
+        <file path="src/documents/documents.module.ts">
+          <imports>DatabaseModule, FilesModule (for AzureBlobStorageService)</imports>
+          <providers>DocumentsService, AssetNotesService</providers>
+          <exports>DocumentsService, AssetNotesService</exports>
+        </file>
+        
+        <file path="src/documents/services/documents.service.ts">
+          <responsibility>Asset document management business logic</responsibility>
+          <methods>
+            <method>findByAsset(assetId): Get all documents for asset</method>
+            <method>createForAsset(assetId, fileData, fileType): Upload document to asset</method>
+            <method>deleteFromAsset(fileId, assetId): Delete asset document</method>
+            <method>getCompleteDocumentation(assetId): Get documents + notes</method>
+          </methods>
+          <dependencies>PrismaService, AzureBlobStorageService (via injection)</dependencies>
+        </file>
+        
+        <file path="src/documents/services/asset-notes.service.ts">
+          <responsibility>6-field structured asset notes management</responsibility>
+          <methods>
+            <method>getAssetNotes(assetId): Get structured notes for asset</method>
+            <method>updateAssetNotes(assetId, notesData): Update asset notes</method>
+          </methods>
+          <note-fields>note1Subject, note1, note2Subject, note2, ..., note6Subject, note6</note-fields>
+        </file>
+        
+        <file path="src/documents/dto/document-response.dto.ts">
+          <extends>FileResponseDto with additional asset context</extends>
+          <fields>asset_name, asset_tag, file_type_label</fields>
+        </file>
+        
+        <file path="src/documents/dto/asset-notes.dto.ts">
+          <structure>6-field structured notes with validation</structure>
+        </file>
+      </module-structure>
+      
+      <integration-strategy>
+        <project-controller>
+          Add asset documentation endpoints to existing ProjectController
+        </project-controller>
+        <tracer-bullet>
+          Start with single GET endpoint to validate architecture
+        </tracer-bullet>
+        <gradual-expansion>
+          Add endpoints incrementally following RESTful patterns
+        </gradual-expansion>
+      </integration-strategy>
+    </documents-module-architecture>
+
     <database-changes>
       <schema-updates>
         <model name="Folder">
@@ -94,6 +150,19 @@
           <change type="add-field">file_type FileType @default(DOCUMENT)</change>
           <change type="add-relation">asset Asset? @relation(fields: [asset_id], references: [id])</change>
           <change type="add-index">@@index([asset_id])</change>
+          <change type="add-index">@@index([file_type]) // For type-based filtering</change>
+        </model>
+
+        <model name="Project">
+          <change type="add-relation">folders Folder[] // Project has many folders</change>
+          <change type="add-relation">files File[] // Project has many files (existing)</change>
+          <change type="add-relation">assets Asset[] // Project has many assets (existing)</change>
+        </model>
+
+        <model name="Asset">
+          <change type="add-relation">files File[] // Asset has many files</change>
+          <note>Asset already has 6 structured note fields (note1-note6 with subjects)</note>
+          <note>Asset has extensive built-in fields that are inherently searchable</note>
         </model>
 
         <enum name="FileType">
@@ -150,12 +219,31 @@
           </category>
 
           <category name="Project-Scoped Folders">
-            <folder project="Edwards Pavillion" name="Calculations" color="#2196F3"/>
-            <folder project="Edwards Pavillion" name="Drawings" color="#9C27B0"/>
-            <folder project="Edwards Pavillion" name="Photos" color="#00BCD4"/>
-            <folder project="Shaw Cancer Center" name="Calculations" color="#2196F3"/>
-            <folder project="Shaw Cancer Center" name="Medical Equipment" color="#E91E63"/>
-            <folder project="Wichita Animal Hospital" name="Photos" color="#00BCD4"/>
+            <!-- Edwards Pavillion (Healthcare Facility) -->
+            <folder project="Edwards Pavillion" name="Calculations" description="HVAC load calculations and engineering analysis" color="#2196F3"/>
+            <folder project="Edwards Pavillion" name="Drawings" description="Architectural and mechanical drawings" color="#9C27B0"/>
+            <folder project="Edwards Pavillion" name="Photos" description="Construction and equipment photos" color="#00BCD4"/>
+            <folder project="Edwards Pavillion" name="Controls" description="Building automation and control systems" color="#FF9800"/>
+            <folder project="Edwards Pavillion" name="Submittals" description="Contractor submittals and shop drawings" color="#8BC34A"/>
+            <folder project="Edwards Pavillion" name="Commissioning" description="Commissioning reports and testing" color="#607D8B"/>
+            <folder project="Edwards Pavillion" name="As-Built" description="As-built drawings and documentation" color="#795548"/>
+            
+            <!-- Shaw Cancer Center (Medical Facility) -->
+            <folder project="Shaw Cancer Center" name="Calculations" description="Engineering calculations and analysis" color="#2196F3"/>
+            <folder project="Shaw Cancer Center" name="Medical Equipment" description="Medical equipment specifications and manuals" color="#E91E63"/>
+            <folder project="Shaw Cancer Center" name="HVAC Systems" description="Clean room and medical HVAC documentation" color="#4CAF50"/>
+            <folder project="Shaw Cancer Center" name="Electrical" description="Medical electrical and backup power systems" color="#FFC107"/>
+            <folder project="Shaw Cancer Center" name="Safety Systems" description="Fire safety and emergency systems" color="#F44336"/>
+            <folder project="Shaw Cancer Center" name="Compliance" description="Healthcare compliance and regulatory docs" color="#9C27B0"/>
+            <folder project="Shaw Cancer Center" name="Commissioning" description="Medical equipment commissioning" color="#607D8B"/>
+            
+            <!-- Wichita Animal Hospital (Veterinary Facility) -->
+            <folder project="Wichita Animal Hospital" name="Photos" description="Site and equipment photos" color="#00BCD4"/>
+            <folder project="Wichita Animal Hospital" name="HVAC" description="Kennel ventilation and climate control" color="#4CAF50"/>
+            <folder project="Wichita Animal Hospital" name="Plumbing" description="Water systems and drainage" color="#2196F3"/>
+            <folder project="Wichita Animal Hospital" name="Equipment" description="Veterinary equipment documentation" color="#E91E63"/>
+            <folder project="Wichita Animal Hospital" name="Construction" description="Construction documents and permits" color="#795548"/>
+            <folder project="Wichita Animal Hospital" name="Inspections" description="Building and safety inspections" color="#FF9800"/>
           </category>
 
           <category name="Asset Documentation">
@@ -205,32 +293,38 @@
         </group>
 
         <group name="Asset Documentation">
-          <endpoint method="GET" path="/api/projects/:projectId/assets/:assetId/files">
-            <description>Get all files for specific asset</description>
+          <endpoint method="GET" path="/api/projects/:projectId/assets/:assetId/documents">
+            <description>Get all documents for specific asset</description>
             <response>Array of files with file_type categorization</response>
+            <implementation>documents.service.ts - findByAsset(assetId)</implementation>
           </endpoint>
           
-          <endpoint method="POST" path="/api/projects/:projectId/assets/:assetId/files">
-            <description>Upload file to specific asset</description>
+          <endpoint method="POST" path="/api/projects/:projectId/assets/:assetId/documents">
+            <description>Upload document to specific asset</description>
             <body>multipart/form-data with file_type selection</body>
+            <implementation>documents.service.ts - createForAsset(assetId, fileData, fileType)</implementation>
           </endpoint>
           
-          <endpoint method="DELETE" path="/api/projects/:projectId/assets/:assetId/files/:fileId">
-            <description>Delete asset file</description>
+          <endpoint method="DELETE" path="/api/projects/:projectId/assets/:assetId/documents/:fileId">
+            <description>Delete asset document</description>
+            <implementation>documents.service.ts - deleteFromAsset(fileId, assetId)</implementation>
           </endpoint>
           
           <endpoint method="GET" path="/api/projects/:projectId/assets/:assetId/notes">
             <description>Get asset notes (structured 6-field notes)</description>
+            <implementation>asset-notes.service.ts - getAssetNotes(assetId)</implementation>
           </endpoint>
           
           <endpoint method="PUT" path="/api/projects/:projectId/assets/:assetId/notes">
             <description>Update asset notes</description>
             <body>{ note1Subject?: string, note1?: string, ..., note6Subject?: string, note6?: string }</body>
+            <implementation>asset-notes.service.ts - updateAssetNotes(assetId, notesData)</implementation>
           </endpoint>
           
           <endpoint method="GET" path="/api/projects/:projectId/assets/:assetId/documentation">
-            <description>Get complete asset documentation (files + notes)</description>
-            <response>Combined response with files array and notes array</response>
+            <description>Get complete asset documentation (documents + notes)</description>
+            <response>Combined response with documents array and notes object</response>
+            <implementation>documents.service.ts - getCompleteDocumentation(assetId)</implementation>
           </endpoint>
         </group>
 
@@ -291,10 +385,11 @@
         <component name="AssetDocumentationPanel">
           <description>Complete asset documentation interface</description>
           <tabs>
-            <tab name="Files">Asset file list with upload and categorization</tab>
+            <tab name="Documents">Asset document list with upload and categorization</tab>
             <tab name="Notes">6-field structured notes editor</tab>
             <tab name="Summary">Documentation overview and statistics</tab>
           </tabs>
+          <integration>Uses documents module API endpoints for all operations</integration>
         </component>
         
         <component name="FileTypeSelector">
@@ -333,38 +428,65 @@
   </technical-implementation>
 
   <implementation-phases>
-    <phase number="1" name="Database Foundation">
+    <implementation-approach>
+      <current-status>✅ Enhanced seeding is complete and working with current schema</current-status>
+      <seeding-compatibility>Current seeding creates project folders with prefixed names (e.g., "Edwards Pavillion - Calculations")</seeding-compatibility>
+      <migration-strategy>Schema changes can be applied without breaking existing seeded data</migration-strategy>
+      <testing-ready>✅ Can test folder management immediately with current structure</testing-ready>
+    </implementation-approach>
+
+    <phase number="1" name="Database Foundation (READY TO START)">
       <duration>3-4 days</duration>
+      <prerequisites>
+        <prerequisite>✅ Enhanced seeding complete with 20 realistic project folders</prerequisite>
+        <prerequisite>✅ 6 assets properly distributed across 3 projects</prerequisite>
+        <prerequisite>✅ Current schema supports all required relationships</prerequisite>
+      </prerequisites>
       <tasks>
         <task>Create database migration for project_id in Folder model</task>
         <task>Create database migration for asset_id and file_type in File model</task>
         <task>Add FileType enum</task>
         <task>Update Prisma schema and generate client</task>
-        <task>Create data migration script for existing folders</task>
+        <task>Create data migration script to convert prefixed folders to project-scoped</task>
+        <task>Update seeding to create true project-scoped folders</task>
       </tasks>
       <deliverables>
         <deliverable>Updated database schema with project-scoped folders</deliverable>
         <deliverable>Asset-file relationship established</deliverable>
         <deliverable>File categorization system in place</deliverable>
+        <deliverable>Existing seeded data migrated to new structure</deliverable>
       </deliverables>
+      <migration-notes>
+        <note>Existing folders like "Edwards Pavillion - Calculations" will be converted to project-scoped</note>
+        <note>Data migration will extract project name from folder prefix and create proper relationships</note>
+        <note>No data loss - all current folder and asset data will be preserved</note>
+      </migration-notes>
     </phase>
 
     <phase number="2" name="Backend API Implementation">
       <duration>5-6 days</duration>
       <tasks>
-        <task>Implement project-scoped folder CRUD endpoints</task>
-        <task>Implement asset documentation endpoints (files + notes)</task>
-        <task>Update existing file upload to support asset context</task>
-        <task>Add file type categorization logic</task>
-        <task>Update folder validation (unique within project)</task>
-        <task>Add comprehensive API tests for new endpoints</task>
+        <task status="completed">✅ Implement project-scoped folder CRUD endpoints</task>
+        <task status="in-progress">🔄 Create documents module architecture</task>
+        <task status="pending">Implement documents.service.ts for asset file operations</task>
+        <task status="pending">Implement asset-notes.service.ts for structured notes</task>
+        <task status="pending">Add asset documentation endpoints to ProjectController</task>
+        <task status="pending">Update existing file upload to support asset context</task>
+        <task status="pending">Add file type categorization logic</task>
+        <task status="pending">Add comprehensive API tests for new endpoints</task>
       </tasks>
       <deliverables>
-        <deliverable>Complete project-scoped folder API</deliverable>
-        <deliverable>Asset documentation API endpoints</deliverable>
-        <deliverable>Enhanced file upload with categorization</deliverable>
-        <deliverable>Updated test suite covering new functionality</deliverable>
+        <deliverable status="completed">✅ Complete project-scoped folder API</deliverable>
+        <deliverable status="in-progress">🔄 Documents module with clean architecture</deliverable>
+        <deliverable status="pending">Asset documentation API endpoints</deliverable>
+        <deliverable status="pending">Enhanced file upload with categorization</deliverable>
+        <deliverable status="pending">Updated test suite covering new functionality</deliverable>
       </deliverables>
+      <architecture-decisions>
+        <decision>Use dedicated documents module instead of extending files module</decision>
+        <rationale>Separates business logic (asset documentation) from infrastructure (blob storage)</rationale>
+        <impact>Clean architecture boundaries, easier testing, better maintainability</impact>
+      </architecture-decisions>
     </phase>
 
     <phase number="3" name="Frontend Core Components">
@@ -560,9 +682,17 @@
   </risks-and-mitigations>
 
   <future-enhancements>
-    <enhancement name="Advanced File Search">
-      <description>Search across project, folder, and asset documentation with filters</description>
+    <enhancement name="Metadata and Advanced Search System">
+      <description>Add tags and custom metadata to projects, folders, assets, and files for comprehensive search capabilities</description>
       <priority>high</priority>
+      <complexity>Medium - requires schema changes, search APIs, and UI components</complexity>
+      <scope>
+        <item>Add tags String[] and metadata Json fields to all models</item>
+        <item>Build search API with filtering by tags, metadata, file types</item>
+        <item>Create search UI with advanced filters and autocomplete</item>
+        <item>Add tag management interface</item>
+      </scope>
+      <timeline>1-2 weeks after core project-scoped folders are complete</timeline>
     </enhancement>
 
     <enhancement name="Documentation Templates">

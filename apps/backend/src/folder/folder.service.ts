@@ -54,8 +54,11 @@ export class FolderService {
     try {
       const folder = await this.prisma.folder.create({
         data: {
-          ...createFolderDto,
+          name: createFolderDto.name,
+          description: createFolderDto.description,
+          color: createFolderDto.color,
           is_default: false, // User-created folders are never default
+          project_id: createFolderDto.project_id, // Required for project-scoped folders
         },
         include: {
           _count: {
@@ -162,8 +165,104 @@ export class FolderService {
       color: folder.color ?? undefined,
       is_default: folder.is_default,
       file_count: folder._count.files,
+      project_id: folder.project_id,
       created_at: folder.created_at,
       updated_at: folder.updated_at,
     };
+  }
+
+  // Project-scoped folder methods
+  public async findByProject(projectId: string): Promise<FolderResponseDto[]> {
+    const folders = await this.prisma.folder.findMany({
+      where: {
+        project_id: projectId,
+        is_deleted: false,
+      },
+      include: {
+        _count: {
+          select: { files: { where: { is_deleted: false } } },
+        },
+      },
+      orderBy: [
+        { is_default: 'desc' }, // Default folders first
+        { name: 'asc' },
+      ],
+    });
+
+    return folders.map((folder) => this.mapToResponseDto(folder));
+  }
+
+  public async findByIdAndProject(
+    id: string,
+    projectId: string,
+  ): Promise<FolderResponseDto> {
+    const folder = await this.prisma.folder.findFirst({
+      where: {
+        id,
+        project_id: projectId,
+        is_deleted: false,
+      },
+      include: {
+        _count: {
+          select: { files: { where: { is_deleted: false } } },
+        },
+      },
+    });
+
+    if (!folder) {
+      throw new NotFoundException(
+        `Folder with ID ${id} not found in project ${projectId}`,
+      );
+    }
+
+    return this.mapToResponseDto(folder);
+  }
+
+  public async updateInProject(
+    id: string,
+    projectId: string,
+    updateFolderDto: UpdateFolderDto,
+  ): Promise<FolderResponseDto> {
+    // First verify the folder exists in the project
+    await this.findByIdAndProject(id, projectId);
+
+    try {
+      const folder = await this.prisma.folder.update({
+        where: { id },
+        data: updateFolderDto,
+        include: {
+          _count: {
+            select: { files: { where: { is_deleted: false } } },
+          },
+        },
+      });
+
+      return this.mapToResponseDto(folder);
+    } catch (error: unknown) {
+      if (this.isPrismaUniqueConstraintError(error)) {
+        throw new ConflictException(
+          `Folder with name '${updateFolderDto.name}' already exists in this project`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  public async deleteFromProject(id: string, projectId: string): Promise<void> {
+    // First verify the folder exists in the project
+    await this.findByIdAndProject(id, projectId);
+
+    const folder = await this.prisma.folder.findUnique({
+      where: { id },
+    });
+
+    if (folder?.is_default) {
+      throw new BadRequestException('Cannot delete default system folders');
+    }
+
+    await this.prisma.folder.update({
+      where: { id },
+      data: { is_deleted: true },
+    });
   }
 }

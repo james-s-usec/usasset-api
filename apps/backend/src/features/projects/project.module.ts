@@ -7,9 +7,11 @@ import { ProjectMemberCommandService } from './services/project-member-command.s
 import { ProjectRepository } from './project.repository';
 import { ProjectMemberRepository } from './project-member.repository';
 import { DatabaseModule } from '@/database/database.module';
+import { FolderService } from '../../folder/folder.service';
+import { DocumentsModule } from '../../documents/documents.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, DocumentsModule],
   controllers: [ProjectController],
   providers: [
     ProjectQueryService,
@@ -18,6 +20,7 @@ import { DatabaseModule } from '@/database/database.module';
     ProjectMemberCommandService,
     ProjectRepository,
     ProjectMemberRepository,
+    FolderService,
   ],
   exports: [ProjectQueryService, ProjectMemberQueryService],
 })

@@ -11,6 +11,7 @@ import {
   HttpStatus,
   NotFoundException,
   ValidationPipe,
+  Inject,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -31,6 +32,12 @@ import { SafeProjectDto } from '../dto/safe-project.dto';
 import { ProjectMemberDto } from '../dto/project-member.dto';
 import { ProjectSearchDto } from '../dto/project-search.dto';
 import { SanitizationPipe } from '@/common/pipes/sanitization.pipe';
+import { FolderService } from '../../../folder/folder.service';
+import { CreateFolderDto } from '../../../folder/dto/create-folder.dto';
+import { UpdateFolderDto } from '../../../folder/dto/update-folder.dto';
+import { FolderResponseDto } from '../../../folder/dto/folder-response.dto';
+import { DocumentsService } from '../../../documents/services/documents.service';
+import { AssetDocumentResponseDto } from '../../../documents/dto/asset-document-response.dto';
 
 @ApiTags('projects')
 @Controller('api/projects')
@@ -42,6 +49,13 @@ export class ProjectController {
     private readonly memberQueryService: ProjectMemberQueryService,
     private readonly memberCommandService: ProjectMemberCommandService,
   ) {}
+
+  // Injected services (following clean architecture pattern)
+  @Inject(FolderService)
+  private readonly folderService!: FolderService;
+
+  @Inject(DocumentsService)
+  private readonly documentsService!: DocumentsService;
 
   @Post()
   @ApiOperation({ summary: 'Create a new project' })
@@ -196,5 +210,120 @@ export class ProjectController {
     }>
   > {
     return this.memberQueryService.getUserProjects(userId);
+  }
+
+  // Project-scoped folder endpoints
+  @Get(':projectId/folders')
+  @ApiOperation({ summary: 'Get all folders for a specific project' })
+  @ApiResponse({
+    status: 200,
+    description: 'Project folders retrieved successfully',
+    type: [FolderResponseDto],
+  })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  public async getProjectFolders(
+    @Param('projectId') projectId: string,
+  ): Promise<FolderResponseDto[]> {
+    return this.folderService.findByProject(projectId);
+  }
+
+  @Post(':projectId/folders')
+  @ApiOperation({ summary: 'Create new folder within project' })
+  @ApiResponse({
+    status: 201,
+    description: 'Folder created successfully',
+    type: FolderResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid folder data' })
+  @ApiResponse({
+    status: 409,
+    description: 'Folder name already exists in project',
+  })
+  public async createProjectFolder(
+    @Param('projectId') projectId: string,
+    @Body(SanitizationPipe, ValidationPipe)
+    dto: Omit<CreateFolderDto, 'project_id'>,
+  ): Promise<FolderResponseDto> {
+    const folderData: CreateFolderDto = { ...dto, project_id: projectId };
+    return this.folderService.create(folderData);
+  }
+
+  @Get(':projectId/folders/:folderId')
+  @ApiOperation({ summary: 'Get specific folder within project' })
+  @ApiResponse({
+    status: 200,
+    description: 'Folder retrieved successfully',
+    type: FolderResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Folder or project not found' })
+  public async getProjectFolder(
+    @Param('projectId') projectId: string,
+    @Param('folderId') folderId: string,
+  ): Promise<FolderResponseDto> {
+    return this.folderService.findByIdAndProject(folderId, projectId);
+  }
+
+  @Put(':projectId/folders/:folderId')
+  @ApiOperation({ summary: 'Update folder within project' })
+  @ApiResponse({
+    status: 200,
+    description: 'Folder updated successfully',
+    type: FolderResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Folder or project not found' })
+  public async updateProjectFolder(
+    @Param('projectId') projectId: string,
+    @Param('folderId') folderId: string,
+    @Body(SanitizationPipe, ValidationPipe) dto: UpdateFolderDto,
+  ): Promise<FolderResponseDto> {
+    return this.folderService.updateInProject(folderId, projectId, dto);
+  }
+
+  @Delete(':projectId/folders/:folderId')
+  @ApiOperation({ summary: 'Delete folder within project' })
+  @ApiResponse({ status: 204, description: 'Folder deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Folder or project not found' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  public async deleteProjectFolder(
+    @Param('projectId') projectId: string,
+    @Param('folderId') folderId: string,
+  ): Promise<void> {
+    await this.folderService.deleteFromProject(folderId, projectId);
+  }
+
+  // Asset documentation endpoints (tracer bullet implementation)
+  @Get(':projectId/assets/:assetId/documents')
+  @ApiOperation({ summary: 'Get all documents for specific asset' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset documents retrieved successfully',
+    type: [AssetDocumentResponseDto],
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  public async getAssetDocuments(
+    @Param('projectId') projectId: string,
+    @Param('assetId') assetId: string,
+  ): Promise<AssetDocumentResponseDto[]> {
+    return this.documentsService.findByAsset(assetId);
+  }
+
+  @Get(':projectId/assets/:assetId/documentation')
+  @ApiOperation({
+    summary: 'Get complete asset documentation (documents + statistics)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset documentation retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  public async getCompleteAssetDocumentation(
+    @Param('projectId') projectId: string,
+    @Param('assetId') assetId: string,
+  ): Promise<{
+    documents: AssetDocumentResponseDto[];
+    documentCount: number;
+    documentsByType: Record<string, number>;
+  }> {
+    return this.documentsService.getCompleteDocumentation(assetId);
   }
 }

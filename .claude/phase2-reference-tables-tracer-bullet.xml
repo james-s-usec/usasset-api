@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phase2-reference-tables-tracer-bullet version="1.0" date="2025-09-05">
+  
+  <project-context>
+    <name>USAsset Phase 2 Reference Tables Tracer Bullet</name>
+    <technology>NestJS/React/Prisma/PostgreSQL</technology>
+    <goal>Build end-to-end reference table system for asset classification and standardization</goal>
+    <current-status>Phase 1 complete (CSV headers → Asset fields), Phase 2 needed (value standardization via reference tables)</current-status>
+  </project-context>
+
+  <tracer-bullet-objective>
+    <target>One working reference table from database → UI → ETL pipeline</target>
+    <success-criteria>Upload CSV with "RTU-1" → Pipeline uses alias lookup → Asset stored with assetType: "Rooftop Unit"</success-criteria>
+    <proof-of-concept>End-to-end reference table lookup working in pipeline processing</proof-of-concept>
+  </tracer-bullet-objective>
+
+  <implementation-steps>
+    
+    <step number="1" priority="HIGH" status="pending">
+      <title>Build Minimal Reference Table Module (Frontend + Backend)</title>
+      <description>Create basic reference table infrastructure following previous project patterns</description>
+      
+      <backend-tasks>
+        <task>Add EquipmentType + EquipmentTypeAlias models to Prisma schema</task>
+        <task>Create database migration for reference tables</task>
+        <task>Build ReferenceTableService with CRUD operations</task>
+        <task>Create ReferenceTableController with basic API endpoints</task>
+        <task>Add TypeScript DTOs for type safety</task>
+      </backend-tasks>
+      
+      <frontend-tasks>
+        <task>Add "Reference Tables" tab to Rules Management component</task>
+        <task>Create basic table view for equipment types</task>
+        <task>Build add/edit forms for equipment types and aliases</task>
+        <task>Add API integration for CRUD operations</task>
+      </frontend-tasks>
+      
+      <database-schema>
+        <model name="EquipmentType">
+          <field>id: String @id @default(uuid())</field>
+          <field>name: String @unique // "Rooftop Unit", "Air Handler", "Chiller"</field>
+          <field>uniformatCode: String? // "D3040.10"</field>
+          <field>category: String // "HVAC", "Electrical", "Plumbing"</field>
+          <field>is_active: Boolean @default(true)</field>
+          <field>created_at: DateTime @default(now())</field>
+          <relation>aliases: EquipmentTypeAlias[]</relation>
+        </model>
+        
+        <model name="EquipmentTypeAlias">
+          <field>id: String @id @default(uuid())</field>
+          <field>alias: String @unique // "RTU", "AHU", "Package Unit"</field>
+          <field>equipment_type_id: String</field>
+          <field>confidence: Decimal @default(1.0)</field>
+          <field>is_active: Boolean @default(true)</field>
+          <field>created_at: DateTime @default(now())</field>
+          <relation>equipment_type: EquipmentType</relation>
+        </model>
+      </database-schema>
+    </step>
+
+    <step number="2" priority="HIGH" status="pending">
+      <title>Seed One Reference Table with Basic Taxonomy Data</title>
+      <description>Populate initial reference data to enable testing</description>
+      
+      <seeding-tasks>
+        <task>Create seed data for EquipmentType table</task>
+        <task>Add common HVAC equipment types: "Rooftop Unit", "Air Handler", "Chiller"</task>
+        <task>Create seed data for EquipmentTypeAlias table</task>
+        <task>Add common aliases: "RTU" → "Rooftop Unit", "AHU" → "Air Handler"</task>
+        <task>Include UniFormat codes where applicable</task>
+        <task>Update seed.ts to include reference table seeding</task>
+      </seeding-tasks>
+      
+      <seed-data-examples>
+        <equipment-type name="Rooftop Unit" uniformatCode="D3040.10" category="HVAC">
+          <alias>RTU</alias>
+          <alias>Package Unit</alias>
+          <alias>Packaged Unit</alias>
+        </equipment-type>
+        
+        <equipment-type name="Air Handler" uniformatCode="D3040.20" category="HVAC">
+          <alias>AHU</alias>
+          <alias>Air Handling Unit</alias>
+          <alias>Fan Coil</alias>
+        </equipment-type>
+        
+        <equipment-type name="Chiller" uniformatCode="D3030.20" category="HVAC">
+          <alias>Cooling Unit</alias>
+          <alias>Refrigeration Unit</alias>
+        </equipment-type>
+      </seed-data-examples>
+    </step>
+
+    <step number="3" priority="HIGH" status="pending">
+      <title>Create Reference Table Editing UI for Alias Management</title>
+      <description>Build user interface for managing reference tables and aliases</description>
+      
+      <ui-components>
+        <component name="ReferenceTablesTab">
+          <purpose>Main container for reference table management</purpose>
+          <features>
+            <feature>Tab navigation between different reference types</feature>
+            <feature>Equipment Type management interface</feature>
+            <feature>Real-time updates without page refresh</feature>
+          </features>
+        </component>
+        
+        <component name="EquipmentTypeTable">
+          <purpose>Display and manage equipment types</purpose>
+          <features>
+            <feature>Sortable table with equipment types</feature>
+            <feature>Add new equipment type button</feature>
+            <feature>Edit/delete actions per row</feature>
+            <feature>Show alias count per equipment type</feature>
+          </features>
+        </component>
+        
+        <component name="AliasManagement">
+          <purpose>Manage aliases for each equipment type</purpose>
+          <features>
+            <feature>Expandable alias list per equipment type</feature>
+            <feature>Add new alias functionality</feature>
+            <feature>Edit alias confidence scores</feature>
+            <feature>Delete aliases with confirmation</feature>
+          </features>
+        </component>
+      </ui-components>
+      
+      <user-workflow>
+        <step>Navigate to Rules Management → Reference Tables</step>
+        <step>Select Equipment Types tab</step>
+        <step>View existing equipment types with alias counts</step>
+        <step>Click "Add Alias" for "Rooftop Unit"</step>
+        <step>Add "Package Unit" with confidence 0.9</step>
+        <step>Save and verify alias appears in table</step>
+      </user-workflow>
+    </step>
+
+    <step number="4" priority="HIGH" status="pending">
+      <title>Update ETL Pipeline to Use Reference Table Lookups</title>
+      <description>Integrate reference table lookups into pipeline processing</description>
+      
+      <pipeline-integration>
+        <service name="ReferenceTableLookupService">
+          <purpose>Provide fast lookups during ETL processing</purpose>
+          <methods>
+            <method>lookupEquipmentType(rawValue: string): EquipmentType | null</method>
+            <method>lookupManufacturer(rawValue: string): Manufacturer | null</method>
+            <method>getAllAliases(): Map&lt;string, ReferenceEntry&gt;</method>
+          </methods>
+          <caching>In-memory cache for performance during bulk processing</caching>
+        </service>
+        
+        <pipeline-updates>
+          <file>pipeline-import.service.ts</file>
+          <method>mapRowToAsset()</method>
+          <changes>
+            <change>Inject ReferenceTableLookupService</change>
+            <change>Add equipment type lookup before storing asset</change>
+            <change>Add manufacturer lookup with fallback to raw value</change>
+            <change>Track lookup success rates for monitoring</change>
+          </changes>
+        </pipeline-updates>
+      </pipeline-integration>
+      
+      <implementation-example>
+        <code-snippet>
+          // In mapRowToAsset method
+          const rawEquipmentType = row['Equipment Type'] || row['Type'] || '';
+          const equipmentType = await this.referenceTableLookup.lookupEquipmentType(rawEquipmentType);
+          
+          assetData.assetType = equipmentType?.name || rawEquipmentType;
+          assetData.assetCategory = equipmentType?.category || null;
+          assetData.uniformatCode = equipmentType?.uniformatCode || null;
+        </code-snippet>
+      </implementation-example>
+    </step>
+
+  </implementation-steps>
+
+  <testing-strategy>
+    
+    <unit-tests>
+      <test>ReferenceTableService CRUD operations</test>
+      <test>ReferenceTableLookupService alias matching</test>
+      <test>Pipeline integration with reference lookups</test>
+    </unit-tests>
+    
+    <integration-tests>
+      <test>End-to-end CSV import with reference table lookups</test>
+      <test>UI reference table management operations</test>
+      <test>Database seeding and migration processes</test>
+    </integration-tests>
+    
+    <tracer-bullet-test>
+      <description>Complete end-to-end test proving reference table system works</description>
+      <steps>
+        <step>Create CSV file with "RTU-1" equipment type</step>
+        <step>Upload file through pipeline import</step>
+        <step>Verify "RTU" alias lookup finds "Rooftop Unit"</step>
+        <step>Confirm asset stored with standardized assetType: "Rooftop Unit"</step>
+        <step>Check UI shows proper classification</step>
+      </steps>
+      <success-criteria>CSV raw value "RTU-1" becomes standardized "Rooftop Unit" in database</success-criteria>
+    </tracer-bullet-test>
+    
+  </testing-strategy>
+
+  <api-endpoints>
+    
+    <equipment-types>
+      <endpoint method="GET" path="/api/reference/equipment-types">Get all equipment types with aliases</endpoint>
+      <endpoint method="POST" path="/api/reference/equipment-types">Create new equipment type</endpoint>
+      <endpoint method="PUT" path="/api/reference/equipment-types/:id">Update equipment type</endpoint>
+      <endpoint method="DELETE" path="/api/reference/equipment-types/:id">Delete equipment type</endpoint>
+    </equipment-types>
+    
+    <equipment-aliases>
+      <endpoint method="GET" path="/api/reference/equipment-types/:id/aliases">Get aliases for equipment type</endpoint>
+      <endpoint method="POST" path="/api/reference/equipment-types/:id/aliases">Add alias to equipment type</endpoint>
+      <endpoint method="PUT" path="/api/reference/aliases/:id">Update alias</endpoint>
+      <endpoint method="DELETE" path="/api/reference/aliases/:id">Delete alias</endpoint>
+    </equipment-aliases>
+    
+    <lookup-endpoints>
+      <endpoint method="GET" path="/api/reference/lookup/equipment-type/:rawValue">Lookup equipment type by raw value</endpoint>
+      <endpoint method="GET" path="/api/reference/lookup/all-aliases">Get all aliases for pipeline caching</endpoint>
+    </lookup-endpoints>
+    
+  </api-endpoints>
+
+  <success-metrics>
+    <metric>Reference table CRUD operations working in UI</metric>
+    <metric>Alias management functional with confidence scoring</metric>
+    <metric>Pipeline successfully uses reference lookups</metric>
+    <metric>Standardized asset data stored correctly</metric>
+    <metric>Performance acceptable for bulk imports (&lt;10ms per lookup)</metric>
+    <metric>Tracer bullet test passes end-to-end</metric>
+  </success-metrics>
+
+  <future-expansion>
+    <expansion-point>Add more reference tables (Manufacturer, Building, Status)</expansion-point>
+    <expansion-point>Import full UniFormat taxonomy from previous project</expansion-point>
+    <expansion-point>Add confidence-based review workflows</expansion-point>
+    <expansion-point>Implement fuzzy matching for better alias detection</expansion-point>
+    <expansion-point>Add bulk import/export for reference data management</expansion-point>
+  </future-expansion>
+
+  <risks-and-mitigations>
+    <risk description="Performance impact during bulk imports">
+      <mitigation>Implement in-memory caching of reference data</mitigation>
+      <mitigation>Pre-load all aliases at pipeline start</mitigation>
+    </risk>
+    
+    <risk description="Reference data management complexity">
+      <mitigation>Start with single table tracer bullet</mitigation>
+      <mitigation>Follow proven patterns from previous project</mitigation>
+    </risk>
+    
+    <risk description="Data synchronization between frontend and backend">
+      <mitigation>Use established API patterns from current project</mitigation>
+      <mitigation>Implement proper error handling and validation</mitigation>
+    </risk>
+  </risks-and-mitigations>
+
+</phase2-reference-tables-tracer-bullet>

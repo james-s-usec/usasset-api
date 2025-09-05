@@ -47,54 +47,6 @@ export class AssetController {
     private readonly cache: SimpleCacheService,
   ) {}
 
-  private convertDecimalToNumber(decimal: unknown): number | null {
-    if (!decimal) return null;
-    // Handle Prisma Decimal type which has toString method
-    if (
-      typeof decimal === 'object' &&
-      decimal !== null &&
-      'toString' in decimal
-    ) {
-      return parseFloat((decimal as { toString(): string }).toString());
-    }
-    // For primitive types (string, number)
-    if (typeof decimal === 'string' || typeof decimal === 'number') {
-      return parseFloat(String(decimal));
-    }
-    return null;
-  }
-
-  private convertPrismaAssetToPlain(
-    asset: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const decimalFields = [
-      'xCoordinate',
-      'yCoordinate',
-      'squareFeet',
-      'weight',
-      'purchaseCost',
-      'installationCost',
-      'annualMaintenanceCost',
-      'estimatedAnnualOperatingCost',
-      'disposalCost',
-      'salvageValue',
-      'totalCostOfOwnership',
-      'currentBookValue',
-      'ratedPowerKw',
-      'actualPowerKw',
-      'dailyOperatingHours',
-      'estimatedAnnualKwh',
-    ];
-
-    const result: Record<string, unknown> = { ...asset };
-
-    for (const field of decimalFields) {
-      result[field] = this.convertDecimalToNumber(asset[field]);
-    }
-
-    return result;
-  }
-
   @Get()
   @ApiOperation({
     summary: 'Get all assets with search, filtering, and pagination',
@@ -285,13 +237,8 @@ export class AssetController {
     assets: unknown[],
     paginationInfo: { page: number; limit: number; total: number },
   ): { assets: SafeAssetDto[]; pagination: Record<string, number> } {
-    const plainAssets = assets.map((asset) =>
-      this.convertPrismaAssetToPlain(asset as Record<string, unknown>),
-    );
-
-    const safeAssets = plainToInstance(SafeAssetDto, plainAssets, {
-      excludeExtraneousValues: true,
-    });
+    // Direct assignment instead of plainToInstance to avoid decimal conversion issues
+    const safeAssets = assets as SafeAssetDto[];
 
     return {
       assets: safeAssets,
