@@ -1,18 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Typography, List, ListItem, ListItemIcon, ListItemText, Paper, Chip, Box } from '@mui/material';
 import { Check, Pause } from '@mui/icons-material';
-import type { PipelineRule } from './types';
-import config from '../../../config';
+import { useCleanRules } from './hooks/useCleanRules';
 
-interface CleanRule {
-  id: string;
-  name: string;
-  type: string;
-  target: string;
-  is_active: boolean;
-}
 
-const RulesList: React.FC<{ rules: CleanRule[] }> = ({ rules }) => (
+const RulesList: React.FC<{ rules: Array<{ id: string; name: string; type: string; target: string; is_active: boolean }> }> = ({ rules }) => (
   <List dense>
     {rules.length === 0 ? (
       <ListItem>
@@ -43,31 +35,7 @@ const RulesList: React.FC<{ rules: CleanRule[] }> = ({ rules }) => (
 );
 
 export const CleanRules: React.FC = () => {
-  const [rules, setRules] = useState<CleanRule[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchCleanRules = async (): Promise<void> => {
-      try {
-        const response = await fetch(`${config.api.baseUrl}/api/pipeline/rules`);
-        const data = await response.json();
-        
-        if (data.success) {
-          // Filter for CLEAN phase rules only
-          const cleanRules = data.data.rules.filter((rule: PipelineRule) => 
-            rule.phase === 'CLEAN'
-          );
-          setRules(cleanRules);
-        }
-      } catch (error) {
-        console.error('Failed to fetch clean rules:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCleanRules();
-  }, []);
+  const { rules, loading } = useCleanRules();
 
   return (
     <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>

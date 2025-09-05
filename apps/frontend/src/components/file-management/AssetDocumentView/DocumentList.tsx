@@ -49,7 +49,12 @@ const DocumentActions: React.FC<{
   onDelete: () => void;
 }> = ({ onDownload, onDelete }) => (
   <ListItemSecondaryAction>
-    <IconButton edge="end" aria-label="download" onClick={onDownload} sx={{ mr: 1 }}>
+    <IconButton 
+      edge="end" 
+      aria-label="download" 
+      onClick={onDownload} 
+      sx={{ mr: 1 }}
+    >
       <DownloadIcon />
     </IconButton>
     <IconButton edge="end" aria-label="delete" onClick={onDelete}>

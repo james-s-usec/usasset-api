@@ -1,18 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Typography, List, ListItem, ListItemIcon, ListItemText, Paper, Chip, Box } from '@mui/material';
 import { Check, Pause } from '@mui/icons-material';
-import type { PipelineRule } from './types';
-import config from '../../../config';
+import { useTransformRules } from './hooks/useTransformRules';
 
-interface TransformRule {
-  id: string;
-  name: string;
-  type: string;
-  target: string;
-  is_active: boolean;
-}
 
-const RulesList: React.FC<{ rules: TransformRule[] }> = ({ rules }) => (
+const RulesList: React.FC<{ rules: Array<{ id: string; name: string; type: string; target: string; is_active: boolean }> }> = ({ rules }) => (
   <List dense>
     {rules.length === 0 ? (
       <ListItem>
@@ -43,31 +35,7 @@ const RulesList: React.FC<{ rules: TransformRule[] }> = ({ rules }) => (
 );
 
 export const TransformRules: React.FC = () => {
-  const [rules, setRules] = useState<TransformRule[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchTransformRules = async (): Promise<void> => {
-      try {
-        const response = await fetch(`${config.api.baseUrl}/api/pipeline/rules`);
-        const data = await response.json();
-        
-        if (data.success) {
-          // Filter for TRANSFORM phase rules only
-          const transformRules = data.data.rules.filter((rule: PipelineRule) => 
-            rule.phase === 'TRANSFORM'
-          );
-          setRules(transformRules);
-        }
-      } catch (error) {
-        console.error('Failed to fetch transform rules:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTransformRules();
-  }, []);
+  const { rules, loading } = useTransformRules();
 
   return (
     <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>

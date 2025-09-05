@@ -1,7 +1,8 @@
 import React, { useMemo, useCallback } from "react";
-import { Box, Button } from "@mui/material";
+import { Box } from "@mui/material";
 import type { ICellRendererParams } from "ag-grid-community";
 import type { Asset } from "../types";
+import { ActionButton } from "./ActionButton";
 
 interface ActionsCellRendererProps {
   onEdit: (asset: Asset) => void;
@@ -9,15 +10,6 @@ interface ActionsCellRendererProps {
   onViewDocuments?: (asset: Asset) => void;
 }
 
-const ActionButton: React.FC<{ 
-  onClick: () => void; 
-  color?: "primary" | "info" | "error"; 
-  children: React.ReactNode; 
-}> = ({ onClick, color, children }) => (
-  <Button size="small" variant="outlined" color={color} onClick={onClick}>
-    {children}
-  </Button>
-);
 
 export const useActionsCellRenderer = ({ onEdit, onDelete, onViewDocuments }: ActionsCellRendererProps): ((params: ICellRendererParams<Asset>) => React.ReactElement) => {
   return useCallback((params: ICellRendererParams<Asset>) => {
@@ -25,13 +17,21 @@ export const useActionsCellRenderer = ({ onEdit, onDelete, onViewDocuments }: Ac
     
     return (
       <Box sx={{ display: "flex", gap: 1, alignItems: "center", height: "100%" }}>
-        <ActionButton onClick={() => onEdit(params.data!)}>Edit</ActionButton>
+        <ActionButton onClick={() => onEdit(params.data!)}>
+          Edit
+        </ActionButton>
         {onViewDocuments && (
-          <ActionButton onClick={() => onViewDocuments(params.data!)} color="info">
+          <ActionButton 
+            onClick={() => onViewDocuments(params.data!)} 
+            color="info"
+          >
             Documents
           </ActionButton>
         )}
-        <ActionButton onClick={() => onDelete(params.data!.id)} color="error">
+        <ActionButton 
+          onClick={() => onDelete(params.data!.id)} 
+          color="error"
+        >
           Delete
         </ActionButton>
       </Box>

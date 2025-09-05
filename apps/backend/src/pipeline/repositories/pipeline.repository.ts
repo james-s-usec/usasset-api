@@ -41,6 +41,53 @@ export class PipelineRepository {
 
   public constructor(private readonly prisma: PrismaService) {}
 
+  // Phase Result operations
+  public async savePhaseResult(data: {
+    import_job_id: string;
+    phase: PipelinePhase;
+    status: string;
+    transformations: unknown[];
+    applied_rules: string[];
+    input_sample?: unknown;
+    output_sample?: unknown;
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    metadata?: unknown;
+    errors?: unknown;
+    warnings?: unknown;
+    started_at: Date;
+    completed_at?: Date;
+    duration_ms?: number;
+  }): Promise<void> {
+    this.logPhaseResultSave(data.import_job_id, data.phase);
+
+    await this.prisma.phaseResult.create({
+      data: {
+        import_job: { connect: { id: data.import_job_id } },
+        phase: data.phase,
+        status: data.status,
+        transformations: data.transformations as Prisma.InputJsonValue,
+        applied_rules: data.applied_rules,
+        input_sample: data.input_sample as Prisma.InputJsonValue,
+        output_sample: data.output_sample as Prisma.InputJsonValue,
+        rows_processed: data.rows_processed,
+        rows_modified: data.rows_modified,
+        rows_failed: data.rows_failed,
+        metadata: data.metadata as Prisma.InputJsonValue,
+        errors: data.errors as Prisma.InputJsonValue,
+        warnings: data.warnings as Prisma.InputJsonValue,
+        started_at: data.started_at,
+        completed_at: data.completed_at,
+        duration_ms: data.duration_ms,
+      },
+    });
+  }
+
+  private logPhaseResultSave(jobId: string, phase: PipelinePhase): void {
+    this.logger.debug(`Saving phase result for job ${jobId}, phase ${phase}`);
+  }
+
   // Rule CRUD operations
   public async createRule(data: CreateRuleData): Promise<PipelineRule> {
     this.logger.debug(`Creating rule: ${data.name}`);

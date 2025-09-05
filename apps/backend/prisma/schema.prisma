@@ -307,11 +307,50 @@ model ImportJob {
   created_by     String?
   file           File           @relation(fields: [file_id], references: [id])
   staging_assets StagingAsset[]
+  phase_results  PhaseResult[]
 
   @@index([status])
   @@index([started_at])
   @@index([file_id])
   @@map("import_jobs")
+}
+
+model PhaseResult {
+  id              String        @id @default(uuid())
+  import_job_id   String
+  phase           PipelinePhase
+  status          String
+  
+  // Transformation tracking
+  transformations Json          // Array of {field, before, after, ruleApplied}
+  applied_rules   String[]      // List of rule names/IDs that were applied
+  
+  // Input/Output data samples
+  input_sample    Json?         // Sample of input data (first N rows)
+  output_sample   Json?         // Sample of output data (first N rows)
+  
+  // Metrics
+  rows_processed  Int           @default(0)
+  rows_modified   Int           @default(0)
+  rows_failed     Int           @default(0)
+  
+  // Metadata
+  metadata        Json?         // Phase-specific metadata
+  errors          Json?         // Any errors encountered
+  warnings        Json?         // Non-fatal warnings
+  
+  // Timing
+  started_at      DateTime      @default(now())
+  completed_at    DateTime?
+  duration_ms     Int?          // Processing time in milliseconds
+  
+  // Relations
+  import_job      ImportJob     @relation(fields: [import_job_id], references: [id], onDelete: Cascade)
+  
+  @@index([import_job_id, phase])
+  @@index([phase])
+  @@index([started_at])
+  @@map("phase_results")
 }
 
 model StagingAsset {

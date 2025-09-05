@@ -6,6 +6,8 @@ import * as sharp from 'sharp';
 import { renderPageAsImage, getDocumentProxy } from 'unpdf';
 import { FileNotFoundException } from '../exceptions/file.exceptions';
 
+const VALIDATION_IMAGE_WIDTH = 200;
+
 interface PDFInfo {
   pageCount: number;
   title?: string;
@@ -157,36 +159,77 @@ export class PdfProcessingService {
   }> {
     const file = await this.validatePdfFile(fileId);
     const pdfInfo = await this.getPdfInfo(fileId);
-    
-    const validPages: number[] = [];
-    const invalidPages: Array<{ page: number; error: string }> = [];
-    
-    this.logger.log(`🔍 Validating ${pdfInfo.pageCount} pages for ${file.original_name}`);
-    
-    // Test render each page with minimal width for speed
-    for (let page = 1; page <= pdfInfo.pageCount; page++) {
-      try {
-        await this.renderPreviewImage(fileId, page, 200); // Small size for speed
-        validPages.push(page);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('Missing field') || errorMessage.includes('beginGroup')) {
-          invalidPages.push({ page, error: 'PDF parsing error - complex elements' });
-          this.logger.warn(`📄 Page ${page} validation failed: ${errorMessage}`);
-        } else {
-          invalidPages.push({ page, error: errorMessage });
-          this.logger.error(`📄 Page ${page} validation error: ${errorMessage}`);
-        }
-      }
-    }
-    
-    this.logger.log(`✅ PDF Validation Complete - Valid: ${validPages.length}, Invalid: ${invalidPages.length}`);
-    
+
+    this.logValidationStart(pdfInfo.pageCount, file.original_name);
+
+    const { validPages, invalidPages } = await this.validateAllPages(
+      fileId,
+      pdfInfo.pageCount,
+    );
+
+    this.logValidationComplete(validPages.length, invalidPages.length);
+
     return {
       totalPages: pdfInfo.pageCount,
       validPages,
       invalidPages,
     };
+  }
+
+  private logValidationStart(pageCount: number, fileName: string): void {
+    this.logger.log(`🔍 Validating ${pageCount} pages for ${fileName}`);
+  }
+
+  private logValidationComplete(
+    validCount: number,
+    invalidCount: number,
+  ): void {
+    this.logger.log(
+      `✅ PDF Validation Complete - Valid: ${validCount}, Invalid: ${invalidCount}`,
+    );
+  }
+
+  private async validateAllPages(
+    fileId: string,
+    pageCount: number,
+  ): Promise<{
+    validPages: number[];
+    invalidPages: Array<{ page: number; error: string }>;
+  }> {
+    const validPages: number[] = [];
+    const invalidPages: Array<{ page: number; error: string }> = [];
+
+    for (let page = 1; page <= pageCount; page++) {
+      const result = await this.validateSinglePage(fileId, page);
+      if (result.valid) {
+        validPages.push(page);
+      } else {
+        invalidPages.push({ page, error: result.error });
+      }
+    }
+
+    return { validPages, invalidPages };
+  }
+
+  private async validateSinglePage(
+    fileId: string,
+    page: number,
+  ): Promise<{ valid: boolean; error: string }> {
+    try {
+      await this.renderPreviewImage(fileId, page, VALIDATION_IMAGE_WIDTH);
+      return { valid: true, error: '' };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      if (this.isKnownPdfParsingError(errorMessage)) {
+        this.logger.warn(`📄 Page ${page} validation failed: ${errorMessage}`);
+        return { valid: false, error: 'PDF parsing error - complex elements' };
+      }
+
+      this.logger.error(`📄 Page ${page} validation error: ${errorMessage}`);
+      return { valid: false, error: errorMessage };
+    }
   }
 
   public async getPdfPageImage(params: {
@@ -200,29 +243,10 @@ export class PdfProcessingService {
     try {
       const imageBuffer = await this.renderPreviewImage(fileId, page, width);
       const pngBuffer = await this.processPreviewImage(imageBuffer, width);
-
-      this.logger.log(
-        `Generated PDF page image for page ${page} of ${fileId} at ${width}px`,
-      );
+      this.logSuccessfulPageGeneration(fileId, page, width);
       return pngBuffer;
     } catch (error) {
-      // Handle unpdf parsing errors with fallback image
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (
-        errorMessage.includes('Missing field') ||
-        errorMessage.includes('beginGroup')
-      ) {
-        this.logger.warn(
-          `UnPDF render failed for page ${page}, creating fallback image: ${errorMessage}`,
-        );
-        return this.createErrorFallbackPageImage(page, width);
-      }
-
-      this.handlePreviewError(error, fileId, page, width);
-      throw new BadRequestException(
-        `Failed to generate PDF page image: ${errorMessage}`,
-      );
+      return this.handlePageImageError(error, fileId, page, width);
     }
   }
 
@@ -251,6 +275,62 @@ export class PdfProcessingService {
       .resize(width, null, { withoutEnlargement: true })
       .png()
       .toBuffer();
+  }
+
+  private logSuccessfulPageGeneration(
+    fileId: string,
+    page: number,
+    width: number,
+  ): void {
+    this.logger.log(
+      `Generated PDF page image for page ${page} of ${fileId} at ${width}px`,
+    );
+  }
+
+  private async handlePageImageError(
+    error: unknown,
+    fileId: string,
+    page: number,
+    width: number,
+  ): Promise<Buffer> {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    if (this.isKnownPdfParsingError(errorMessage)) {
+      this.logger.warn(
+        `UnPDF render failed for page ${page}, creating fallback image: ${errorMessage}`,
+      );
+      return this.createErrorFallbackPageImage(page, width);
+    }
+
+    this.handlePreviewError(error, fileId, page, width);
+    throw new BadRequestException(
+      `Failed to generate PDF page image: ${errorMessage}`,
+    );
+  }
+
+  private isKnownPdfParsingError(errorMessage: string): boolean {
+    return (
+      errorMessage.includes('Missing field') ||
+      errorMessage.includes('beginGroup')
+    );
+  }
+
+  private generateErrorSvgContent(
+    page: number,
+    width: number,
+    height: number,
+  ): string {
+    return `<svg width="${width}" height="${height}">
+            <text x="50%" y="40%" text-anchor="middle" font-size="48" fill="#666">
+              Page ${page}
+            </text>
+            <text x="50%" y="55%" text-anchor="middle" font-size="24" fill="#999">
+              Rendering Error
+            </text>
+            <text x="50%" y="65%" text-anchor="middle" font-size="18" fill="#999">
+              This page contains complex elements that couldn't be rendered
+            </text>
+          </svg>`;
   }
 
   private handlePreviewError(
@@ -515,7 +595,8 @@ export class PdfProcessingService {
     page: number,
     width: number,
   ): Promise<Buffer> {
-    const height = Math.floor(width * A4_ASPECT_RATIO); // Approximate A4 aspect ratio
+    const height = Math.floor(width * A4_ASPECT_RATIO);
+    const svgContent = this.generateErrorSvgContent(page, width, height);
 
     return sharp({
       create: {
@@ -525,25 +606,11 @@ export class PdfProcessingService {
         background: { r: 248, g: 249, b: 250 },
       },
     })
-      .composite([
-        {
-          input: Buffer.from(
-            `<svg width="${width}" height="${height}">
-            <text x="50%" y="40%" text-anchor="middle" font-size="48" fill="#666">
-              Page ${page}
-            </text>
-            <text x="50%" y="55%" text-anchor="middle" font-size="24" fill="#999">
-              Rendering Error
-            </text>
-            <text x="50%" y="65%" text-anchor="middle" font-size="18" fill="#999">
-              This page contains complex elements that couldn't be rendered
-            </text>
-          </svg>`,
-          ),
-          top: 0,
-          left: 0,
-        },
-      ])
+      .composite([{
+        input: Buffer.from(svgContent),
+        top: 0,
+        left: 0,
+      }])
       .png()
       .toBuffer();
   }

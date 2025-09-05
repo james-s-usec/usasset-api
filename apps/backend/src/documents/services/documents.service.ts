@@ -103,7 +103,23 @@ export class DocumentsService {
     file: MulterFile,
     fileType?: FileType,
   ): Promise<AssetDocumentResponseDto> {
-    // Verify asset exists and belongs to project
+    await this.validateAssetExists(assetId, projectId);
+
+    const uploadedFile = await this.uploadFileToStorage(
+      file,
+      projectId,
+      assetId,
+      fileType,
+    );
+
+    const fileWithAsset = await this.getFileWithAssetInfo(uploadedFile.id);
+    return this.mapToDto(fileWithAsset as FileWithAsset);
+  }
+
+  private async validateAssetExists(
+    assetId: string,
+    projectId: string,
+  ): Promise<void> {
     const asset = await this.prisma.asset.findFirst({
       where: {
         id: assetId,
@@ -117,18 +133,25 @@ export class DocumentsService {
         `Asset ${assetId} not found in project ${projectId}`,
       );
     }
+  }
 
-    // Upload file with asset context
-    const uploadedFile = await this.storageService.upload({
+  private async uploadFileToStorage(
+    file: MulterFile,
+    projectId: string,
+    assetId: string,
+    fileType?: FileType,
+  ): Promise<{ id: string }> {
+    return this.storageService.upload({
       file,
       projectId,
       assetId,
       fileType: fileType || FileType.DOCUMENT,
     });
+  }
 
-    // Return with asset info
-    const fileWithAsset = await this.prisma.file.findUnique({
-      where: { id: uploadedFile.id },
+  private async getFileWithAssetInfo(fileId: string): Promise<unknown> {
+    return this.prisma.file.findUnique({
+      where: { id: fileId },
       include: {
         asset: {
           select: {
@@ -138,8 +161,6 @@ export class DocumentsService {
         },
       },
     });
-
-    return this.mapToDto(fileWithAsset as FileWithAsset);
   }
 
   public async deleteDocument(assetId: string, fileId: string): Promise<void> {

@@ -69,13 +69,35 @@ const FileUploadAndFilters: React.FC<{
   </>
 );
 
+const StandardFileView: React.FC<{
+  viewMode: ViewMode;
+  state: FileManagementState;
+  filteredFiles: FileData[];
+  projects: Project[];
+}> = ({ viewMode, state, filteredFiles, projects }) => (
+  <Box>
+    <ViewContent
+      viewMode={viewMode}
+      filteredFiles={filteredFiles}
+      folders={state.folders}
+      projects={projects}
+      onDownload={state.handleDownload}
+      onDelete={state.handleDelete}
+      onMoveToFolder={state.handleMoveToFolder}
+      onMoveToProject={state.handleMoveToProject}
+      onPreview={state.handlePreview}
+      getFileContent={state.getFileContent}
+      getPdfInfo={state.getPdfInfo}
+      onRefresh={state.loadFiles}
+      onBulkAssignProject={state.handleBulkAssignProject}
+      onBulkMoveToFolder={state.handleBulkMoveToFolder}
+      onBulkDelete={state.handleBulkDelete}
+    />
+  </Box>
+);
+
 export const FileManagementContent: React.FC<FileManagementContentProps> = (props) => {
-  console.log('🔍 FileManagementContent - viewMode:', props.viewMode);
-  console.log('🔍 FileManagementContent - projects:', props.projects);
-  
-  // Show AssetDocumentView for assets mode, otherwise show normal file views
   if (props.viewMode === 'assets') {
-    console.log('🔍 Rendering AssetDocumentView');
     return (
       <Box>
         <AssetDocumentView
@@ -89,22 +111,11 @@ export const FileManagementContent: React.FC<FileManagementContentProps> = (prop
   return (
     <Box>
       <FileUploadAndFilters {...props} />
-      <ViewContent
+      <StandardFileView
         viewMode={props.viewMode}
+        state={props.state}
         filteredFiles={props.filteredFiles}
-        folders={props.state.folders}
         projects={props.projects}
-        onDownload={props.state.handleDownload}
-        onDelete={props.state.handleDelete}
-        onMoveToFolder={props.state.handleMoveToFolder}
-        onMoveToProject={props.state.handleMoveToProject}
-        onPreview={props.state.handlePreview}
-        getFileContent={props.state.getFileContent}
-        getPdfInfo={props.state.getPdfInfo}
-        onRefresh={props.state.loadFiles}
-        onBulkAssignProject={props.state.handleBulkAssignProject}
-        onBulkMoveToFolder={props.state.handleBulkMoveToFolder}
-        onBulkDelete={props.state.handleBulkDelete}
       />
     </Box>
   );

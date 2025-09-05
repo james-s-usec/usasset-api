@@ -1,6 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
+const NOTE_1 = 1;
+const NOTE_2 = 2;
+const NOTE_3 = 3;
+const NOTE_4 = 4;
+const NOTE_5 = 5;
+const NOTE_6 = 6;
+const NOTE_NUMBERS = [NOTE_1, NOTE_2, NOTE_3, NOTE_4, NOTE_5, NOTE_6] as const;
+
 export interface AssetNotesDto {
   note1Subject?: string | null;
   note1?: string | null;
@@ -46,11 +54,12 @@ export class AssetNotesService {
     return asset;
   }
 
-  private buildNotesUpdateData(notes: AssetNotesDto): Record<string, any> {
-    const data: Record<string, any> = {};
-    const noteFields = [1, 2, 3, 4, 5, 6];
+  private buildNotesUpdateData(
+    notes: AssetNotesDto,
+  ): Record<string, string | null> {
+    const data: Record<string, string | null> = {};
 
-    noteFields.forEach((num) => {
+    NOTE_NUMBERS.forEach((num) => {
       const subjectKey = `note${num}Subject` as keyof AssetNotesDto;
       const noteKey = `note${num}` as keyof AssetNotesDto;
 
@@ -67,7 +76,7 @@ export class AssetNotesService {
 
   private getNoteSelectFields(): Record<string, boolean> {
     const fields: Record<string, boolean> = {};
-    [1, 2, 3, 4, 5, 6].forEach((num) => {
+    NOTE_NUMBERS.forEach((num) => {
       fields[`note${num}Subject`] = true;
       fields[`note${num}`] = true;
     });

@@ -8,11 +8,34 @@ interface CleanPhaseProps {
   jobStatus: JobStatus | null;
 }
 
-export const CleanPhase: React.FC<CleanPhaseProps> = ({
-  currentJobId,
-  jobStatus,
-}) => {
-  // Only show during active job processing
+const CleanPhaseHeader: React.FC = () => (
+  <>
+    <Typography variant="h6" gutterBottom color="primary">
+      Phase 3: CLEAN
+    </Typography>
+    <Typography variant="body2" color="text.secondary" gutterBottom>
+      Apply cleaning rules to normalize and standardize data
+    </Typography>
+  </>
+);
+
+const CleanPhaseStatus: React.FC<{ jobStatus: JobStatus }> = ({ jobStatus }) => (
+  <>
+    {jobStatus.phase === 'CLEAN' && (
+      <Typography variant="body2" color="success.main" sx={{ mt: 2 }}>
+        ✓ Cleaning phase in progress...
+      </Typography>
+    )}
+    
+    {jobStatus.progress && (
+      <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+        Processed: {jobStatus.progress.processedRows} / {jobStatus.progress.totalRows} rows
+      </Typography>
+    )}
+  </>
+);
+
+export const CleanPhase: React.FC<CleanPhaseProps> = ({ currentJobId, jobStatus }) => {
   if (!currentJobId || !jobStatus) {
     return null;
   }
@@ -20,26 +43,9 @@ export const CleanPhase: React.FC<CleanPhaseProps> = ({
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
-        <Typography variant="h6" gutterBottom color="primary">
-          Phase 3: CLEAN
-        </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Apply cleaning rules to normalize and standardize data
-        </Typography>
-        
+        <CleanPhaseHeader />
         <CleanRules />
-        
-        {jobStatus.phase === 'CLEAN' && (
-          <Typography variant="body2" color="success.main" sx={{ mt: 2 }}>
-            ✓ Cleaning phase in progress...
-          </Typography>
-        )}
-        
-        {jobStatus.progress && (
-          <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-            Processed: {jobStatus.progress.processedRows} / {jobStatus.progress.totalRows} rows
-          </Typography>
-        )}
+        <CleanPhaseStatus jobStatus={jobStatus} />
       </CardContent>
     </Card>
   );
