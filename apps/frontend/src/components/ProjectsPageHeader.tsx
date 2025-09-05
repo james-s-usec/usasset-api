@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 
 interface ProjectsPageHeaderProps {
@@ -16,13 +16,21 @@ export const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({ onCreate
       <Typography variant="h4" component="h1">
         Projects
       </Typography>
-      <Button
-        variant="contained"
-        startIcon={<AddIcon />}
-        onClick={onCreateClick}
-      >
-        New Project
-      </Button>
+      <Tooltip title="Create New Project">
+        <IconButton
+          onClick={onCreateClick}
+          color="primary"
+          sx={{ 
+            backgroundColor: 'primary.main',
+            color: 'primary.contrastText',
+            '&:hover': {
+              backgroundColor: 'primary.dark',
+            }
+          }}
+        >
+          <AddIcon />
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 };

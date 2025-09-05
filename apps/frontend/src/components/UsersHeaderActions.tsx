@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Stack } from '@mui/material';
+import { Stack, IconButton, Tooltip } from '@mui/material';
 import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 
 interface UsersHeaderActionsProps {
@@ -10,27 +10,25 @@ interface UsersHeaderActionsProps {
 export const UsersHeaderActions = ({ 
   onRefresh, 
   onCreate 
-}: UsersHeaderActionsProps): React.ReactElement => {
-  return (
-    <Stack 
-      direction={{ xs: 'column', sm: 'row' }} 
-      spacing={2}
-      sx={{ width: { xs: '100%', sm: 'auto' } }}
-    >
-      <Button
-        variant="outlined"
-        startIcon={<RefreshIcon />}
-        onClick={onRefresh}
-      >
-        Refresh
-      </Button>
-      <Button
-        variant="contained"
-        startIcon={<AddIcon />}
+}: UsersHeaderActionsProps): React.ReactElement => (
+  <Stack direction="row" spacing={1}>
+    <Tooltip title="Refresh Users">
+      <IconButton onClick={onRefresh} color="primary">
+        <RefreshIcon />
+      </IconButton>
+    </Tooltip>
+    <Tooltip title="Add New User">
+      <IconButton
         onClick={onCreate}
+        color="primary"
+        sx={{ 
+          backgroundColor: 'primary.main',
+          color: 'primary.contrastText',
+          '&:hover': { backgroundColor: 'primary.dark' }
+        }}
       >
-        Add User
-      </Button>
-    </Stack>
-  );
-};
+        <AddIcon />
+      </IconButton>
+    </Tooltip>
+  </Stack>
+);

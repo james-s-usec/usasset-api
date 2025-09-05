@@ -51,21 +51,35 @@ export class PipelineOrchestrator {
     jobId?: string,
   ): Promise<OrchestrationResult> {
     const startTime = new Date();
-    const orchestrationContext = this.initializeOrchestration(fileId, jobId);
+    this.logger.warn(`🔥 ORCHESTRATOR START: fileId=${fileId}, jobId=${jobId}`);
+    
+    let orchestrationContext;
+    try {
+      orchestrationContext = this.initializeOrchestration(fileId, jobId);
+      this.logger.warn(`🔥 ORCHESTRATOR INITIALIZED: correlationId=${orchestrationContext.correlationId}`);
+    } catch (error) {
+      this.logger.error(`🔥 ORCHESTRATOR INIT FAILED:`, error);
+      throw error;
+    }
 
     try {
+      this.logger.warn(`🔥 ORCHESTRATOR EXECUTING PHASES...`);
       const { phases, metrics } = await this.executeAllPhases(
         orchestrationContext,
         startTime,
       );
+      this.logger.warn(`🔥 ORCHESTRATOR PHASES COMPLETE: ${phases.length} phases`);
 
-      return this.buildSuccessResult(
+      const result = this.buildSuccessResult(
         orchestrationContext,
         phases,
         metrics,
         startTime,
       );
+      this.logger.warn(`🔥 ORCHESTRATOR SUCCESS`);
+      return result;
     } catch (error) {
+      this.logger.error(`🔥 ORCHESTRATOR ERROR:`, error);
       return this.buildErrorResult(orchestrationContext, error, startTime);
     }
   }
@@ -240,7 +254,11 @@ export class PipelineOrchestrator {
 
     return {
       ...this.buildBasePhaseData(jobId, phaseResult),
-      ...this.buildTransformationData(transformations, appliedRules),
+      ...this.buildTransformationData(
+        transformations,
+        appliedRules,
+        phaseResult,
+      ),
       ...this.buildMetricsData(phaseResult, transformations.length),
       ...this.buildTimingData(phaseResult),
     };
@@ -252,6 +270,112 @@ export class PipelineOrchestrator {
 
   private extractAppliedRules(phaseResult: PhaseResult): string[] {
     return phaseResult.debug?.rulesApplied || [];
+  }
+
+  private extractSamples(phaseResult: PhaseResult): {
+    inputSample: unknown;
+    outputSample: unknown;
+  } {
+    // First check if samples are directly provided in debug
+    if (phaseResult.debug?.samples) {
+      return {
+        inputSample: this.limitSampleSize(phaseResult.debug.samples.input),
+        outputSample: this.limitSampleSize(phaseResult.debug.samples.output),
+      };
+    }
+
+    // Derive samples based on phase type and available data
+    return this.deriveSamplesFromData(phaseResult);
+  }
+
+  private deriveSamplesFromData(phaseResult: PhaseResult): {
+    inputSample: unknown;
+    outputSample: unknown;
+  } {
+    const data = phaseResult.data as Record<string, unknown>;
+
+    switch (phaseResult.phase) {
+      case 'EXTRACT':
+        return this.deriveExtractSamples(data);
+      case 'VALIDATE':
+        return this.deriveValidateSamples(data);
+      case 'CLEAN':
+        return this.deriveCleanSamples(data);
+      case 'TRANSFORM':
+      case 'MAP':
+        return this.deriveTransformSamples(data);
+      case 'LOAD':
+        return this.deriveLoadSamples(data);
+      default:
+        return { inputSample: null, outputSample: null };
+    }
+  }
+
+  private deriveExtractSamples(data: Record<string, unknown>): {
+    inputSample: unknown;
+    outputSample: unknown;
+  } {
+    const rows = data.rows as unknown[];
+    return {
+      inputSample: null, // Raw CSV input not available at this level
+      outputSample: this.limitSampleSize(rows),
+    };
+  }
+
+  private deriveValidateSamples(data: Record<string, unknown>): {
+    inputSample: unknown;
+    outputSample: unknown;
+  } {
+    const inputRows = data.rows as unknown[];
+    const validRows = data.validRows as unknown[];
+    return {
+      inputSample: this.limitSampleSize(inputRows),
+      outputSample: this.limitSampleSize(validRows),
+    };
+  }
+
+  private deriveCleanSamples(data: Record<string, unknown>): {
+    inputSample: unknown;
+    outputSample: unknown;
+  } {
+    const inputRows = data.validRows as unknown[];
+    const cleanedRows = data.cleanedRows as unknown[];
+    return {
+      inputSample: this.limitSampleSize(inputRows),
+      outputSample: this.limitSampleSize(cleanedRows),
+    };
+  }
+
+  private deriveTransformSamples(data: Record<string, unknown>): {
+    inputSample: unknown;
+    outputSample: unknown;
+  } {
+    const inputRows = data.cleanedRows || (data.transformedRows as unknown[]);
+    const outputRows = data.transformedRows || (data.mappedRows as unknown[]);
+    return {
+      inputSample: this.limitSampleSize(inputRows),
+      outputSample: this.limitSampleSize(outputRows),
+    };
+  }
+
+  private deriveLoadSamples(data: Record<string, unknown>): {
+    inputSample: unknown;
+    outputSample: unknown;
+  } {
+    const mappedData = data.mappedData as unknown[];
+    return {
+      inputSample: this.limitSampleSize(mappedData),
+      outputSample: null, // Final destination not captured in this data
+    };
+  }
+
+  private limitSampleSize(data: unknown): unknown {
+    if (!Array.isArray(data)) {
+      return data;
+    }
+
+    const sampleSize = 5; // Could be made configurable via PHASE_SAMPLE_SIZE
+    return data.slice(0, sampleSize);
   }
 
   private buildBasePhaseData(
@@ -276,17 +400,20 @@ export class PipelineOrchestrator {
   private buildTransformationData(
     transformations: unknown[],
     appliedRules: string[],
+    phaseResult: PhaseResult,
   ): {
     transformations: unknown[];
     applied_rules: string[];
     input_sample: unknown;
     output_sample: unknown;
   } {
+    const samples = this.extractSamples(phaseResult);
+
     return {
       transformations,
       applied_rules: appliedRules,
-      input_sample: null, // TODO: Add sample data collection
-      output_sample: null, // TODO: Add sample data collection
+      input_sample: samples.inputSample,
+      output_sample: samples.outputSample,
     };
   }
 

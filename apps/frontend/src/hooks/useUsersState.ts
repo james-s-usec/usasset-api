@@ -22,7 +22,7 @@ export function useUsersState(): UseUsersStateReturn {
     componentName: 'useUsers'
   });
   
-  const [loading, setLoading] = useDebugState(true, {
+  const [loading, setLoading] = useDebugState(false, {
     name: 'loading',
     componentName: 'useUsers'
   });

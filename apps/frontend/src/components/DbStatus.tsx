@@ -20,7 +20,7 @@ const getStatusColor = (status: DbStatusResponse | null): string => {
 const getStatusText = (status: DbStatusResponse | null, loading: boolean): string => {
   if (loading) return 'Checking...';
   if (!status) return 'Not Ready';
-  return status.status === 'connected' ? 'Ready' : 'Not Ready';
+  return status.status === 'connected' ? 'Ready' : 'Error';
 };
 
 const buildDbUrl = (): string => {
@@ -52,33 +52,6 @@ const fetchDbStatus = async (): Promise<DbStatusResponse> => {
   return result.data || result;
 };
 
-const StatusIndicator = ({ status, loading }: { status: DbStatusResponse | null; loading: boolean }): React.ReactElement => (
-  <>
-    <div style={{ 
-      width: '10px', 
-      height: '10px', 
-      borderRadius: '50%', 
-      backgroundColor: getStatusColor(status) 
-    }} />
-    <span style={{ fontWeight: 500 }}>DB: {getStatusText(status, loading)}</span>
-  </>
-);
-
-const RefreshButton = ({ onClick, loading }: { onClick: () => void; loading: boolean }): React.ReactElement => (
-  <button
-    onClick={onClick}
-    disabled={loading}
-    style={{
-      marginLeft: 'auto',
-      padding: '4px 8px',
-      fontSize: '12px',
-      cursor: loading ? 'not-allowed' : 'pointer',
-      opacity: loading ? 0.5 : 1
-    }}
-  >
-    Refresh
-  </button>
-);
 
 const useDbStatus = (): {
   status: DbStatusResponse | null;
@@ -113,22 +86,30 @@ const useDbStatus = (): {
 };
 
 export function DbStatus(): React.ReactElement {
-  const { status, loading, lastCheck, checkDbStatus } = useDbStatus();
+  const { status, loading, lastCheck } = useDbStatus();
 
   return (
     <div style={{ 
-      padding: '10px', 
-      border: '1px solid #e5e7eb', 
-      borderRadius: '6px',
-      backgroundColor: '#f9fafb'
+      padding: '4px 6px', border: '1px solid #e5e7eb', borderRadius: '4px',
+      backgroundColor: '#f9fafb', minWidth: '60px', maxWidth: '90px', flexShrink: 1
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <StatusIndicator status={status} loading={loading} />
-        <RefreshButton onClick={checkDbStatus} loading={loading} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', minWidth: 0, flex: 1 }}>
+          <div style={{ 
+            width: '6px', height: '6px', borderRadius: '50%', 
+            backgroundColor: getStatusColor(status), flexShrink: 0
+          }} />
+          <span style={{ 
+            fontWeight: 500, fontSize: '11px', whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis'
+          }}>
+            {getStatusText(status, loading)}
+          </span>
+        </div>
       </div>
-      {lastCheck && (
-        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-          Last checked: {lastCheck.toLocaleTimeString()}
+      {lastCheck && window.innerWidth > 768 && (
+        <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '1px' }}>
+          {lastCheck.toLocaleTimeString().slice(0, 5)}
         </div>
       )}
     </div>

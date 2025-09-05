@@ -13,7 +13,7 @@ export interface Asset {
   
   // Status and core info
   status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED' | 'INACTIVE' | 'LOST' | 'STOLEN';
-  condition?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL' | 'UNKNOWN' | 'NOT_APPLICABLE';
+  condition?: 'NEW' | 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'FOR_REPAIR' | 'FOR_DISPOSAL';
   location?: string;
   projectId?: string;
   
@@ -175,7 +175,7 @@ export interface CreateAssetData {
   
   // Status and core info
   status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED' | 'INACTIVE' | 'LOST' | 'STOLEN';
-  condition?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL' | 'UNKNOWN' | 'NOT_APPLICABLE';
+  condition?: 'NEW' | 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'FOR_REPAIR' | 'FOR_DISPOSAL';
   location?: string;
   projectId?: string;
   
@@ -322,7 +322,7 @@ export interface UpdateAssetData {
   
   // Status and core info
   status?: 'ACTIVE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED' | 'INACTIVE' | 'LOST' | 'STOLEN';
-  condition?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL' | 'UNKNOWN' | 'NOT_APPLICABLE';
+  condition?: 'NEW' | 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'FOR_REPAIR' | 'FOR_DISPOSAL';
   location?: string;
   projectId?: string;
   

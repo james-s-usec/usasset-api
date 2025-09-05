@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import type { GridReadyEvent, ColDef, ICellRendererParams } from 'ag-grid-community';
+import { useMemo, useState, useCallback } from 'react';
+import type { GridReadyEvent, ColDef, ICellRendererParams, GridApi } from 'ag-grid-community';
 import type { Asset } from '../types';
 import { useActionsCellRenderer, useStatusCellRenderer, useGridComponents } from '../components/useGridRenderers';
 import { columnCategories, getEnabledColumns, type ColumnCategory } from '../columnConfig';
@@ -19,6 +19,11 @@ export interface UseAssetGridLogicResult {
   onGridReady: (params: GridReadyEvent) => void;
   categories: ColumnCategory[];
   updateCategories: (categories: ColumnCategory[]) => void;
+  selectedAssets: Asset[];
+  onSelectionChanged: (selectedAssets: Asset[]) => void;
+  gridApi: GridApi<Asset> | null;
+  selectAll: () => void;
+  clearSelection: () => void;
 }
 
 export const useAssetGridLogic = ({ onEdit, onDelete, onViewDocuments }: UseAssetGridLogicProps): UseAssetGridLogicResult => {
@@ -26,8 +31,10 @@ export const useAssetGridLogic = ({ onEdit, onDelete, onViewDocuments }: UseAsse
   const statusCellRenderer = useStatusCellRenderer();
   const components = useGridComponents(actionsCellRenderer, statusCellRenderer);
 
-  // State for managing column categories
+  // State for managing column categories and selection
   const [categories, setCategories] = useState<ColumnCategory[]>(() => columnCategories);
+  const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
+  const [gridApi, setGridApi] = useState<GridApi<Asset> | null>(null);
 
   // Generate column definitions from enabled categories
   const columnDefs = useMemo((): ColDef[] => {
@@ -39,9 +46,35 @@ export const useAssetGridLogic = ({ onEdit, onDelete, onViewDocuments }: UseAsse
     setCategories(newCategories);
   };
 
+  // Selection handling
+  const onSelectionChanged = useCallback((selectedRows: Asset[]): void => {
+    setSelectedAssets(selectedRows);
+  }, []);
+
+  // Bulk selection functions
+  const selectAll = useCallback((): void => {
+    gridApi?.selectAll();
+  }, [gridApi]);
+
+  const clearSelection = useCallback((): void => {
+    gridApi?.deselectAll();
+  }, [gridApi]);
+
   const onGridReady = (params: GridReadyEvent): void => {
+    setGridApi(params.api);
     params.api.sizeColumnsToFit();
   };
 
-  return { columnDefs, components, onGridReady, categories, updateCategories };
+  return { 
+    columnDefs, 
+    components, 
+    onGridReady, 
+    categories, 
+    updateCategories,
+    selectedAssets,
+    onSelectionChanged,
+    gridApi,
+    selectAll,
+    clearSelection
+  };
 };

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { ColumnVisibilityControl } from './components/ColumnVisibilityControl';
 import type { ColumnCategory } from './columnConfig';
@@ -21,26 +21,26 @@ const HeaderActions: React.FC<{
 }> = ({ onAdd, onRefresh, loading, categories, onUpdateCategories }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
     {categories && onUpdateCategories && (
-      <ColumnVisibilityControl 
-        categories={categories}
-        onUpdateCategories={onUpdateCategories}
-      />
+      <ColumnVisibilityControl categories={categories} onUpdateCategories={onUpdateCategories} />
     )}
-    <Button
-      variant="outlined"
-      startIcon={<RefreshIcon />}
-      onClick={onRefresh}
-      disabled={loading}
-    >
-      Refresh
-    </Button>
-    <Button
-      variant="contained"
-      startIcon={<AddIcon />}
-      onClick={onAdd}
-    >
-      Add Asset
-    </Button>
+    <Tooltip title="Refresh Assets">
+      <IconButton onClick={onRefresh} disabled={loading} color="primary">
+        <RefreshIcon />
+      </IconButton>
+    </Tooltip>
+    <Tooltip title="Add New Asset">
+      <IconButton
+        onClick={onAdd}
+        color="primary"
+        sx={{ 
+          backgroundColor: 'primary.main',
+          color: 'primary.contrastText',
+          '&:hover': { backgroundColor: 'primary.dark' }
+        }}
+      >
+        <AddIcon />
+      </IconButton>
+    </Tooltip>
   </Box>
 );
 

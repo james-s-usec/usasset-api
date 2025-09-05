@@ -3,7 +3,7 @@
  * Handles all API operations for users
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { userApiService } from '../services/user-api';
 import { logHookCall } from '../utils/debug';
 import { 
@@ -29,24 +29,55 @@ interface UseUsersApiReturn {
 
 const useFetchUsers = (props: UseUsersApiProps, fetchLogger: ReturnType<typeof createFetchLogger>): (() => Promise<void>) => {
   const { setUsers, setLoading, setError } = props;
-  
-  return useCallback(async (): Promise<void> => {
-    fetchLogger.logFetchStart();
-    
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await userApiService.getUsers(1, 50);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelPreviousRequest = (): void => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+  const createNewController = (): AbortController => {
+    abortControllerRef.current = new AbortController();
+    return abortControllerRef.current;
+  };
+
+  const handleSuccess = (response: { data: { users: UserData[]; }; correlationId: string; }, controller: AbortController): void => {
+    if (!controller.signal.aborted) {
       setUsers(response.data.users);
-      
       fetchLogger.logFetchSuccess(response.data.users.length, response.correlationId);
-    } catch (err) {
+    }
+  };
+
+  const handleError = (err: unknown, controller: AbortController): void => {
+    if (!controller.signal.aborted) {
       setError(fetchLogger.logFetchError(err));
-    } finally {
+    }
+  };
+
+  const handleFinally = (controller: AbortController): void => {
+    if (!controller.signal.aborted) {
       setLoading(false);
     }
-  }, [setUsers, setLoading, setError, fetchLogger]);
+  };
+  
+  return useCallback(async (): Promise<void> => {
+    cancelPreviousRequest();
+    const controller = createNewController();
+    
+    fetchLogger.logFetchStart();
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await userApiService.getUsers(1, 50);
+      handleSuccess(response, controller);
+    } catch (err) {
+      handleError(err, controller);
+    } finally {
+      handleFinally(controller);
+    }
+  }, [setUsers, setLoading, setError, fetchLogger, handleSuccess, handleError, handleFinally]);
 };
 
 const useCreateUser = (fetchUsers: () => Promise<void>, setError: (error: string | null) => void): ((data: CreateUserRequest) => Promise<void>) => {

@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Alert } from "@mui/material";
 import { AgGridReact } from "ag-grid-react";
-import type { GridReadyEvent, ColDef, ICellRendererParams } from "ag-grid-community";
+import type { GridReadyEvent, ColDef, ICellRendererParams, SelectionChangedEvent, GridApi } from "ag-grid-community";
 import { defaultColDef, columnTypes } from "../columnConfig";
 import type { Asset } from "../types";
 
@@ -12,6 +12,8 @@ interface AssetGridProps {
   loading: boolean;
   error: string | null;
   onGridReady: (params: GridReadyEvent) => void;
+  onSelectionChanged?: (selectedAssets: Asset[]) => void;
+  gridApi?: GridApi<Asset> | null;
 }
 
 const ErrorAlert: React.FC<{ error: string }> = ({ error }) => (
@@ -26,8 +28,19 @@ const GridContainer: React.FC<{
   components: { actionsRenderer: (params: ICellRendererParams<Asset>) => React.ReactElement; statusRenderer: (params: ICellRendererParams) => React.ReactElement };
   loading: boolean;
   onGridReady: (params: GridReadyEvent) => void;
-}> = ({ assets, columnDefs, components, loading, onGridReady }) => (
-  <Box sx={{ height: 600, width: "100%" }}>
+  onSelectionChanged?: (selectedAssets: Asset[]) => void;
+}> = ({ assets, columnDefs, components, loading, onGridReady, onSelectionChanged }) => {
+  const handleSelectionChanged = (event: SelectionChangedEvent<Asset>): void => {
+    const selectedRows = event.api.getSelectedRows();
+    onSelectionChanged?.(selectedRows);
+  };
+
+  return (
+    <Box sx={{ 
+      height: 'calc(100vh - 200px)', 
+      width: "100%",
+      minHeight: 500
+    }}>
     <div className="ag-theme-alpine" style={{ height: "100%", width: "100%" }}>
       <AgGridReact
         rowData={assets}
@@ -36,20 +49,20 @@ const GridContainer: React.FC<{
         columnTypes={columnTypes}
         components={components}
         onGridReady={onGridReady}
+        onSelectionChanged={handleSelectionChanged}
         loading={loading}
         pagination={true}
         paginationPageSize={20}
         animateRows={true}
-        rowHeight={50}
         suppressDragLeaveHidesColumns={true}
-        suppressMakeColumnVisibleAfterUnGroup={true}
-        enableRangeSelection={true}
-        enableCharts={true}
+        rowSelection="multiple"
+        suppressRowClickSelection={false}
         theme="legacy"
       />
     </div>
-  </Box>
-);
+    </Box>
+  );
+};
 
 export const AssetGrid: React.FC<AssetGridProps> = ({
   assets,
@@ -58,6 +71,7 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
   loading,
   error,
   onGridReady,
+  onSelectionChanged,
 }) => (
   <>
     {error && <ErrorAlert error={error} />}
@@ -67,6 +81,7 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
       components={components}
       loading={loading}
       onGridReady={onGridReady}
+      onSelectionChanged={onSelectionChanged}
     />
   </>
 );

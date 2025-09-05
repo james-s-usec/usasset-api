@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material'
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Drawer, List, ListItem, ListItemText } from '@mui/material'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { Menu as MenuIcon } from '@mui/icons-material'
 import { DbStatus } from './components/DbStatus'
 import { UsersPage } from './pages/UsersPage'
 import { DebugPage } from './pages/DebugPage'
@@ -29,27 +30,80 @@ const navItems = [
   { label: 'Settings', path: '/settings' }
 ]
 
-const NavigationBar = (): React.ReactElement => (
+const MobileMenu = ({ 
+  isOpen, 
+  onClose 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+}): React.ReactElement => (
+  <Drawer
+    anchor="right"
+    open={isOpen}
+    onClose={onClose}
+    PaperProps={{ sx: { width: 250 } }}
+  >
+    <List>
+      {navItems.map(item => (
+        <ListItem 
+          key={item.path}
+          component={RouterLink}
+          to={item.path}
+          onClick={onClose}
+          sx={{ cursor: 'pointer' }}
+        >
+          <ListItemText primary={item.label} />
+        </ListItem>
+      ))}
+    </List>
+  </Drawer>
+);
 
-    <AppBar position="static">
-      <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          USAsset
-        </Typography>
-        {navItems.map(item => (
-          <Button 
-            key={item.path} 
-            color="inherit" 
-            component={RouterLink} 
-            to={item.path}
-          >
-            {item.label}
-          </Button>
-        ))}
-        <Box sx={{ ml: 2 }}><DbStatus /></Box>
-      </Toolbar>
-    </AppBar>
-)
+const NavigationBar = (): React.ReactElement => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const handleMobileMenuToggle = (): void => setMobileMenuOpen(!mobileMenuOpen);
+
+  return (
+    <>
+      <AppBar position="static">
+        <Toolbar sx={{ px: { xs: 1, sm: 2 }, minHeight: { xs: 56, sm: 64 } }}>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1, minWidth: 0, fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
+            USAsset
+          </Typography>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, alignItems: 'center' }}>
+            {navItems.map(item => (
+              <Button 
+                key={item.path} 
+                color="inherit" 
+                component={RouterLink} 
+                to={item.path} 
+                size="small"
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Box>
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
+            <DbStatus />
+            <IconButton 
+              color="inherit" 
+              aria-label="open drawer" 
+              edge="end" 
+              onClick={handleMobileMenuToggle} 
+              size="small"
+            >
+              <MenuIcon />
+            </IconButton>
+          </Box>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, ml: 2, minWidth: 0, flexShrink: 0 }}>
+            <DbStatus />
+          </Box>
+        </Toolbar>
+      </AppBar>
+      <MobileMenu isOpen={mobileMenuOpen} onClose={handleMobileMenuToggle} />
+    </>
+  );
+};
 
 const HomePage = (): React.ReactElement => {
   const navigate = useNavigate()

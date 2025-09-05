@@ -2,7 +2,7 @@ import React, { useMemo, useCallback } from "react";
 import { Box } from "@mui/material";
 import type { ICellRendererParams } from "ag-grid-community";
 import type { Asset } from "../types";
-import { ActionButton } from "./ActionButton";
+import { ActionButtons } from "./ActionButtons";
 
 interface ActionsCellRendererProps {
   onEdit: (asset: Asset) => void;
@@ -16,25 +16,12 @@ export const useActionsCellRenderer = ({ onEdit, onDelete, onViewDocuments }: Ac
     if (!params.data) return <Box />;
     
     return (
-      <Box sx={{ display: "flex", gap: 1, alignItems: "center", height: "100%" }}>
-        <ActionButton onClick={() => onEdit(params.data!)}>
-          Edit
-        </ActionButton>
-        {onViewDocuments && (
-          <ActionButton 
-            onClick={() => onViewDocuments(params.data!)} 
-            color="info"
-          >
-            Documents
-          </ActionButton>
-        )}
-        <ActionButton 
-          onClick={() => onDelete(params.data!.id)} 
-          color="error"
-        >
-          Delete
-        </ActionButton>
-      </Box>
+      <ActionButtons
+        asset={params.data}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onViewDocuments={onViewDocuments}
+      />
     );
   }, [onEdit, onDelete, onViewDocuments]);
 };

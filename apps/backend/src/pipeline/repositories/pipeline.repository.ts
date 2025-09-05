@@ -60,11 +60,42 @@ export class PipelineRepository {
     completed_at?: Date;
     duration_ms?: number;
   }): Promise<void> {
-    await this.createPhaseResultRecord(data);
+    try {
+      await this.createPhaseResultRecord(data);
+      this.logPhaseResultSuccess(
+        data.import_job_id,
+        data.phase,
+        data.rows_processed,
+      );
+    } catch (error) {
+      this.logPhaseResultFailure(data.import_job_id, data.phase, error);
+      throw error;
+    }
   }
 
   private logPhaseResultSave(jobId: string, phase: PipelinePhase): void {
     this.logger.debug(`Saving phase result for job ${jobId}, phase ${phase}`);
+  }
+
+  private logPhaseResultSuccess(
+    jobId: string,
+    phase: PipelinePhase,
+    rowsProcessed: number,
+  ): void {
+    this.logger.debug(
+      `Successfully saved phase result for job ${jobId}, phase ${phase}, rows: ${rowsProcessed}`,
+    );
+  }
+
+  private logPhaseResultFailure(
+    jobId: string,
+    phase: PipelinePhase,
+    error: unknown,
+  ): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logger.warn(
+      `Failed to save phase result for job ${jobId}, phase ${phase}: ${errorMessage}`,
+    );
   }
 
   private async createPhaseResultRecord(data: {

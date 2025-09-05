@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AzureBlobStorageService } from '../files/services/azure-blob-storage.service';
 import { PipelineRepository } from './repositories/pipeline.repository';
 import { PipelineJobService } from './services/pipeline-job.service';
 import { PipelineValidationService } from './services/pipeline-validation.service';
 import { PipelineImportService } from './services/pipeline-import.service';
 import { RuleEngineService } from './services/rule-engine.service';
+import { PipelineOrchestrator } from './orchestrator/pipeline-orchestrator.service';
 import { PipelineRule, PipelinePhase, RuleType } from '@prisma/client';
 import {
   FileMetadata,
@@ -65,12 +67,14 @@ export class PipelineService {
 
   // eslint-disable-next-line max-params
   public constructor(
+    private readonly configService: ConfigService,
     private readonly blobStorageService: AzureBlobStorageService,
     private readonly pipelineRepository: PipelineRepository,
     private readonly pipelineJobService: PipelineJobService,
     private readonly pipelineValidationService: PipelineValidationService,
     private readonly pipelineImportService: PipelineImportService,
     private readonly ruleEngine: RuleEngineService,
+    private readonly pipelineOrchestrator: PipelineOrchestrator,
   ) {
     this._prisma = this.pipelineRepository.getPrismaClient();
   }
@@ -96,13 +100,46 @@ export class PipelineService {
 
   public async startImport(fileId: string): Promise<string> {
     const jobId = await this.pipelineJobService.createImportJob(fileId);
+    const useOrchestrator = this.configService.get<boolean>(
+      'PIPELINE_USE_ORCHESTRATOR',
+      false,
+    );
 
-    // Start async processing (simple for now, no queue)
-    this.pipelineImportService
-      .processImport(jobId, fileId)
-      .catch((error: Error) => {
-        this.logger.error(`Failed to process import job ${jobId}:`, error);
-      });
+    this.logger.warn(`🚀 START_IMPORT: jobId=${jobId}, fileId=${fileId}, useOrchestrator=${useOrchestrator}`);
+
+    if (useOrchestrator) {
+      this.logger.warn(`🚀 USING ORCHESTRATOR PATH`);
+      // Use orchestrator-driven execution
+      this.pipelineOrchestrator
+        .orchestrateFile(fileId, jobId)
+        .then(async (result) => {
+          this.logger.warn(`🚀 ORCHESTRATOR COMPLETED FOR JOB ${jobId}: success=${result.success}`);
+          
+          // Update job status based on orchestration result
+          if (result.success) {
+            await this.pipelineJobService.updateJobStatus(jobId, 'COMPLETED');
+            this.logger.warn(`🚀 JOB ${jobId} MARKED AS COMPLETED`);
+          } else {
+            await this.pipelineJobService.updateJobStatus(jobId, 'FAILED');
+            this.logger.warn(`🚀 JOB ${jobId} MARKED AS FAILED`);
+          }
+        })
+        .catch(async (error: Error) => {
+          this.logger.error(
+            `🚀 ORCHESTRATOR FAILED for job ${jobId}:`,
+            error,
+          );
+          await this.pipelineJobService.updateJobStatus(jobId, 'FAILED');
+        });
+    } else {
+      this.logger.warn(`🚀 USING LEGACY PATH`);
+      // Use legacy execution path
+      this.pipelineImportService
+        .processImport(jobId, fileId)
+        .catch((error: Error) => {
+          this.logger.error(`Failed to process import job ${jobId}:`, error);
+        });
+    }
 
     return jobId;
   }

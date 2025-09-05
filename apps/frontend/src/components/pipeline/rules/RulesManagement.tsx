@@ -105,7 +105,7 @@ const renderRulesTab = (props: MainContentProps): React.ReactElement => (
 );
 
 const renderJobsTab = (props: MainContentProps): React.ReactElement => {
-  const handleDownloadPhaseResults = async (jobId: string) => {
+  const handleDownloadPhaseResults = async (jobId: string): Promise<void> => {
     try {
       const response = await fetch(`http://localhost:3000/api/pipeline/jobs/${jobId}/phase-results/download`);
       

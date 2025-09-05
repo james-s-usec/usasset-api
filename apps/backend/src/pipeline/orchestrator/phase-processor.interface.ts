@@ -71,6 +71,10 @@ export interface PhaseDebugInfo {
   rulesApplied?: string[];
   transformations?: Array<{ field: string; before: unknown; after: unknown }>;
   validationResults?: unknown;
+  samples?: {
+    input?: unknown;
+    output?: unknown;
+  };
 }
 
 export interface PhaseResult {

@@ -21,9 +21,48 @@
   justify-content: flex-end;
 }
 
-/* Enhanced cell styling */
+/* Enhanced cell styling with text wrapping */
 .ag-cell {
   display: flex;
+  align-items: flex-start;
+  padding: 8px 12px !important;
+  line-height: 1.4 !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  min-height: 40px;
+}
+
+/* Ensure cell content wraps properly */
+.ag-cell-value {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  width: 100%;
+  line-height: 1.4;
+}
+
+/* Auto-sizing rows for content */
+.ag-row {
+  min-height: 40px;
+}
+
+/* Better text wrapping for specific long content columns */
+.ag-cell[col-id="description"],
+.ag-cell[col-id="catalogName"],
+.ag-cell[col-id="notes"],
+.ag-cell[col-id="note1"],
+.ag-cell[col-id="note2"],
+.ag-cell[col-id="note3"],
+.ag-cell[col-id="note4"],
+.ag-cell[col-id="note5"],
+.ag-cell[col-id="note6"] {
+  align-items: flex-start;
+}
+
+/* Prevent action buttons from wrapping */
+.ag-cell[col-id="Actions"] {
+  white-space: nowrap !important;
   align-items: center;
 }
 
@@ -64,12 +103,58 @@
   background: #fafafa;
 }
 
-/* Enhanced grid borders */
+/* Enhanced grid borders and header styling */
 .ag-theme-alpine {
   --ag-border-color: #e0e0e0;
   --ag-header-background-color: #fafafa;
   --ag-odd-row-background-color: #ffffff;
   --ag-even-row-background-color: #f8f9fa;
+  --ag-header-height: auto;
+}
+
+/* Header text wrapping and spacing */
+.ag-theme-alpine .ag-header-cell {
+  padding: 10px 12px;
+  min-height: 50px;
+  align-items: flex-start;
+}
+
+.ag-theme-alpine .ag-header-cell-text {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  line-height: 1.4 !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding-top: 4px;
+}
+
+/* Header group styling with better spacing */
+.ag-theme-alpine .ag-header-group-cell {
+  padding: 10px 12px;
+  min-height: 50px;
+  align-items: flex-start;
+}
+
+.ag-theme-alpine .ag-header-group-cell-label {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+  padding-top: 4px;
+}
+
+/* Ensure proper header row sizing */
+.ag-theme-alpine .ag-header-row {
+  min-height: 50px;
+}
+
+/* Better alignment for header content */
+.ag-theme-alpine .ag-header-cell-label {
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  flex-direction: column;
 }
 
 /* Column resize handle visibility */

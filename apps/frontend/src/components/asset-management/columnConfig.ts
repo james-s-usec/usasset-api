@@ -33,6 +33,18 @@ const numberFormatter = (params: { value?: number | string }, decimals: number =
     : '-';
 };
 
+// Selection checkbox column
+export const selectionColumn: ColDef = {
+  headerName: '',
+  checkboxSelection: true,
+  headerCheckboxSelection: true,
+  width: 50,
+  sortable: false,
+  filter: false,
+  pinned: 'left',
+  lockPinned: true,
+};
+
 // Core columns that are always visible
 export const coreColumns: ColDef[] = [
   {
@@ -77,8 +89,7 @@ export const coreColumns: ColDef[] = [
 export const actionColumn: ColDef = {
   headerName: 'Actions',
   cellRenderer: 'actionsRenderer', // Custom renderer passed from component
-  flex: 1,
-  minWidth: 140,
+  width: 120,
   sortable: false,
   filter: false,
   pinned: 'right',
@@ -1117,7 +1128,7 @@ export const columnCategories: ColumnCategory[] = [
 
 // Helper function to get enabled columns with category styling
 export const getEnabledColumns = (categories: ColumnCategory[]): ColDef[] => {
-  const enabledColumns: ColDef[] = [...coreColumns];
+  const enabledColumns: ColDef[] = [selectionColumn, ...coreColumns];
   
   categories.forEach(category => {
     if (category.enabled) {
@@ -1159,7 +1170,17 @@ export const defaultColDef: ColDef = {
   sortable: true,
   filter: true,
   flex: 1,
-  minWidth: 100,
+  minWidth: 120,
+  wrapHeaderText: true,
+  autoHeaderHeight: true,
+  wrapText: true,
+  autoHeight: true,
+  cellStyle: {
+    'white-space': 'normal',
+    'word-wrap': 'break-word',
+    'overflow-wrap': 'break-word',
+    'line-height': '1.4',
+  },
 };
 
 // Column type definitions for AG-Grid

@@ -5,7 +5,7 @@
  * Follows CLAUDE.md principle: "Log intermediate results"
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useDebugStateLogger } from './useDebugStateLogger';
 import { debug } from '../utils/debug';
 import { config } from '../config';
@@ -71,7 +71,7 @@ export function useDebugState<T>(
     logStatsRef.current = logStats;
   }, [logOnlyChanged, compareFunction, logStats]);
 
-  const setValue = useCallback(() => createDebugStateSetter(setValueInternal, {
+  const setValue = useMemo(() => createDebugStateSetter(setValueInternal, {
     prevValue: prevValueRef,
     logOnlyChanged: logOnlyChangedRef,
     compareFunction: compareFunctionRef,

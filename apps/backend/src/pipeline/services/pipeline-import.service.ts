@@ -66,23 +66,46 @@ export class PipelineImportService {
         'EXTRACT',
         'SUCCESS',
         parseResult.rows.length,
+        [],
+        parseResult.rows,
+        [
+          'CSV parsed successfully',
+          `Extracted ${parseResult.rows.length} rows`,
+        ],
       );
 
       if (this.shouldFailImport(parseResult)) {
-        await this.logPhaseResult(jobId, 'VALIDATE', 'FAILED', 0);
+        await this.logPhaseResult(
+          jobId,
+          'VALIDATE',
+          'FAILED',
+          0,
+          parseResult.rows,
+          [],
+          ['Validation failed: no valid rows found', ...parseResult.errors],
+        );
         await this.failImportJob(jobId, parseResult.errors);
         return;
       }
 
       // VALIDATE phase
+      const validatedRows = parseResult.rows.filter(
+        (row) => Object.keys(row).length > 0,
+      );
       await this.logPhaseResult(
         jobId,
         'VALIDATE',
         'SUCCESS',
-        parseResult.rows.length,
+        validatedRows.length,
+        parseResult.rows,
+        validatedRows,
+        [
+          'Data validation completed',
+          `${validatedRows.length} valid rows out of ${parseResult.rows.length}`,
+        ],
       );
 
-      await this.processAndStageData(jobId, parseResult);
+      await this.processAndStageData(jobId, parseResult, validatedRows);
     } catch (error) {
       await this.handleImportError(jobId, error);
     }
@@ -99,27 +122,46 @@ export class PipelineImportService {
     phase: 'EXTRACT' | 'VALIDATE' | 'CLEAN' | 'TRANSFORM' | 'MAP' | 'LOAD',
     status: 'SUCCESS' | 'FAILED',
     rowsProcessed: number,
+    inputData?: unknown[],
+    outputData?: unknown[],
+    transformations?: string[],
   ): Promise<void> {
     try {
+      const sampleSize = 3;
       await this.pipelineRepository.savePhaseResult({
         import_job_id: jobId,
         phase,
         status,
-        transformations: [`${phase} completed`],
+        transformations: transformations || [`${phase} completed`],
         applied_rules: [],
         rows_processed: rowsProcessed,
-        rows_modified: 0,
+        rows_modified: outputData ? outputData.length : 0,
         rows_failed: 0,
+        input_sample: inputData?.slice(0, sampleSize) || null,
+        output_sample: outputData?.slice(0, sampleSize) || null,
         started_at: new Date(),
         completed_at: new Date(),
         duration_ms: 0,
       });
-      this.logger.debug(`Logged ${phase} phase result for job ${jobId}`);
+      this.logger.debug(
+        `Logged ${phase} phase result for job ${jobId} with ${inputData?.length || 0} input rows and ${outputData?.length || 0} output rows`,
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.warn(`Failed to log phase result: ${errorMessage}`);
     }
+  }
+
+  private cleanData(rows: Record<string, string>[]): Record<string, string>[] {
+    return rows.map((row) => {
+      const cleanedRow: Record<string, string> = {};
+      for (const [key, value] of Object.entries(row)) {
+        // Basic cleaning: trim whitespace and normalize
+        cleanedRow[key] = typeof value === 'string' ? value.trim() : value;
+      }
+      return cleanedRow;
+    });
   }
 
   private shouldFailImport(parseResult: {
@@ -140,14 +182,66 @@ export class PipelineImportService {
   private async processAndStageData(
     jobId: string,
     parseResult: { errors: string[]; rows: Record<string, string>[] },
+    validatedRows: Record<string, string>[],
   ): Promise<void> {
-    const { stagingAssets, errors, processedCount } = await this.processCsvRows(
+    // CLEAN phase - simulate data cleaning
+    const cleanedRows = this.cleanData(validatedRows);
+    await this.logPhaseResult(
       jobId,
-      parseResult.rows,
+      'CLEAN',
+      'SUCCESS',
+      cleanedRows.length,
+      validatedRows,
+      cleanedRows,
+      ['Data cleaning completed', 'Trimmed whitespace and normalized values'],
     );
 
+    // TRANSFORM phase - process CSV rows
+    const { stagingAssets, errors, processedCount } = await this.processCsvRows(
+      jobId,
+      cleanedRows,
+    );
+
+    await this.logPhaseResult(
+      jobId,
+      'TRANSFORM',
+      'SUCCESS',
+      processedCount,
+      cleanedRows,
+      stagingAssets.map((asset) => asset.mapped_data),
+      ['Data transformation completed', `Processed ${processedCount} rows`],
+    );
+
+    // MAP phase - field mapping is done during processCsvRows
+    await this.logPhaseResult(
+      jobId,
+      'MAP',
+      'SUCCESS',
+      stagingAssets.length,
+      stagingAssets.map((asset) => asset.raw_data),
+      stagingAssets.map((asset) => asset.mapped_data),
+      [
+        'Field mapping completed',
+        `Mapped ${stagingAssets.length} records to asset schema`,
+      ],
+    );
+
+    // LOAD phase - save to staging
     if (stagingAssets.length > 0) {
       await this.pipelineRepository.createStagingAssets(stagingAssets);
+
+      await this.logPhaseResult(
+        jobId,
+        'LOAD',
+        'SUCCESS',
+        stagingAssets.length,
+        stagingAssets.map((asset) => asset.mapped_data),
+        stagingAssets,
+        [
+          'Data loading completed',
+          `Loaded ${stagingAssets.length} assets to staging`,
+        ],
+      );
     }
 
     await this.completeImportJob(jobId, parseResult, processedCount, [

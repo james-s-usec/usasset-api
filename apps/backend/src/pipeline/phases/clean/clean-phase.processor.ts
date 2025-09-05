@@ -30,9 +30,11 @@ export class CleanPhaseProcessor implements PhaseProcessor {
   private readonly logger = new Logger(CleanPhaseProcessor.name);
   private readonly ruleEngine: RuleEngineService;
 
-  public constructor(private readonly prisma: PrismaService) {
-    const factory = new RuleProcessorFactory();
-    this.ruleEngine = new RuleEngineService(prisma, factory);
+  public constructor(
+    private readonly prisma: PrismaService,
+    private readonly ruleEngine: RuleEngineService,
+  ) {
+    // RuleEngineService is now injected with proper factory registration
   }
 
   public async process(

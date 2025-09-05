@@ -3,13 +3,8 @@ export interface UserData {
   email: string
   name?: string
   role?: UserRole
-  is_deleted: boolean
   created_at: string
-  created_by?: string | null
   updated_at: string
-  updated_by?: string | null
-  deleted_at?: string | null
-  deleted_by?: string | null
 }
 
 export interface CreateUserRequest {
@@ -68,9 +63,10 @@ export interface UserListResponse {
   }
 }
 
-export type UserRole = 'USER' | 'ADMIN'
+export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN'
 
 export const USER_ROLES = {
   USER: 'USER' as UserRole,
-  ADMIN: 'ADMIN' as UserRole
+  ADMIN: 'ADMIN' as UserRole,
+  SUPER_ADMIN: 'SUPER_ADMIN' as UserRole
 } as const

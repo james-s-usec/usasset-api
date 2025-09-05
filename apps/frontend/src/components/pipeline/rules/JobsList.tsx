@@ -112,7 +112,7 @@ const JobActionsCell: React.FC<{
   job: ImportJob; 
   onDownloadPhaseResults?: (jobId: string) => void; 
 }> = ({ job, onDownloadPhaseResults }) => {
-  const handleDownload = () => {
+  const handleDownload = (): void => {
     if (onDownloadPhaseResults) {
       onDownloadPhaseResults(job.id);
     }
