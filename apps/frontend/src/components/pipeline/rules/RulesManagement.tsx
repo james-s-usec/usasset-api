@@ -52,39 +52,6 @@ interface RulesTabProps {
   onToggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
 }
 
-const RulesTab: React.FC<RulesTabProps> = ({
-  selectedPhase,
-  onPhaseChange,
-  filteredRules,
-  loading,
-  onRefresh,
-  onAddRule,
-  onTestRules,
-  onTestOrchestrator,
-  onEditRule,
-  onDeleteRule,
-  onToggleRule
-}) => (
-  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-    <RuleFilters
-      selectedPhase={selectedPhase}
-      onPhaseChange={onPhaseChange}
-      onRefresh={onRefresh}
-      onAddRule={onAddRule}
-      onTestRules={onTestRules}
-      onTestOrchestrator={onTestOrchestrator}
-      loading={loading}
-    />
-
-    <RulesList
-      rules={filteredRules}
-      loading={loading}
-      onEditRule={onEditRule}
-      onDeleteRule={onDeleteRule}
-      onToggleRule={onToggleRule}
-    />
-  </Box>
-);
 
 const useRuleEditor = (): {
   showRuleEditor: boolean;
@@ -135,9 +102,9 @@ interface MainContentProps {
   selectedFile?: string | null;
 }
 
-const MainContent: React.FC<MainContentProps> = (props) => (
-  <>
-    {props.currentTab === 0 && (
+const TabContent: React.FC<{ currentTab: number; props: MainContentProps }> = ({ currentTab, props }) => {
+  if (currentTab === 0) {
+    return (
       <RulesTab
         selectedPhase={props.selectedPhase}
         onPhaseChange={props.onPhaseChange}
@@ -151,20 +118,26 @@ const MainContent: React.FC<MainContentProps> = (props) => (
         onDeleteRule={props.deleteRule}
         onToggleRule={props.toggleRule}
       />
-    )}
-    {props.currentTab === 1 && (
+    );
+  }
+  if (currentTab === 1) {
+    return (
       <JobsList 
         jobs={props.jobs} 
         loading={props.loading} 
         onRefresh={props.loadJobs} 
       />
-    )}
-    {props.currentTab === 2 && (
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
-        <FieldMappingsTable selectedFile={null} />
-      </Box>
-    )}
-  </>
+    );
+  }
+  return (
+    <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <FieldMappingsTable selectedFile={null} />
+    </Box>
+  );
+};
+
+const MainContent: React.FC<MainContentProps> = (props) => (
+  <TabContent currentTab={props.currentTab} props={props} />
 );
 
 const useTabState = (): {

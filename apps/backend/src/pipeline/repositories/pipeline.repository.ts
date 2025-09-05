@@ -60,6 +60,31 @@ export class PipelineRepository {
     completed_at?: Date;
     duration_ms?: number;
   }): Promise<void> {
+    await this.createPhaseResultRecord(data);
+  }
+
+  private logPhaseResultSave(jobId: string, phase: PipelinePhase): void {
+    this.logger.debug(`Saving phase result for job ${jobId}, phase ${phase}`);
+  }
+
+  private async createPhaseResultRecord(data: {
+    import_job_id: string;
+    phase: PipelinePhase;
+    status: string;
+    transformations: unknown[];
+    applied_rules: string[];
+    input_sample?: unknown;
+    output_sample?: unknown;
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    metadata?: unknown;
+    errors?: unknown;
+    warnings?: unknown;
+    started_at: Date;
+    completed_at?: Date;
+    duration_ms?: number;
+  }): Promise<void> {
     this.logPhaseResultSave(data.import_job_id, data.phase);
 
     await this.prisma.phaseResult.create({
@@ -82,10 +107,6 @@ export class PipelineRepository {
         duration_ms: data.duration_ms,
       },
     });
-  }
-
-  private logPhaseResultSave(jobId: string, phase: PipelinePhase): void {
-    this.logger.debug(`Saving phase result for job ${jobId}, phase ${phase}`);
   }
 
   // Rule CRUD operations

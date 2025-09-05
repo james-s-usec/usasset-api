@@ -97,6 +97,14 @@ const confirmDeleteRule = (): boolean => {
   return confirm('Are you sure you want to delete this rule?');
 };
 
+const updateRuleStatus = async (ruleId: string, isActive: boolean): Promise<Response> => {
+  return fetch(`${API_BASE_URL}/api/pipeline/rules/${ruleId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_active: isActive })
+  });
+};
+
 const handleToggleRuleActive = async (
   ruleId: string,
   isActive: boolean,
@@ -106,14 +114,7 @@ const handleToggleRuleActive = async (
   state.setLoading(true);
   state.setError(null);
   try {
-    const response = await fetch(`${API_BASE_URL}/api/pipeline/rules/${ruleId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ is_active: isActive })
-    });
-    
+    const response = await updateRuleStatus(ruleId, isActive);
     const data = await response.json();
     
     if (data.success) {

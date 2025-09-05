@@ -294,7 +294,7 @@ export class PdfProcessingService {
     width: number,
   ): Promise<Buffer> {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     if (this.isKnownPdfParsingError(errorMessage)) {
       this.logger.warn(
         `UnPDF render failed for page ${page}, creating fallback image: ${errorMessage}`,
@@ -606,11 +606,13 @@ export class PdfProcessingService {
         background: { r: 248, g: 249, b: 250 },
       },
     })
-      .composite([{
-        input: Buffer.from(svgContent),
-        top: 0,
-        left: 0,
-      }])
+      .composite([
+        {
+          input: Buffer.from(svgContent),
+          top: 0,
+          left: 0,
+        },
+      ])
       .png()
       .toBuffer();
   }

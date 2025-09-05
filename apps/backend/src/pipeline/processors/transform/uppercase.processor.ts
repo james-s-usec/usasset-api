@@ -7,18 +7,14 @@ import {
   ProcessingContext,
 } from '../../interfaces/rule-processor.interface';
 
-export interface UppercaseConfig {
-  // No config needed for simple uppercase transformation
-}
+export type UppercaseConfig = Record<string, never>;
 
 @Injectable()
 export class UppercaseProcessor implements RuleProcessor<UppercaseConfig> {
   public readonly type = RuleType.TO_UPPERCASE;
   public readonly phase = PipelinePhase.TRANSFORM;
 
-  public validateConfig(
-    config: unknown,
-  ): Promise<ValidationResult<UppercaseConfig>> {
+  public validateConfig(): Promise<ValidationResult<UppercaseConfig>> {
     // No validation needed for uppercase
     return Promise.resolve({ success: true, data: {} });
   }
@@ -35,19 +31,28 @@ export class UppercaseProcessor implements RuleProcessor<UppercaseConfig> {
     data: unknown,
     context: ProcessingContext,
   ): ProcessingResult {
+    if (typeof data !== 'string') {
+      return this.handleNonString(data, context);
+    }
+    return this.processString(data);
+  }
+
+  private handleNonString(
+    data: unknown,
+    context: ProcessingContext,
+  ): ProcessingResult {
+    return {
+      success: true,
+      data: data,
+      warnings: [
+        `Row ${context.rowNumber}: Uppercase processor received non-string data, skipping`,
+      ],
+    };
+  }
+
+  private processString(data: string): ProcessingResult {
     try {
-      if (typeof data !== 'string') {
-        return {
-          success: true,
-          data: data,
-          warnings: [
-            `Row ${context.rowNumber}: Uppercase processor received non-string data, skipping`,
-          ],
-        };
-      }
-
       const result = data.toUpperCase();
-
       return {
         success: true,
         data: result,

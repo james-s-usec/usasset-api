@@ -121,17 +121,14 @@ const SelectorContainer: React.FC<{ children: React.ReactNode }> = ({ children }
   </Box>
 );
 
-export const AssetSelector: React.FC<AssetSelectorProps> = ({
-  projects,
-  assets,
-  selection,
-  uploading,
-  onProjectChange,
-  onAssetChange,
-  onFileTypeChange,
-  onFileUpload,
-}) => (
-  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+const ProjectAssetSelectors: React.FC<{
+  projects: Array<{ id: string; name: string }>;
+  assets: Asset[];
+  selection: SelectionState;
+  onProjectChange: (projectId: string) => void;
+  onAssetChange: (assetId: string) => void;
+}> = ({ projects, assets, selection, onProjectChange, onAssetChange }) => (
+  <>
     <SelectorContainer>
       <ProjectSelector
         value={selection.selectedProject}
@@ -147,6 +144,16 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
         onChange={onAssetChange}
       />
     </SelectorContainer>
+  </>
+);
+
+const FileUploadSelectors: React.FC<{
+  selection: SelectionState;
+  uploading: boolean;
+  onFileTypeChange: (fileType: FileType) => void;
+  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}> = ({ selection, uploading, onFileTypeChange, onFileUpload }) => (
+  <>
     <SelectorContainer>
       <FileTypeSelect
         value={selection.selectedFileType}
@@ -160,5 +167,29 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
         onUpload={onFileUpload}
       />
     </SelectorContainer>
+  </>
+);
+
+const SelectorGrid: React.FC<AssetSelectorProps> = (props) => (
+  <>
+    <ProjectAssetSelectors 
+      projects={props.projects}
+      assets={props.assets}
+      selection={props.selection}
+      onProjectChange={props.onProjectChange}
+      onAssetChange={props.onAssetChange}
+    />
+    <FileUploadSelectors
+      selection={props.selection}
+      uploading={props.uploading}
+      onFileTypeChange={props.onFileTypeChange}
+      onFileUpload={props.onFileUpload}
+    />
+  </>
+);
+
+export const AssetSelector: React.FC<AssetSelectorProps> = (props) => (
+  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+    <SelectorGrid {...props} />
   </Box>
 );

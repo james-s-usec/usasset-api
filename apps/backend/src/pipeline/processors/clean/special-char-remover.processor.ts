@@ -29,16 +29,23 @@ export class SpecialCharRemoverProcessor
   private performValidation(
     config: unknown,
   ): ValidationResult<SpecialCharRemoverConfig> {
+    if (!this.isValidConfig(config)) {
+      return {
+        success: false,
+        errors: ['Config must be an object'],
+      };
+    }
+    return this.buildConfig(config);
+  }
+
+  private isValidConfig(config: unknown): config is Record<string, unknown> {
+    return typeof config === 'object' && config !== null;
+  }
+
+  private buildConfig(
+    configObj: Record<string, unknown>,
+  ): ValidationResult<SpecialCharRemoverConfig> {
     try {
-      if (typeof config !== 'object' || config === null) {
-        return {
-          success: false,
-          errors: ['Config must be an object'],
-        };
-      }
-
-      const configObj = config as Record<string, unknown>;
-
       const specialConfig: SpecialCharRemoverConfig = {
         keepChars:
           typeof configObj.keepChars === 'string' ? configObj.keepChars : '',
@@ -51,7 +58,6 @@ export class SpecialCharRemoverProcessor
             ? configObj.preserveSpaces
             : true,
       };
-
       return { success: true, data: specialConfig };
     } catch (error) {
       return {
@@ -76,37 +82,34 @@ export class SpecialCharRemoverProcessor
     config: SpecialCharRemoverConfig,
     context: ProcessingContext,
   ): ProcessingResult {
+    if (typeof data !== 'string') {
+      return this.handleNonString(data, context);
+    }
+    return this.processString(data, config);
+  }
+
+  private handleNonString(
+    data: unknown,
+    context: ProcessingContext,
+  ): ProcessingResult {
+    return {
+      success: true,
+      data: data,
+      warnings: [
+        `Row ${context.rowNumber}: Special char remover received non-string data, skipping`,
+      ],
+    };
+  }
+
+  private processString(
+    data: string,
+    config: SpecialCharRemoverConfig,
+  ): ProcessingResult {
     try {
-      if (typeof data !== 'string') {
-        return {
-          success: true,
-          data: data,
-          warnings: [
-            `Row ${context.rowNumber}: Special char remover received non-string data, skipping`,
-          ],
-        };
-      }
-
-      // Build regex pattern for characters to keep
-      let keepPattern = 'a-zA-Z0-9'; // Always keep alphanumeric
-
-      if (config.preserveSpaces) {
-        keepPattern += '\\s';
-      }
-
-      if (config.keepChars) {
-        // Escape special regex characters in keepChars
-        const escaped = config.keepChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        keepPattern += escaped;
-      }
-
+      const keepPattern = this.buildKeepPattern(config);
       const regex = new RegExp(`[^${keepPattern}]`, 'g');
       const result = data.replace(regex, config.replaceWith || '');
-
-      const charsRemoved =
-        data.length -
-        result.length +
-        (config.replaceWith ? result.split(config.replaceWith).length - 1 : 0);
+      const charsRemoved = this.countRemovedChars(data, result, config);
 
       return {
         success: true,
@@ -128,5 +131,29 @@ export class SpecialCharRemoverProcessor
         ],
       };
     }
+  }
+
+  private buildKeepPattern(config: SpecialCharRemoverConfig): string {
+    let keepPattern = 'a-zA-Z0-9';
+    if (config.preserveSpaces) {
+      keepPattern += '\\s';
+    }
+    if (config.keepChars) {
+      const escaped = config.keepChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      keepPattern += escaped;
+    }
+    return keepPattern;
+  }
+
+  private countRemovedChars(
+    original: string,
+    result: string,
+    config: SpecialCharRemoverConfig,
+  ): number {
+    return (
+      original.length -
+      result.length +
+      (config.replaceWith ? result.split(config.replaceWith).length - 1 : 0)
+    );
   }
 }

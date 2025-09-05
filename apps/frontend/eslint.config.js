@@ -65,6 +65,8 @@ export default tseslint.config([
       'react/jsx-max-depth': ['error', { max: 4 }],
       // Prevent too many props (similar to max-params)
       'react/jsx-max-props-per-line': ['error', { maximum: 3 }],
+      // Disable prop-types since we use TypeScript
+      'react/prop-types': 'off',
     },
   },
 ])
