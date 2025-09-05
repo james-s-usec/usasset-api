@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AzureBlobStorageService } from '../files/services/azure-blob-storage.service';
-import { CsvParserService } from './services/csv-parser.service';
 import { PipelineRepository } from './repositories/pipeline.repository';
 import { PipelineJobService } from './services/pipeline-job.service';
 import { PipelineValidationService } from './services/pipeline-validation.service';
@@ -13,21 +12,6 @@ import {
   ProcessedRow,
 } from './interfaces/pipeline-types';
 import { CreateRuleDto, UpdateRuleDto } from './dto/pipeline-dto';
-
-// Constants to eliminate magic numbers
-const CONSTANTS = {
-  HEADER_ROW_OFFSET: 2,
-  MAX_STRING_LENGTH: 200,
-  MAX_PREVIEW_STRING_LENGTH: 100,
-  PREVIEW_ROWS_LIMIT: 10,
-  VALIDATION_SAMPLE_SIZE: 50,
-  MAX_SAMPLE_ITEMS: 5,
-  MAX_ERROR_DISPLAY: 20,
-  DEFAULT_CLEANUP_HOURS: 24,
-  SECONDS_PER_MINUTE: 60,
-  MINUTES_PER_HOUR: 60,
-  MILLISECONDS_PER_SECOND: 1000,
-} as const;
 
 interface StagedDataRowResponse {
   rowNumber: number;
@@ -46,11 +30,10 @@ interface StagedDataRowResponse {
 @Injectable()
 export class PipelineService {
   private readonly logger = new Logger(PipelineService.name);
-  private readonly prisma: any;
+  private readonly prisma: unknown;
 
   public constructor(
     private readonly blobStorageService: AzureBlobStorageService,
-    private readonly csvParser: CsvParserService,
     private readonly pipelineRepository: PipelineRepository,
     private readonly pipelineJobService: PipelineJobService,
     private readonly pipelineValidationService: PipelineValidationService,
@@ -83,9 +66,11 @@ export class PipelineService {
     const jobId = await this.pipelineJobService.createImportJob(fileId);
 
     // Start async processing (simple for now, no queue)
-    this.pipelineImportService.processImport(jobId, fileId).catch((error) => {
-      this.logger.error(`Failed to process import job ${jobId}:`, error);
-    });
+    this.pipelineImportService
+      .processImport(jobId, fileId)
+      .catch((error: Error) => {
+        this.logger.error(`Failed to process import job ${jobId}:`, error);
+      });
 
     return jobId;
   }
@@ -132,7 +117,7 @@ export class PipelineService {
     };
   }
 
-  public async cleanupOldJobs(olderThanHours: number = 24): Promise<{
+  public async cleanupOldJobs(olderThanHours = 24): Promise<{
     message: string;
     jobsDeleted: number;
     stagingRecordsDeleted: number;
@@ -190,8 +175,8 @@ export class PipelineService {
   public async testETLRules(): Promise<{
     success: boolean;
     testData: {
-      before: any;
-      after: any;
+      before: Record<string, unknown>;
+      after: Record<string, unknown>;
     };
     rulesApplied: Array<{
       name: string;
@@ -206,185 +191,234 @@ export class PipelineService {
   }> {
     this.logger.debug('Testing ETL rules with sample data');
 
-    // Create test data with whitespace that needs trimming
-    const testData = {
+    const testData = this.createTestData();
+    const context = this.createTestContext();
+
+    try {
+      const allActiveRules = await this.ensureCleanRulesExist();
+      const result = await this.processTestData(testData, context);
+      return this.formatSuccessResult(testData, result, allActiveRules);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`ETL rules test failed: ${errorMessage}`);
+      return this.formatErrorResult(testData, errorMessage);
+    }
+  }
+
+  private createTestData(): Record<string, string> {
+    return {
       name: '   HVAC Unit 001   \t\n',
       assetTag: 'TEST-001',
       manufacturer: '  TestCorp  ',
       description: '\tTest Description\n',
     };
+  }
 
-    const context = {
+  private createTestContext(): {
+    rowNumber: number;
+    jobId: string;
+    correlationId: string;
+    metadata: { source: string };
+  } {
+    return {
       rowNumber: 1,
       jobId: 'test-rules-job',
       correlationId: 'test-correlation-' + Date.now(),
       metadata: { source: 'api-test' },
     };
-
-    try {
-      // Get all active rules for CLEAN phase as example
-      const allActiveRules = await this.ruleEngine.getRulesForPhase(
-        'CLEAN' as PipelinePhase,
-      );
-
-      // If no rules exist, create a demo TRIM rule
-      if (allActiveRules.length === 0) {
-        this.logger.debug(
-          'No active CLEAN rules found, creating demo TRIM rule',
-        );
-        await this.ruleEngine.createRule({
-          name: 'Demo TRIM Rule',
-          description: 'Automatically created for testing',
-          phase: 'CLEAN' as PipelinePhase,
-          type: 'TRIM' as RuleType,
-          target: 'name',
-          config: {
-            sides: 'both',
-            customChars: ' \t\n\r',
-          },
-          priority: 1,
-        });
-      }
-
-      // Process through CLEAN phase as example
-      const result = await this.ruleEngine.processDataWithRules(
-        testData as ProcessedRow,
-        'CLEAN' as PipelinePhase,
-        context,
-      );
-
-      const allRulesApplied = allActiveRules.map((rule) => ({
-        name: rule.name,
-        type: rule.type,
-        phase: rule.phase,
-        target: rule.target,
-      }));
-
-      this.logger.debug(
-        `ETL rules test completed. Applied ${allRulesApplied.length} rules`,
-      );
-
-      return {
-        success: result.success,
-        testData: {
-          before: testData,
-          after: result.data,
-        },
-        rulesApplied: allRulesApplied,
-        processing: {
-          errors: result.errors,
-          warnings: result.warnings,
-        },
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(`ETL rules test failed: ${errorMessage}`);
-
-      return {
-        success: false,
-        testData: {
-          before: testData,
-          after: testData, // Return original data on failure
-        },
-        rulesApplied: [],
-        processing: {
-          errors: [`Test failed: ${errorMessage}`],
-          warnings: [],
-        },
-      };
-    }
   }
 
-  public async testPipelineOrchestrator(): Promise<Record<string, unknown>> {
+  private async ensureCleanRulesExist(): Promise<
+    Array<{ name: string; type: string; phase: string; target: string }>
+  > {
+    const allActiveRules = await this.ruleEngine.getRulesForPhase(
+      'CLEAN' as PipelinePhase,
+    );
+
+    if (allActiveRules.length === 0) {
+      this.logger.debug('No active CLEAN rules found, creating demo TRIM rule');
+      await this.createDemoTrimRule();
+    }
+
+    return allActiveRules;
+  }
+
+  private async createDemoTrimRule(): Promise<void> {
+    await this.ruleEngine.createRule({
+      name: 'Demo TRIM Rule',
+      description: 'Automatically created for testing',
+      phase: 'CLEAN' as PipelinePhase,
+      type: 'TRIM' as RuleType,
+      target: 'name',
+      config: {
+        sides: 'both',
+        customChars: ' \t\n\r',
+      },
+      priority: 1,
+    });
+  }
+
+  private async processTestData(
+    testData: Record<string, string>,
+    context: Record<string, unknown>,
+  ): Promise<{
+    success: boolean;
+    data: ProcessedRow;
+    errors: string[];
+    warnings: string[];
+  }> {
+    return await this.ruleEngine.processDataWithRules(
+      testData as ProcessedRow,
+      'CLEAN' as PipelinePhase,
+      context,
+    );
+  }
+
+  private formatSuccessResult(
+    testData: Record<string, string>,
+    result: {
+      success: boolean;
+      data: ProcessedRow;
+      errors: string[];
+      warnings: string[];
+    },
+    allActiveRules: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>,
+  ): {
+    success: boolean;
+    testData: { before: Record<string, string>; after: ProcessedRow };
+    rulesApplied: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>;
+    processing: { errors: string[]; warnings: string[] };
+  } {
+    const allRulesApplied = allActiveRules.map((rule) => ({
+      name: rule.name,
+      type: rule.type,
+      phase: rule.phase,
+      target: rule.target,
+    }));
+
+    this.logger.debug(
+      `ETL rules test completed. Applied ${allRulesApplied.length} rules`,
+    );
+
+    return {
+      success: result.success,
+      testData: {
+        before: testData,
+        after: result.data,
+      },
+      rulesApplied: allRulesApplied,
+      processing: {
+        errors: result.errors,
+        warnings: result.warnings,
+      },
+    };
+  }
+
+  private formatErrorResult(
+    testData: Record<string, string>,
+    errorMessage: string,
+  ): {
+    success: boolean;
+    testData: { before: Record<string, string>; after: Record<string, string> };
+    rulesApplied: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>;
+    processing: { errors: string[]; warnings: string[] };
+  } {
+    return {
+      success: false,
+      testData: {
+        before: testData,
+        after: testData,
+      },
+      rulesApplied: [],
+      processing: {
+        errors: [`Test failed: ${errorMessage}`],
+        warnings: [],
+      },
+    };
+  }
+
+  public testPipelineOrchestrator(): Record<string, unknown> {
     this.logger.debug('Testing pipeline orchestrator with all phases');
 
     try {
-      // For now, return a simplified test result
-      // Full orchestrator implementation would require proper phase processor dependencies
-      const testResult = {
-        success: true,
-        phases: {
-          extract: {
-            phase: 'extract',
-            success: true,
-            inputRows: 1,
-            outputRows: 1,
-            errors: [],
-            warnings: [],
-            duration: 10,
-          },
-          validate: {
-            phase: 'validate',
-            success: true,
-            inputRows: 1,
-            outputRows: 1,
-            errors: [],
-            warnings: [],
-            duration: 5,
-          },
-          clean: {
-            phase: 'clean',
-            success: true,
-            inputRows: 1,
-            outputRows: 1,
-            errors: [],
-            warnings: [],
-            duration: 8,
-          },
-          transform: {
-            phase: 'transform',
-            success: true,
-            inputRows: 1,
-            outputRows: 1,
-            errors: [],
-            warnings: [],
-            duration: 12,
-          },
-          map: {
-            phase: 'map',
-            success: true,
-            inputRows: 1,
-            outputRows: 1,
-            errors: [],
-            warnings: [],
-            duration: 6,
-          },
-          load: {
-            phase: 'load',
-            success: true,
-            inputRows: 1,
-            outputRows: 1,
-            errors: [],
-            warnings: [],
-            duration: 15,
-          },
-        },
-        summary: {
-          totalRows: 1,
-          successfulRows: 1,
-          failedRows: 0,
-          errors: [],
-        },
-      };
-
+      const testResult = this.createMockPipelineResult();
       this.logger.debug('Pipeline orchestrator test completed successfully');
-
-      return {
-        success: true,
-        data: testResult,
-      };
+      return this.formatSuccessResponse(testResult);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(`Pipeline orchestrator test failed: ${errorMessage}`);
-
-      return {
-        success: false,
-        error: errorMessage,
-        data: null,
-      };
+      return this.formatErrorResponse(error);
     }
+  }
+
+  private createMockPipelineResult() {
+    return {
+      success: true,
+      phases: this.createMockPhaseResults(),
+      summary: this.createMockSummary(),
+    };
+  }
+
+  private createMockPhaseResults() {
+    const phases = ['extract', 'validate', 'clean', 'transform', 'map', 'load'];
+    const durations = [10, 5, 8, 12, 6, 15];
+
+    return phases.reduce(
+      (acc, phase, index) => {
+        acc[phase] = {
+          phase,
+          success: true,
+          inputRows: 1,
+          outputRows: 1,
+          errors: [],
+          warnings: [],
+          duration: durations[index],
+        };
+        return acc;
+      },
+      {} as Record<string, unknown>,
+    );
+  }
+
+  private createMockSummary() {
+    return {
+      totalRows: 1,
+      successfulRows: 1,
+      failedRows: 0,
+      errors: [],
+    };
+  }
+
+  private formatSuccessResponse(data: unknown) {
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  private formatErrorResponse(error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logger.error(`Pipeline orchestrator test failed: ${errorMessage}`);
+
+    return {
+      success: false,
+      error: errorMessage,
+      data: null,
+    };
   }
 
   public async getRules(): Promise<PipelineRule[]> {
@@ -406,9 +440,9 @@ export class PipelineService {
     });
   }
 
-  public async updateRule(
+  public updateRule(
     ruleId: string,
-    updateRuleDto: UpdateRuleDto,
+    _updateRuleDto: UpdateRuleDto,
   ): Promise<PipelineRule> {
     this.logger.debug(`Updating pipeline rule: ${ruleId}`);
     // For now, we'll need to implement this in the repository
@@ -418,7 +452,7 @@ export class PipelineService {
     );
   }
 
-  public async deleteRule(ruleId: string): Promise<void> {
+  public deleteRule(ruleId: string): Promise<void> {
     this.logger.debug(`Deleting pipeline rule: ${ruleId}`);
     // For now, we'll need to implement this in the repository
     throw new Error(

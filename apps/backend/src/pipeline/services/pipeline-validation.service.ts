@@ -149,7 +149,9 @@ export class PipelineValidationService {
     return result;
   }
 
-  private initializeSampleResult(parseErrors: string[]) {
+  private initializeSampleResult(
+    parseErrors: string[],
+  ): ValidationSampleResult {
     return {
       validData: [] as Array<{
         rowNumber: number;

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PipelinePhase, RuleType, PipelineRule } from '@prisma/client';
+import { PipelinePhase, RuleType, PipelineRule, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { RuleProcessorFactory } from './rule-processor.factory';
 import { ProcessingContext } from '../interfaces/rule-processor.interface';
@@ -23,6 +23,38 @@ export interface RuleEngineProcessResult {
   metadata?: Record<string, unknown>;
 }
 
+interface RuleProcessor {
+  process: (
+    data: unknown,
+    config: unknown,
+    context: ProcessingContext,
+  ) => Promise<{
+    success: boolean;
+    data?: unknown;
+    errors?: string[];
+    warnings?: string[];
+  }>;
+}
+
+interface RuleParams {
+  data: Record<string, unknown>;
+  config: unknown;
+  context: ProcessingContext;
+  ruleName: string;
+}
+
+interface RuleResult {
+  success: boolean;
+  data?: Record<string, unknown>;
+  warnings?: string[];
+  error?: string;
+}
+
+interface SingleRuleResult extends RuleResult {
+  processor?: unknown;
+  configError?: string;
+}
+
 @Injectable()
 export class RuleEngineService {
   private readonly logger = new Logger(RuleEngineService.name);
@@ -42,7 +74,7 @@ export class RuleEngineService {
         phase: createRuleDto.phase,
         type: createRuleDto.type,
         target: createRuleDto.target,
-        config: createRuleDto.config as any,
+        config: createRuleDto.config as Prisma.InputJsonValue,
         priority: createRuleDto.priority,
         is_active: createRuleDto.is_active ?? true,
       },
@@ -147,24 +179,64 @@ export class RuleEngineService {
     rule: PipelineRule,
     collections: { errors: string[]; warnings: string[] },
   ): void {
+    if (this.shouldSkipProcessorResult(result, collections)) {
+      return;
+    }
+
+    if (this.shouldAddConfigError(result, collections)) {
+      return;
+    }
+
+    this.handleProcessorResult(result, rule, collections);
+  }
+
+  private shouldSkipProcessorResult(
+    result: { processor?: unknown; error?: string },
+    collections: { warnings: string[] },
+  ): boolean {
     if (result.processor === null) {
       collections.warnings.push(result.error || 'Unknown processor error');
-      return;
+      return true;
     }
+    return false;
+  }
 
+  private shouldAddConfigError(
+    result: { configError?: string },
+    collections: { errors: string[] },
+  ): boolean {
     if (result.configError) {
       collections.errors.push(result.configError);
-      return;
+      return true;
     }
+    return false;
+  }
 
+  private handleProcessorResult(
+    result: {
+      success: boolean;
+      warnings?: string[];
+      error?: string;
+    },
+    rule: PipelineRule,
+    collections: { errors: string[]; warnings: string[] },
+  ): void {
     if (result.success) {
-      if (result.warnings?.length) {
-        collections.warnings.push(...result.warnings);
-      }
-      this.logger.debug(`Applied rule: ${rule.name} to ${rule.target}`);
+      this.handleSuccessResult(result, rule, collections);
     } else if (result.error) {
       collections.errors.push(result.error);
     }
+  }
+
+  private handleSuccessResult(
+    result: { warnings?: string[] },
+    rule: PipelineRule,
+    collections: { warnings: string[] },
+  ): void {
+    if (result.warnings?.length) {
+      collections.warnings.push(...result.warnings);
+    }
+    this.logger.debug(`Applied rule: ${rule.name} to ${rule.target}`);
   }
 
   /**
@@ -174,14 +246,7 @@ export class RuleEngineService {
     rule: PipelineRule,
     data: Record<string, unknown>,
     context: ProcessingContext,
-  ): Promise<{
-    success: boolean;
-    data?: Record<string, unknown>;
-    warnings?: string[];
-    error?: string;
-    processor?: unknown;
-    configError?: string;
-  }> {
+  ): Promise<SingleRuleResult> {
     try {
       const processor = this.processorFactory.createProcessor(rule.type);
       if (!processor) {
@@ -193,13 +258,12 @@ export class RuleEngineService {
         return this.createConfigError(rule.name, configValidation.errors);
       }
 
-      return await this.applyRule(
-        processor,
+      return await this.applyRule(processor, {
         data,
-        configValidation.data,
+        config: configValidation.data,
         context,
-        rule.name,
-      );
+        ruleName: rule.name,
+      });
     } catch (ruleError) {
       return this.createRuleError(rule.name, ruleError);
     }
@@ -228,29 +292,14 @@ export class RuleEngineService {
   }
 
   private async applyRule(
-    processor: {
-      process: (
-        data: unknown,
-        config: unknown,
-        context: ProcessingContext,
-      ) => Promise<{
-        success: boolean;
-        data?: unknown;
-        errors?: string[];
-        warnings?: string[];
-      }>;
-    },
-    data: Record<string, unknown>,
-    config: unknown,
-    context: ProcessingContext,
-    ruleName: string,
-  ): Promise<{
-    success: boolean;
-    data?: Record<string, unknown>;
-    warnings?: string[];
-    error?: string;
-  }> {
-    const result = await processor.process(data, config, context);
+    processor: RuleProcessor,
+    ruleParams: RuleParams,
+  ): Promise<RuleResult> {
+    const result = await processor.process(
+      ruleParams.data,
+      ruleParams.config,
+      ruleParams.context,
+    );
 
     if (result.success) {
       return {
@@ -259,7 +308,7 @@ export class RuleEngineService {
         warnings: result.warnings,
       };
     } else {
-      const error = `Rule ${ruleName} failed: ${result.errors?.join(', ')}`;
+      const error = `Rule ${ruleParams.ruleName} failed: ${result.errors?.join(', ')}`;
       this.logger.error(error);
       return { success: false, error };
     }

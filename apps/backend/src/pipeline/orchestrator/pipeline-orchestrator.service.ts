@@ -209,7 +209,9 @@ export class PipelineOrchestrator {
     phaseResult: PhaseResult,
     currentData: PhaseInputData,
   ): PhaseInputData {
-    return phaseResult.data !== undefined ? phaseResult.data : currentData;
+    return phaseResult.data !== undefined
+      ? (phaseResult.data as PhaseInputData)
+      : currentData;
   }
 
   private buildSuccessResult(

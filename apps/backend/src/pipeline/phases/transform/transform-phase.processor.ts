@@ -9,6 +9,8 @@ import {
   FIELD_NAMES,
 } from '../../orchestrator/phase-processor.interface';
 
+const MAX_DEBUG_TRANSFORMATIONS = 10;
+
 interface TransformationRecord {
   field: string;
   before: unknown;
@@ -32,7 +34,7 @@ export class TransformPhaseProcessor implements PhaseProcessor {
   /**
    * Main process method - orchestrates transformation
    */
-  public async process(
+  public process(
     data: PhaseInputData,
     context: PhaseContext,
   ): Promise<PhaseResult> {
@@ -44,7 +46,7 @@ export class TransformPhaseProcessor implements PhaseProcessor {
       const inputRows = this.getInputRows(data);
 
       // Transform all rows
-      const transformResult = this.transformAllRows(inputRows, context);
+      const transformResult = this.transformAllRows(inputRows);
 
       // Build result
       return this.buildPhaseResult(data, transformResult, startTime, context);
@@ -69,10 +71,7 @@ export class TransformPhaseProcessor implements PhaseProcessor {
   /**
    * Transform all rows
    */
-  private transformAllRows(
-    rows: AssetRowData[],
-    context: PhaseContext,
-  ): {
+  private transformAllRows(rows: AssetRowData[]): {
     transformedRows: TransformedRowData[];
     transformations: TransformationRecord[];
   } {
@@ -254,7 +253,10 @@ export class TransformPhaseProcessor implements PhaseProcessor {
         recordsFailed: 0,
       },
       debug: {
-        transformations: transformResult.transformations.slice(0, 10),
+        transformations: transformResult.transformations.slice(
+          0,
+          MAX_DEBUG_TRANSFORMATIONS,
+        ),
       },
     };
   }

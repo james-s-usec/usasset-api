@@ -19,7 +19,7 @@ export interface CreateRuleData {
   phase: PipelinePhase;
   type: RuleType;
   target: string;
-  config: Prisma.JsonValue;
+  config: Prisma.InputJsonValue;
   priority: number;
   is_active?: boolean;
 }
@@ -30,7 +30,7 @@ export interface UpdateRuleData {
   phase?: PipelinePhase;
   type?: RuleType;
   target?: string;
-  config?: Prisma.JsonValue;
+  config?: Prisma.InputJsonValue;
   priority?: number;
   is_active?: boolean;
 }

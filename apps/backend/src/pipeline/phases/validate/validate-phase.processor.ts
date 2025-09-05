@@ -9,6 +9,10 @@ import {
   FIELD_NAMES,
 } from '../../orchestrator/phase-processor.interface';
 
+const MAX_ERROR_DISPLAY_LIMIT = 20;
+const MAX_WARNING_DISPLAY_LIMIT = 10;
+const MAX_SAMPLE_SIZE = 5;
+
 const VALID_STATUSES = [
   'ACTIVE',
   'INACTIVE',
@@ -31,7 +35,7 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
   /**
    * Main process method - orchestrates validation
    */
-  public async process(
+  public process(
     data: PhaseInputData,
     context: PhaseContext,
   ): Promise<PhaseResult> {
@@ -189,7 +193,8 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
 
     // Check for suspicious data
     const manufacturer = row[FIELD_NAMES.MANUFACTURER];
-    if (manufacturer && manufacturer.length > 100) {
+    const MAX_MANUFACTURER_LENGTH = 100;
+    if (manufacturer && manufacturer.length > MAX_MANUFACTURER_LENGTH) {
       warnings.push('Manufacturer name seems unusually long');
     }
   }
@@ -247,8 +252,8 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
       success: true,
       phase: this.phase,
       data: outputData,
-      errors: allErrors.slice(0, 20), // Limit errors for readability
-      warnings: allWarnings.slice(0, 10),
+      errors: allErrors.slice(0, MAX_ERROR_DISPLAY_LIMIT), // Limit errors for readability
+      warnings: allWarnings.slice(0, MAX_WARNING_DISPLAY_LIMIT),
       metrics: {
         startTime,
         endTime,
@@ -258,7 +263,10 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
         recordsFailed: validationResults.invalidRows.length,
       },
       debug: {
-        validationResults: validationResults.validationResults.slice(0, 5),
+        validationResults: validationResults.validationResults.slice(
+          0,
+          MAX_SAMPLE_SIZE,
+        ),
       },
     };
   }

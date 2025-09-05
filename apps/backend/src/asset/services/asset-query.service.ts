@@ -42,15 +42,24 @@ export class AssetQueryService {
     return { assets, total };
   }
 
-  // eslint-disable-next-line max-lines-per-function, max-statements, complexity
   private buildWhereClause(
     searchParams: AssetSearchDto,
   ): Prisma.AssetWhereInput {
-    const where: Prisma.AssetWhereInput = {
-      is_deleted: false,
-    };
+    const where: Prisma.AssetWhereInput = { is_deleted: false };
 
-    // Text search across multiple fields
+    this.addTextSearch(where, searchParams);
+    this.addExactMatches(where, searchParams);
+    this.addStringFilters(where, searchParams);
+    this.addDateRangeFilters(where, searchParams);
+    this.addCostRangeFilters(where, searchParams);
+
+    return where;
+  }
+
+  private addTextSearch(
+    where: Prisma.AssetWhereInput,
+    searchParams: AssetSearchDto,
+  ): void {
     if (searchParams.search) {
       const searchTerm = searchParams.search.toLowerCase();
       where.OR = [
@@ -62,84 +71,61 @@ export class AssetQueryService {
         { assetTag: { contains: searchTerm, mode: 'insensitive' } },
       ];
     }
+  }
 
-    // Exact matches for enums and specific fields
+  private addExactMatches(
+    where: Prisma.AssetWhereInput,
+    searchParams: AssetSearchDto,
+  ): void {
     if (searchParams.status) {
       where.status = searchParams.status;
     }
-
     if (searchParams.condition) {
       where.condition = searchParams.condition;
     }
-
-    if (searchParams.manufacturer) {
-      where.manufacturer = {
-        contains: searchParams.manufacturer,
-        mode: 'insensitive',
-      };
-    }
-
-    if (searchParams.buildingName) {
-      where.buildingName = {
-        contains: searchParams.buildingName,
-        mode: 'insensitive',
-      };
-    }
-
-    if (searchParams.floor) {
-      where.floor = {
-        contains: searchParams.floor,
-        mode: 'insensitive',
-      };
-    }
-
-    if (searchParams.roomNumber) {
-      where.roomNumber = {
-        contains: searchParams.roomNumber,
-        mode: 'insensitive',
-      };
-    }
-
-    if (searchParams.trade) {
-      where.trade = {
-        contains: searchParams.trade,
-        mode: 'insensitive',
-      };
-    }
-
-    if (searchParams.assetCategory) {
-      where.assetCategory = {
-        contains: searchParams.assetCategory,
-        mode: 'insensitive',
-      };
-    }
-
-    if (searchParams.assetType) {
-      where.assetType = {
-        contains: searchParams.assetType,
-        mode: 'insensitive',
-      };
-    }
-
     if (searchParams.projectId) {
       where.projectId = searchParams.projectId;
     }
+  }
 
-    if (searchParams.customerName) {
-      where.customerName = {
-        contains: searchParams.customerName,
-        mode: 'insensitive',
-      };
-    }
+  private addStringFilters(
+    where: Prisma.AssetWhereInput,
+    searchParams: AssetSearchDto,
+  ): void {
+    const stringFilters = [
+      { param: searchParams.manufacturer, field: 'manufacturer' },
+      { param: searchParams.buildingName, field: 'buildingName' },
+      { param: searchParams.floor, field: 'floor' },
+      { param: searchParams.roomNumber, field: 'roomNumber' },
+      { param: searchParams.trade, field: 'trade' },
+      { param: searchParams.assetCategory, field: 'assetCategory' },
+      { param: searchParams.assetType, field: 'assetType' },
+      { param: searchParams.customerName, field: 'customerName' },
+      { param: searchParams.propertyName, field: 'propertyName' },
+    ];
 
-    if (searchParams.propertyName) {
-      where.propertyName = {
-        contains: searchParams.propertyName,
-        mode: 'insensitive',
-      };
-    }
+    stringFilters.forEach(({ param, field }) => {
+      if (param) {
+        (where as Record<string, unknown>)[field] = {
+          contains: param,
+          mode: 'insensitive',
+        };
+      }
+    });
+  }
 
-    // Date range filters
+  private addDateRangeFilters(
+    where: Prisma.AssetWhereInput,
+    searchParams: AssetSearchDto,
+  ): void {
+    this.addInstallDateRange(where, searchParams);
+    this.addWarrantyDateRange(where, searchParams);
+  }
+
+  private addInstallDateRange(
+    where: Prisma.AssetWhereInput,
+    searchParams: AssetSearchDto,
+  ): void {
     if (searchParams.installDateFrom || searchParams.installDateTo) {
       where.installDate = {};
       if (searchParams.installDateFrom) {
@@ -149,25 +135,12 @@ export class AssetQueryService {
         where.installDate.lte = new Date(searchParams.installDateTo);
       }
     }
+  }
 
-    // Note: purchaseDate field doesn't exist in schema, using installDate as fallback
-    // TODO: Add purchaseDate field to schema if needed for purchase date filtering
-
-    // Cost range filters
-    if (
-      searchParams.purchaseCostMin !== undefined ||
-      searchParams.purchaseCostMax !== undefined
-    ) {
-      where.purchaseCost = {};
-      if (searchParams.purchaseCostMin !== undefined) {
-        where.purchaseCost.gte = searchParams.purchaseCostMin;
-      }
-      if (searchParams.purchaseCostMax !== undefined) {
-        where.purchaseCost.lte = searchParams.purchaseCostMax;
-      }
-    }
-
-    // Warranty expiration filters
+  private addWarrantyDateRange(
+    where: Prisma.AssetWhereInput,
+    searchParams: AssetSearchDto,
+  ): void {
     if (searchParams.warrantyExpiringFrom || searchParams.warrantyExpiringTo) {
       where.warrantyExpirationDate = {};
       if (searchParams.warrantyExpiringFrom) {
@@ -181,8 +154,24 @@ export class AssetQueryService {
         );
       }
     }
+  }
 
-    return where;
+  private addCostRangeFilters(
+    where: Prisma.AssetWhereInput,
+    searchParams: AssetSearchDto,
+  ): void {
+    if (
+      searchParams.purchaseCostMin !== undefined ||
+      searchParams.purchaseCostMax !== undefined
+    ) {
+      where.purchaseCost = {};
+      if (searchParams.purchaseCostMin !== undefined) {
+        where.purchaseCost.gte = searchParams.purchaseCostMin;
+      }
+      if (searchParams.purchaseCostMax !== undefined) {
+        where.purchaseCost.lte = searchParams.purchaseCostMax;
+      }
+    }
   }
 
   private buildOrderBy(
@@ -255,8 +244,26 @@ export class AssetQueryService {
     averageCost: number;
     totalValue: number;
   }> {
-    // Check cache first
     const cacheKey = 'asset:summary:v1';
+    const cached = this.getCachedSummary(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const result = await this.computeAssetSummary();
+    this.setCachedSummary(cacheKey, result);
+    return result;
+  }
+
+  private getCachedSummary(cacheKey: string):
+    | {
+        total: number;
+        byStatus: Record<string, number>;
+        byCondition: Record<string, number>;
+        averageCost: number;
+        totalValue: number;
+      }
+    | undefined {
     const cached = this.cache.get<{
       total: number;
       byStatus: Record<string, number>;
@@ -267,9 +274,17 @@ export class AssetQueryService {
 
     if (cached) {
       this.logger.log('Cache HIT for asset summary');
-      return cached;
     }
+    return cached;
+  }
 
+  private async computeAssetSummary(): Promise<{
+    total: number;
+    byStatus: Record<string, number>;
+    byCondition: Record<string, number>;
+    averageCost: number;
+    totalValue: number;
+  }> {
     this.logger.log(
       'Cache MISS for asset summary - performing expensive queries',
     );
@@ -279,11 +294,7 @@ export class AssetQueryService {
       this.prisma.asset.count({ where: { is_deleted: false } }),
       this.countByStatus(),
       this.countByCondition(),
-      this.prisma.asset.aggregate({
-        where: { is_deleted: false, purchaseCost: { not: null } },
-        _avg: { purchaseCost: true },
-        _sum: { purchaseCost: true },
-      }),
+      this.getCostStatistics(),
     ]);
 
     const result = {
@@ -296,10 +307,30 @@ export class AssetQueryService {
 
     const queryTime = Date.now() - startTime;
     this.logger.log(`Asset summary query took ${queryTime}ms`);
-
-    // Cache for 5 minutes
-    this.cache.set(cacheKey, result, CACHE_CONSTANTS.SUMMARY_TTL_SECONDS);
-
     return result;
+  }
+
+  private getCostStatistics(): Promise<{
+    _avg: { purchaseCost: number | null };
+    _sum: { purchaseCost: number | null };
+  }> {
+    return this.prisma.asset.aggregate({
+      where: { is_deleted: false, purchaseCost: { not: null } },
+      _avg: { purchaseCost: true },
+      _sum: { purchaseCost: true },
+    });
+  }
+
+  private setCachedSummary(
+    cacheKey: string,
+    result: {
+      total: number;
+      byStatus: Record<string, number>;
+      byCondition: Record<string, number>;
+      averageCost: number;
+      totalValue: number;
+    },
+  ): void {
+    this.cache.set(cacheKey, result, CACHE_CONSTANTS.SUMMARY_TTL_SECONDS);
   }
 }

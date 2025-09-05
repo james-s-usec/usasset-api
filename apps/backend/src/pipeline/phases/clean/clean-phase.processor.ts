@@ -9,6 +9,7 @@ import { RuleEngineService } from '../../services/rule-engine.service';
 import { RuleProcessorFactory } from '../../services/rule-processor.factory';
 import { PrismaService } from '../../../database/prisma.service';
 import { ProcessingContext } from '../../interfaces/rule-processor.interface';
+import { ProcessingRule } from '../../interfaces/pipeline-types';
 
 interface CleanedData extends Record<string, unknown> {
   cleanedRows: Array<Record<string, unknown>>;
@@ -108,36 +109,85 @@ export class CleanPhaseProcessor implements PhaseProcessor {
       `[${context.correlationId}] Processing row ${index + 1} through CLEAN rules`,
     );
 
+    const ruleResult = await this.processRowWithRules(row, index, context);
+    if (!ruleResult.success) {
+      return this.handleFailedRow(row, index, context, ruleResult);
+    }
+
+    return this.createSuccessfulRowResult(row, ruleResult.data, index);
+  }
+
+  private handleFailedRow(
+    row: Record<string, unknown>,
+    index: number,
+    context: PhaseContext,
+    ruleResult: { errors: string[] },
+  ): {
+    cleanedRow: Record<string, unknown>;
+    transformations: Transformation[];
+    appliedRules: string[];
+  } {
+    this.handleRuleFailure(context, index, ruleResult);
+    return this.createFailedRowResult(row);
+  }
+
+  private async createSuccessfulRowResult(
+    originalRow: Record<string, unknown>,
+    cleanedData: Record<string, unknown>,
+    index: number,
+  ): Promise<{
+    cleanedRow: Record<string, unknown>;
+    transformations: Transformation[];
+    appliedRules: string[];
+  }> {
+    const transformations = this.detectTransformations(
+      originalRow,
+      cleanedData,
+      index,
+    );
+    const appliedRules = await this.getAppliedRuleNames();
+
+    return {
+      cleanedRow: cleanedData,
+      transformations,
+      appliedRules,
+    };
+  }
+
+  private async processRowWithRules(
+    row: Record<string, unknown>,
+    index: number,
+    context: PhaseContext,
+  ): Promise<{
+    success: boolean;
+    data: Record<string, unknown>;
+    errors: string[];
+  }> {
     const ruleContext = this.createRuleContext(row, index, context);
-    const ruleResult = await this.ruleEngine.processDataWithRules(
+    return this.ruleEngine.processDataWithRules(
       row,
       PipelinePhase.CLEAN,
       ruleContext,
     );
+  }
 
-    if (!ruleResult.success) {
-      this.handleRuleFailure(context, index, ruleResult);
-      return {
-        cleanedRow: row,
-        transformations: [],
-        appliedRules: [],
-      };
-    }
+  private createFailedRowResult(row: Record<string, unknown>): {
+    cleanedRow: Record<string, unknown>;
+    transformations: Transformation[];
+    appliedRules: string[];
+  } {
+    return {
+      cleanedRow: row,
+      transformations: [],
+      appliedRules: [],
+    };
+  }
 
-    const transformations = this.detectTransformations(
-      row,
-      ruleResult.data,
-      index,
-    );
+  private async getAppliedRuleNames(): Promise<string[]> {
     const activeRules = await this.ruleEngine.getRulesForPhase(
       PipelinePhase.CLEAN,
     );
-
-    return {
-      cleanedRow: ruleResult.data,
-      transformations,
-      appliedRules: activeRules.map((r: any) => r.name),
-    };
+    return activeRules.map((r: ProcessingRule) => r.name);
   }
 
   private createRuleContext(
@@ -199,8 +249,7 @@ export class CleanPhaseProcessor implements PhaseProcessor {
   ): PhaseResult {
     const endTime = new Date();
     const durationMs = endTime.getTime() - startTime.getTime();
-    const validRows = cleanedData.validRows as unknown[];
-    const recordsProcessed = validRows ? validRows.length : 0;
+    const recordsProcessed = this.getRecordsProcessed(cleanedData);
 
     this.logger.debug(
       `CLEAN phase completed: ${recordsProcessed} records cleaned in ${durationMs}ms`,
@@ -212,18 +261,51 @@ export class CleanPhaseProcessor implements PhaseProcessor {
       data: cleanedData,
       errors: [],
       warnings: [],
-      metrics: {
+      metrics: this.buildMetrics(
         startTime,
         endTime,
         durationMs,
         recordsProcessed,
-        recordsSuccess: recordsProcessed,
-        recordsFailed: 0,
-      },
-      debug: {
-        rulesApplied,
-        transformations,
-      },
+      ),
+      debug: this.buildDebugInfo(rulesApplied, transformations),
+    };
+  }
+
+  private getRecordsProcessed(cleanedData: CleanedData): number {
+    const validRows = cleanedData.validRows as unknown[];
+    return validRows ? validRows.length : 0;
+  }
+
+  private buildMetrics(
+    startTime: Date,
+    endTime: Date,
+    durationMs: number,
+    recordsProcessed: number,
+  ): {
+    startTime: Date;
+    endTime: Date;
+    durationMs: number;
+    recordsProcessed: number;
+    recordsSuccess: number;
+    recordsFailed: number;
+  } {
+    return {
+      startTime,
+      endTime,
+      durationMs,
+      recordsProcessed,
+      recordsSuccess: recordsProcessed,
+      recordsFailed: 0,
+    };
+  }
+
+  private buildDebugInfo(
+    rulesApplied: string[],
+    transformations: Transformation[],
+  ): { rulesApplied: string[]; transformations: Transformation[] } {
+    return {
+      rulesApplied,
+      transformations,
     };
   }
 

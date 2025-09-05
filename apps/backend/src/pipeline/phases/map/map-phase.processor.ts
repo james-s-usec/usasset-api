@@ -82,7 +82,7 @@ export class MapPhaseProcessor implements PhaseProcessor {
   /**
    * Main process method - orchestrates mapping
    */
-  public async process(
+  public process(
     data: PhaseInputData,
     context: PhaseContext,
   ): Promise<PhaseResult> {
@@ -94,12 +94,14 @@ export class MapPhaseProcessor implements PhaseProcessor {
       const inputRows = this.getInputRows(data);
 
       // Map all rows
-      const mappedRows = this.mapAllRows(inputRows, context);
+      const mappedRows = this.mapAllRows(inputRows);
 
       // Build result
-      return this.buildPhaseResult(data, mappedRows, startTime, context);
+      return Promise.resolve(
+        this.buildPhaseResult(data, mappedRows, startTime, context),
+      );
     } catch (error) {
-      return this.buildErrorResult(error, startTime, context);
+      return Promise.resolve(this.buildErrorResult(error, startTime, context));
     }
   }
 
@@ -125,14 +127,11 @@ export class MapPhaseProcessor implements PhaseProcessor {
   /**
    * Map all rows to database schema
    */
-  private mapAllRows(
-    rows: AssetRowData[],
-    context: PhaseContext,
-  ): MappedAssetData[] {
+  private mapAllRows(rows: AssetRowData[]): MappedAssetData[] {
     const mappedRows: MappedAssetData[] = [];
 
     for (const row of rows) {
-      const mappedRow = this.mapSingleRow(row, context);
+      const mappedRow = this.mapSingleRow(row);
       mappedRows.push(mappedRow);
     }
 
@@ -142,10 +141,7 @@ export class MapPhaseProcessor implements PhaseProcessor {
   /**
    * Map a single row
    */
-  private mapSingleRow(
-    row: AssetRowData,
-    context: PhaseContext,
-  ): MappedAssetData {
+  private mapSingleRow(row: AssetRowData): MappedAssetData {
     // Map CSV fields to database fields
     const mappedData = this.mapCsvFieldsToDatabase(row);
 
@@ -178,7 +174,13 @@ export class MapPhaseProcessor implements PhaseProcessor {
    * Map enum values (status, condition)
    */
   private mapEnumValues(mapped: MappedAssetData, row: AssetRowData): void {
-    // Map status enum
+    this.mapStatusEnum(mapped, row);
+    this.mapConditionEnum(mapped, row);
+    this.convertDates(mapped);
+    this.convertNumericValues(mapped);
+  }
+
+  private mapStatusEnum(mapped: MappedAssetData, row: AssetRowData): void {
     const statusValue = row[FIELD_NAMES.STATUS];
     if (statusValue) {
       const normalizedStatus = statusValue.trim().toUpperCase();
@@ -186,8 +188,9 @@ export class MapPhaseProcessor implements PhaseProcessor {
     } else {
       mapped.status = AssetStatus.ACTIVE;
     }
+  }
 
-    // Map condition enum
+  private mapConditionEnum(mapped: MappedAssetData, row: AssetRowData): void {
     const conditionValue = row[FIELD_NAMES.CONDITION];
     if (conditionValue) {
       const normalizedCondition = conditionValue.trim().toUpperCase();
@@ -196,8 +199,9 @@ export class MapPhaseProcessor implements PhaseProcessor {
     } else {
       mapped.condition = AssetCondition.GOOD;
     }
+  }
 
-    // Convert purchase date
+  private convertDates(mapped: MappedAssetData): void {
     if (mapped.purchaseDate) {
       const dateStr = String(mapped.purchaseDate);
       const date = new Date(dateStr);
@@ -207,8 +211,9 @@ export class MapPhaseProcessor implements PhaseProcessor {
         delete mapped.purchaseDate;
       }
     }
+  }
 
-    // Convert purchase price
+  private convertNumericValues(mapped: MappedAssetData): void {
     if (mapped.purchasePrice) {
       const price = parseFloat(String(mapped.purchasePrice));
       if (!isNaN(price)) {
@@ -238,16 +243,9 @@ export class MapPhaseProcessor implements PhaseProcessor {
     context: PhaseContext,
   ): PhaseResult {
     const endTime = new Date();
+    const outputData = this.createOutputData(inputData, mappedRows);
 
-    const outputData: PhaseInputData = {
-      ...inputData,
-      mappedRows: mappedRows as unknown as AssetRowData[],
-    };
-
-    this.logger.debug(
-      `[${context.correlationId}] MAP phase completed: ` +
-        `${mappedRows.length} rows mapped`,
-    );
+    this.logMappingCompletion(mappedRows.length, context);
 
     return {
       success: true,
@@ -255,23 +253,52 @@ export class MapPhaseProcessor implements PhaseProcessor {
       data: outputData,
       errors: [],
       warnings: [],
-      metrics: {
-        startTime,
-        endTime,
-        durationMs: endTime.getTime() - startTime.getTime(),
-        recordsProcessed: mappedRows.length,
-        recordsSuccess: mappedRows.length,
-        recordsFailed: 0,
-      },
-      debug: {
-        transformations: Object.entries(CSV_TO_DB_MAPPING)
-          .map(([csv, db]) => ({
-            field: csv,
-            before: csv,
-            after: db,
-          }))
-          .slice(0, 5),
-      },
+      metrics: this.buildMappingMetrics(startTime, endTime, mappedRows.length),
+      debug: this.buildMappingDebugInfo(),
+    };
+  }
+
+  private createOutputData(
+    inputData: PhaseInputData,
+    mappedRows: MappedAssetData[],
+  ): PhaseInputData {
+    return {
+      ...inputData,
+      mappedRows: mappedRows as unknown as AssetRowData[],
+    };
+  }
+
+  private logMappingCompletion(rowCount: number, context: PhaseContext): void {
+    this.logger.debug(
+      `[${context.correlationId}] MAP phase completed: ${rowCount} rows mapped`,
+    );
+  }
+
+  private buildMappingMetrics(
+    startTime: Date,
+    endTime: Date,
+    rowCount: number,
+  ): PhaseMetrics {
+    return {
+      startTime,
+      endTime,
+      durationMs: endTime.getTime() - startTime.getTime(),
+      recordsProcessed: rowCount,
+      recordsSuccess: rowCount,
+      recordsFailed: 0,
+    };
+  }
+
+  private buildMappingDebugInfo(): PhaseDebugInfo {
+    const MAX_DEBUG_TRANSFORMATIONS = 5;
+    return {
+      transformations: Object.entries(CSV_TO_DB_MAPPING)
+        .map(([csv, db]) => ({
+          field: csv,
+          before: csv,
+          after: db,
+        }))
+        .slice(0, MAX_DEBUG_TRANSFORMATIONS),
     };
   }
 

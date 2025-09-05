@@ -218,7 +218,7 @@ export class PipelineController {
     description: 'Full orchestration results with phase-by-phase breakdown',
   })
   public async testOrchestrator(): Promise<Record<string, unknown>> {
-    const result = await this.pipelineService.testPipelineOrchestrator();
+    const result = this.pipelineService.testPipelineOrchestrator();
     return result;
   }
 
@@ -244,18 +244,28 @@ export class PipelineController {
   }> {
     const rules = await this.pipelineService.getRules();
     return {
-      rules: rules.map((rule) => ({
-        id: rule.id,
-        name: rule.name,
-        type: rule.type,
-        phase: rule.phase,
-        target: rule.target,
-        config: rule.config as Record<string, unknown>,
-        is_active: rule.is_active,
-        priority: rule.priority,
-        created_at: rule.created_at,
-        updated_at: rule.updated_at,
-      })),
+      rules: rules.map((rule) => this.mapRuleToResponse(rule)),
+    };
+  }
+
+  private mapRuleToResponse(rule: unknown): {
+    id: string;
+    name: string;
+    description?: string;
+    isActive: boolean;
+  } {
+    const ruleObj = rule as Record<string, unknown>;
+    return {
+      id: ruleObj.id as string,
+      name: ruleObj.name as string,
+      type: ruleObj.type as string,
+      phase: ruleObj.phase as string,
+      target: ruleObj.target as string,
+      config: ruleObj.config as Record<string, unknown>,
+      is_active: ruleObj.is_active as boolean,
+      priority: ruleObj.priority as number,
+      created_at: ruleObj.created_at as Date,
+      updated_at: ruleObj.updated_at as Date,
     };
   }
 
@@ -274,7 +284,24 @@ export class PipelineController {
       priority?: number;
     },
   ): Promise<{ rule: Record<string, unknown>; message: string }> {
-    const properDto = {
+    const properDto = this.buildCreateRuleDto(createRuleDto);
+    const rule = await this.pipelineService.createRule(properDto);
+    return {
+      rule: rule as Record<string, unknown>,
+      message: 'Rule created successfully',
+    };
+  }
+
+  private buildCreateRuleDto(createRuleDto: {
+    name: string;
+    type: string;
+    phase: string;
+    target: string;
+    config: Record<string, unknown>;
+    is_active?: boolean;
+    priority?: number;
+  }) {
+    return {
       name: createRuleDto.name,
       type: createRuleDto.type,
       phase: createRuleDto.phase,
@@ -284,11 +311,6 @@ export class PipelineController {
       },
       is_active: createRuleDto.is_active,
       priority: createRuleDto.priority,
-    };
-    const rule = await this.pipelineService.createRule(properDto);
-    return {
-      rule: rule as Record<string, unknown>,
-      message: 'Rule created successfully',
     };
   }
 
@@ -308,7 +330,24 @@ export class PipelineController {
       priority?: number;
     },
   ): Promise<{ rule: Record<string, unknown>; message: string }> {
-    const properDto = {
+    const properDto = this.buildUpdateRuleDto(updateRuleDto);
+    const rule = await this.pipelineService.updateRule(ruleId, properDto);
+    return {
+      rule: rule as Record<string, unknown>,
+      message: 'Rule updated successfully',
+    };
+  }
+
+  private buildUpdateRuleDto(updateRuleDto: {
+    name?: string;
+    type?: string;
+    phase?: string;
+    target?: string;
+    config?: Record<string, unknown>;
+    is_active?: boolean;
+    priority?: number;
+  }) {
+    return {
       name: updateRuleDto.name,
       type: updateRuleDto.type,
       phase: updateRuleDto.phase,
@@ -318,11 +357,6 @@ export class PipelineController {
         | undefined,
       is_active: updateRuleDto.is_active,
       priority: updateRuleDto.priority,
-    };
-    const rule = await this.pipelineService.updateRule(ruleId, properDto);
-    return {
-      rule: rule as Record<string, unknown>,
-      message: 'Rule updated successfully',
     };
   }
 

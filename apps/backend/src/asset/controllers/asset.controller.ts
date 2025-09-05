@@ -151,12 +151,12 @@ export class AssetController {
     status: 200,
     description: 'Cache statistics retrieved successfully',
   })
-  public async getCacheStats(): Promise<{
+  public getCacheStats(): {
     hits: number;
     misses: number;
     size: number;
     hitRate: number;
-  }> {
+  } {
     return this.cache.getStats();
   }
 

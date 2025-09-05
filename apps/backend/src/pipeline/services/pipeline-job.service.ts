@@ -136,11 +136,14 @@ export class PipelineJobService {
 
     // Delete associated staging records
     const stagingRecordsDeleted =
-      await this.pipelineRepository.deleteStagingAssets(jobsToDelete);
+      await this.pipelineRepository.deleteStagingAssets({
+        id: { in: jobsToDelete },
+      });
 
     // Delete the jobs
-    const jobsDeleted =
-      await this.pipelineRepository.deleteImportJobs(jobsToDelete);
+    const jobsDeleted = await this.pipelineRepository.deleteImportJobs({
+      id: { in: jobsToDelete },
+    });
 
     this.logger.log(
       `Cleanup completed: ${jobsDeleted.count} jobs, ${stagingRecordsDeleted.count} staging records deleted`,
@@ -167,13 +170,17 @@ export class PipelineJobService {
     // Delete all staging records first (foreign key constraint)
     const stagingRecordsDeleted =
       allJobIds.length > 0
-        ? await this.pipelineRepository.deleteStagingAssets(allJobIds)
+        ? await this.pipelineRepository.deleteStagingAssets({
+            id: { in: allJobIds },
+          })
         : { count: 0 };
 
     // Delete all import jobs
     const jobsDeleted =
       allJobIds.length > 0
-        ? await this.pipelineRepository.deleteImportJobs(allJobIds)
+        ? await this.pipelineRepository.deleteImportJobs({
+            id: { in: allJobIds },
+          })
         : { count: 0 };
 
     // Clear all logs
