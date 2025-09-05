@@ -26,6 +26,8 @@ interface UseFileManagementReturn {
   }>;
   fetchFolders: () => Promise<Folder[]>;
   fetchProjects: () => Promise<Project[]>;
+  createFolder: (folderData: { name: string; description?: string; color?: string }) => Promise<void>;
+  deleteFolder: (folderId: string) => Promise<void>;
   setError: (error: string | null) => void;
   handleBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>;
   handleBulkMoveToFolder: (fileIds: string[], folderId: string | null) => Promise<void>;
@@ -346,12 +348,40 @@ const useFileManagementBulkActions = (
   };
 };
 
+// Helper hook for folder management actions
+const useFolderManagementActions = (
+  fileOps: ReturnType<typeof useFileOperations>,
+  loadFiles: () => Promise<void>
+): {
+  createFolderWithRefresh: (folderData: { name: string; description?: string; color?: string }) => Promise<void>;
+  deleteFolderWithRefresh: (folderId: string) => Promise<void>;
+} => {
+  const createFolderWithRefresh = useCallback(
+    async (folderData: { name: string; description?: string; color?: string }): Promise<void> => {
+      await fileOps.createFolder(folderData);
+      await loadFiles(); // Refresh folders list
+    },
+    [fileOps, loadFiles]
+  );
+
+  const deleteFolderWithRefresh = useCallback(
+    async (folderId: string): Promise<void> => {
+      await fileOps.deleteFolder(folderId);
+      await loadFiles(); // Refresh folders list
+    },
+    [fileOps, loadFiles]
+  );
+
+  return { createFolderWithRefresh, deleteFolderWithRefresh };
+};
+
 // Main hook assembly - split return object creation into smaller parts
 const assembleFileManagementReturn = (params: {
   state: ReturnType<typeof useFileManagementState>;
   loadFiles: () => Promise<void>;
   actions: ReturnType<typeof useFileManagementActions>;
   bulkActions: ReturnType<typeof useFileManagementBulkActions>;
+  folderActions: ReturnType<typeof useFolderManagementActions>;
   fileOps: ReturnType<typeof useFileOperations>;
   fetchFoldersTyped: () => Promise<Folder[]>;
   fetchProjectsTyped: () => Promise<Project[]>;
@@ -369,6 +399,8 @@ const assembleFileManagementReturn = (params: {
   getPdfInfo: params.fileOps.getPdfInfo,
   fetchFolders: params.fetchFoldersTyped,
   fetchProjects: params.fetchProjectsTyped,
+  createFolder: params.folderActions.createFolderWithRefresh,
+  deleteFolder: params.folderActions.deleteFolderWithRefresh,
   setError: params.state.setError,
   ...params.bulkActions
 });
@@ -403,6 +435,7 @@ export const useFileManagement = (): UseFileManagementReturn => {
   });
   
   const bulkActions = useFileManagementBulkActions(fileOps, loadFiles);
+  const folderActions = useFolderManagementActions(fileOps, loadFiles);
   const { fetchFoldersTyped, fetchProjectsTyped } = useTypedOperations(
     fileOps.fetchFolders,
     fileOps.fetchProjects
@@ -413,6 +446,7 @@ export const useFileManagement = (): UseFileManagementReturn => {
     loadFiles,
     actions,
     bulkActions,
+    folderActions,
     fileOps,
     fetchFoldersTyped,
     fetchProjectsTyped

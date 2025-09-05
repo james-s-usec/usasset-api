@@ -154,6 +154,38 @@ const fetchFolders = async (): Promise<unknown[]> => {
   throw new Error('Failed to load folders');
 };
 
+const createFolder = async (folderData: {
+  name: string;
+  description?: string;
+  color?: string;
+}): Promise<unknown> => {
+  const response = await fetch(`${API_BASE}/api/folders`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(folderData),
+  });
+  
+  const result = await response.json();
+  
+  if (result.success) {
+    return result.data;
+  }
+  throw new Error(result.error?.message || 'Failed to create folder');
+};
+
+const deleteFolder = async (folderId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/folders/${folderId}`, {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    const result = await response.json();
+    throw new Error(result.error?.message || 'Failed to delete folder');
+  }
+};
+
 const fetchProjects = async (): Promise<unknown[]> => {
   const response = await fetch(`${API_BASE}/api/projects`);
   const result = await response.json();
@@ -259,6 +291,8 @@ interface UseFileOperationsReturn {
   getPdfInfo: (fileId: string) => Promise<PDFInfo>;
   fetchFolders: () => Promise<unknown[]>;
   fetchProjects: () => Promise<unknown[]>;
+  createFolder: (folderData: { name: string; description?: string; color?: string }) => Promise<void>;
+  deleteFolder: (folderId: string) => Promise<void>;
   moveFile: (fileId: string, folderId: string | null) => Promise<void>;
   moveFileToProject: (fileId: string, projectId: string | null) => Promise<void>;
   handleBulkAssignProject: (fileIds: string[], projectId: string | null) => Promise<void>;
@@ -338,6 +372,28 @@ const useBulkDeleteHandler = (setError: (error: string | null) => void): ((fileI
     }
   }, [setError]);
 
+const useCreateFolderHandler = (setError: (error: string | null) => void): ((folderData: { name: string; description?: string; color?: string }) => Promise<void>) =>
+  useCallback(async (folderData: { name: string; description?: string; color?: string }): Promise<void> => {
+    try {
+      await createFolder(folderData);
+    } catch (error) {
+      console.error('Create folder failed:', error);
+      setError(error instanceof Error ? error.message : 'Failed to create folder');
+      throw error;
+    }
+  }, [setError]);
+
+const useDeleteFolderHandler = (setError: (error: string | null) => void): ((folderId: string) => Promise<void>) =>
+  useCallback(async (folderId: string): Promise<void> => {
+    try {
+      await deleteFolder(folderId);
+    } catch (error) {
+      console.error('Delete folder failed:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete folder');
+      throw error;
+    }
+  }, [setError]);
+
 export const useFileOperations = (
   setError: (error: string | null) => void
 ): UseFileOperationsReturn => {
@@ -347,6 +403,8 @@ export const useFileOperations = (
   const handleBulkAssignProject = useBulkAssignProjectHandler(setError);
   const handleBulkMoveToFolder = useBulkMoveToFolderHandler(setError);
   const handleBulkDelete = useBulkDeleteHandler(setError);
+  const handleCreateFolder = useCreateFolderHandler(setError);
+  const handleDeleteFolder = useDeleteFolderHandler(setError);
 
   return {
     fetchFiles,
@@ -358,6 +416,8 @@ export const useFileOperations = (
     getPdfInfo,
     fetchFolders,
     fetchProjects,
+    createFolder: handleCreateFolder,
+    deleteFolder: handleDeleteFolder,
     moveFile,
     moveFileToProject,
     handleBulkAssignProject,

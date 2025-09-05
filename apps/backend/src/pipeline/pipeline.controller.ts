@@ -64,6 +64,25 @@ export class PipelineController {
     return preview;
   }
 
+  @Get('field-mappings/:fileId')
+  @ApiOperation({ summary: 'Get field mappings for CSV import using aliases' })
+  @ApiResponse({
+    status: 200,
+    description: 'Field mappings retrieved with confidence scores',
+  })
+  public async getFieldMappings(@Param('fileId') fileId: string): Promise<{
+    mappedFields: Array<{
+      csvHeader: string;
+      assetField: string;
+      confidence: number;
+    }>;
+    unmappedFields: string[];
+    totalCsvColumns: number;
+    mappedCount: number;
+  }> {
+    return await this.pipelineService.getFieldMappings(fileId);
+  }
+
   @Get('staging/:jobId')
   @ApiOperation({ summary: 'Get staged data for preview' })
   @ApiResponse({ status: 200, description: 'Staged data retrieved' })
@@ -390,5 +409,119 @@ export class PipelineController {
   }> {
     await this.pipelineService.deleteRule(ruleId);
     return { message: 'Rule deleted successfully' };
+  }
+
+  // Asset Column Aliases CRUD Endpoints
+
+  @Get('aliases')
+  @ApiOperation({ summary: 'Get all asset column aliases' })
+  @ApiResponse({ status: 200, description: 'Aliases retrieved successfully' })
+  public async getAllAliases(): Promise<{
+    aliases: Array<{
+      id: string;
+      assetField: string;
+      csvAlias: string;
+      confidence: number;
+      createdAt: Date;
+      createdBy: string | null;
+    }>;
+    totalCount: number;
+  }> {
+    const aliases = await this.pipelineService.getAllAliases();
+    return {
+      aliases: aliases.map((alias) => ({
+        id: alias.id,
+        assetField: alias.asset_field,
+        csvAlias: alias.csv_alias,
+        confidence: Number(alias.confidence),
+        createdAt: alias.created_at,
+        createdBy: alias.created_by,
+      })),
+      totalCount: aliases.length,
+    };
+  }
+
+  @Post('aliases')
+  @ApiOperation({ summary: 'Create a new asset column alias' })
+  @ApiResponse({ status: 201, description: 'Alias created successfully' })
+  public async createAlias(
+    @Body()
+    createAliasDto: {
+      assetField: string;
+      csvAlias: string;
+      confidence?: number;
+    },
+  ): Promise<{ alias: Record<string, unknown>; message: string }> {
+    const alias = await this.pipelineService.createAlias({
+      asset_field: createAliasDto.assetField,
+      csv_alias: createAliasDto.csvAlias,
+      confidence: createAliasDto.confidence ?? 1.0,
+    });
+    return this.buildAliasResponse(alias, 'created');
+  }
+
+  @Patch('aliases/:aliasId')
+  @ApiOperation({ summary: 'Update an existing asset column alias' })
+  @ApiResponse({ status: 200, description: 'Alias updated successfully' })
+  public async updateAlias(
+    @Param('aliasId') aliasId: string,
+    @Body()
+    updateAliasDto: {
+      assetField?: string;
+      csvAlias?: string;
+      confidence?: number;
+    },
+  ): Promise<{ alias: Record<string, unknown>; message: string }> {
+    const updateData = this.buildUpdateData(updateAliasDto);
+    const alias = await this.pipelineService.updateAlias(aliasId, updateData);
+    return this.buildAliasResponse(alias, 'updated');
+  }
+
+  private buildUpdateData(updateAliasDto: {
+    assetField?: string;
+    csvAlias?: string;
+    confidence?: number;
+  }): Record<string, unknown> {
+    const updateData: Record<string, unknown> = {};
+    if (updateAliasDto.assetField !== undefined) {
+      updateData.asset_field = updateAliasDto.assetField;
+    }
+    if (updateAliasDto.csvAlias !== undefined) {
+      updateData.csv_alias = updateAliasDto.csvAlias;
+    }
+    if (updateAliasDto.confidence !== undefined) {
+      updateData.confidence = updateAliasDto.confidence;
+    }
+    return updateData;
+  }
+
+  private buildAliasResponse(
+    alias: {
+      id: string;
+      asset_field: string;
+      csv_alias: string;
+      confidence: unknown;
+    },
+    action: string,
+  ): { alias: Record<string, unknown>; message: string } {
+    return {
+      alias: {
+        id: alias.id,
+        assetField: alias.asset_field,
+        csvAlias: alias.csv_alias,
+        confidence: Number(alias.confidence),
+      },
+      message: `Alias ${action} successfully`,
+    };
+  }
+
+  @Delete('aliases/:aliasId')
+  @ApiOperation({ summary: 'Delete an asset column alias' })
+  @ApiResponse({ status: 200, description: 'Alias deleted successfully' })
+  public async deleteAlias(@Param('aliasId') aliasId: string): Promise<{
+    message: string;
+  }> {
+    await this.pipelineService.deleteAlias(aliasId);
+    return { message: 'Alias deleted successfully' };
   }
 }

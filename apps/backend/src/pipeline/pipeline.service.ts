@@ -115,6 +115,19 @@ export class PipelineService {
     return await this.pipelineImportService.previewCsvFile(fileId);
   }
 
+  public async getFieldMappings(fileId: string): Promise<{
+    mappedFields: Array<{
+      csvHeader: string;
+      assetField: string;
+      confidence: number;
+    }>;
+    unmappedFields: string[];
+    totalCsvColumns: number;
+    mappedCount: number;
+  }> {
+    return await this.pipelineImportService.getFieldMappings(fileId);
+  }
+
   public async getStagedData(jobId: string): Promise<{
     data: StagedDataRowResponse[];
     validCount: number;
@@ -532,5 +545,60 @@ export class PipelineService {
       completed_at: job.completed_at,
       created_by: job.created_by,
     }));
+  }
+
+  // Asset Column Aliases CRUD Methods
+
+  public async getAllAliases(): Promise<
+    Array<{
+      id: string;
+      asset_field: string;
+      csv_alias: string;
+      confidence: unknown;
+      created_at: Date;
+      created_by: string | null;
+    }>
+  > {
+    this.logger.debug('Retrieving all asset column aliases');
+    return this.pipelineRepository.getAllAssetColumnAliases();
+  }
+
+  public async createAlias(data: {
+    asset_field: string;
+    csv_alias: string;
+    confidence: number;
+  }): Promise<{
+    id: string;
+    asset_field: string;
+    csv_alias: string;
+    confidence: unknown;
+  }> {
+    this.logger.debug(
+      `Creating alias: ${data.csv_alias} -> ${data.asset_field}`,
+    );
+    return this.pipelineRepository.createAssetColumnAlias({
+      asset_field: data.asset_field,
+      csv_alias: data.csv_alias,
+      confidence: data.confidence,
+      created_by: 'system', // TODO: Get from auth context when implemented
+    });
+  }
+
+  public async updateAlias(
+    aliasId: string,
+    data: Record<string, unknown>,
+  ): Promise<{
+    id: string;
+    asset_field: string;
+    csv_alias: string;
+    confidence: unknown;
+  }> {
+    this.logger.debug(`Updating alias: ${aliasId}`);
+    return this.pipelineRepository.updateAssetColumnAlias(aliasId, data);
+  }
+
+  public async deleteAlias(aliasId: string): Promise<void> {
+    this.logger.debug(`Deleting alias: ${aliasId}`);
+    await this.pipelineRepository.deleteAssetColumnAlias(aliasId);
   }
 }

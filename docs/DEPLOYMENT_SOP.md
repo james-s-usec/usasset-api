@@ -59,6 +59,105 @@
    # Fix any errors before deploying
    ```
 
+## 🗄️ DATABASE CONFIGURATION & SEEDING
+
+### Production Database Seeding Setup
+
+The backend Docker container includes automatic database seeding for production deployments. This creates essential system data including:
+
+- **Default Users**: Admin, Super Admin, and Regular User accounts
+- **Default Folders**: 9 pre-configured folders (Calculations, Controls, Cost Estimates, Drawings, Field, For Encore, Issues Log, Photos, Submittals)
+- **Asset Column Aliases**: 143+ mappings for CSV import compatibility
+
+### Enabling Seeding in Production
+
+Database seeding is controlled by the `RUN_SEED` environment variable in your Container App configuration:
+
+```bash
+# Enable seeding during deployment
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --set-env-vars RUN_SEED=true
+
+# Disable seeding (default behavior)
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --set-env-vars RUN_SEED=false
+```
+
+### Seeding Behavior
+
+- **Idempotent**: Safe to run multiple times - uses `upsert` operations
+- **Non-destructive**: Won't overwrite existing data
+- **Fast**: Typically completes in 1-2 seconds
+- **Logged**: All seeding operations logged with ✅ success indicators
+
+### When to Enable Seeding
+
+✅ **Enable seeding when:**
+- First-time production deployment
+- After database reset or recreation  
+- Adding new system folders or users
+- Migrating to new environment
+
+❌ **Disable seeding when:**
+- Regular code deployments
+- Database already has data
+- Performance-critical deployments
+
+### Verifying Seeding Results
+
+Check seeding success through Container App logs:
+```bash
+# View seeding logs
+az containerapp logs show \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --follow
+
+# Look for these success messages:
+# ✅ Seeded users: { admin, superAdmin, user }
+# ✅ Seeded folders: Calculations, Controls, Cost Estimates...
+# ✅ Seeded asset column aliases: 143
+# 🌱 Database seeding completed!
+```
+
+### Default Seeded Data
+
+**Users Created:**
+- `admin@usasset.com` (Admin role)
+- `superadmin@usasset.com` (Super Admin role)
+- `user@usasset.com` (Regular User role)
+
+**Folders Created:**
+- Calculations (Blue #2196F3)
+- Controls (Orange #FF9800)
+- Cost Estimates (Green #4CAF50)
+- Drawings (Purple #9C27B0)
+- Field (Blue Grey #607D8B)
+- For Encore (Pink #E91E63)
+- Issues Log (Red #F44336)
+- Photos (Cyan #00BCD4)
+- Submittals (Light Green #8BC34A)
+
+### Troubleshooting Seeding Issues
+
+**Seeding fails with "User already exists":**
+- This is normal - seeding uses `upsert` and will show this message but continue
+- Check logs for final "✅ Database seeding completed!" message
+
+**Seeding takes too long:**
+- Normal duration is 1-2 seconds
+- If > 10 seconds, check database connection string in Key Vault
+- Verify `DATABASE_URL` secret is properly configured
+
+**Folders not appearing in frontend:**
+- Ensure seeding completed successfully (check logs)
+- Folders marked as `is_default: true` for system identification
+- Frontend fetches folders from `/api/folders` endpoint
+
 ## 🚀 STEP-BY-STEP DEPLOYMENT GUIDE
 
 ### Frontend Deployment (Detailed Steps)

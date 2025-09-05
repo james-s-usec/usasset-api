@@ -106,4 +106,123 @@ export const pipelineApi = {
     console.log('[PipelineAPI] Validation response:', response.data);
     return response.data;
   },
+
+  // Field Mappings API
+  getFieldMappings: async (fileId: string): Promise<{
+    mappedFields: Array<{
+      csvHeader: string;
+      assetField: string;
+      confidence: number;
+    }>;
+    unmappedFields: string[];
+    totalCsvColumns: number;
+    mappedCount: number;
+  }> => {
+    console.log(`[PipelineAPI] Getting field mappings for file: ${fileId}`);
+    const response = await apiService.get<{ success: boolean; data: {
+      mappedFields: Array<{
+        csvHeader: string;
+        assetField: string;
+        confidence: number;
+      }>;
+      unmappedFields: string[];
+      totalCsvColumns: number;
+      mappedCount: number;
+    } }>(`/api/pipeline/field-mappings/${fileId}`);
+    console.log('[PipelineAPI] Field mappings response:', response.data);
+    return response.data;
+  },
+
+  // Asset Column Aliases CRUD API
+  getAllAliases: async (): Promise<{
+    aliases: Array<{
+      id: string;
+      assetField: string;
+      csvAlias: string;
+      confidence: number;
+      createdAt: string;
+      createdBy: string | null;
+    }>;
+    totalCount: number;
+  }> => {
+    console.log('[PipelineAPI] Getting all aliases');
+    const response = await apiService.get<{ success: boolean; data: {
+      aliases: Array<{
+        id: string;
+        assetField: string;
+        csvAlias: string;
+        confidence: number;
+        createdAt: string;
+        createdBy: string | null;
+      }>;
+      totalCount: number;
+    } }>('/api/pipeline/aliases');
+    console.log('[PipelineAPI] Aliases response:', response.data);
+    return response.data;
+  },
+
+  createAlias: async (aliasData: {
+    assetField: string;
+    csvAlias: string;
+    confidence?: number;
+  }): Promise<{
+    alias: {
+      id: string;
+      assetField: string;
+      csvAlias: string;
+      confidence: number;
+    };
+    message: string;
+  }> => {
+    console.log('[PipelineAPI] Creating alias:', aliasData);
+    const response = await apiService.post<{ success: boolean; data: {
+      alias: {
+        id: string;
+        assetField: string;
+        csvAlias: string;
+        confidence: number;
+      };
+      message: string;
+    } }>('/api/pipeline/aliases', aliasData);
+    console.log('[PipelineAPI] Create alias response:', response.data);
+    return response.data;
+  },
+
+  updateAlias: async (aliasId: string, aliasData: {
+    assetField?: string;
+    csvAlias?: string;
+    confidence?: number;
+  }): Promise<{
+    alias: {
+      id: string;
+      assetField: string;
+      csvAlias: string;
+      confidence: number;
+    };
+    message: string;
+  }> => {
+    console.log(`[PipelineAPI] Updating alias ${aliasId}:`, aliasData);
+    const response = await apiService.patch<{ success: boolean; data: {
+      alias: {
+        id: string;
+        assetField: string;
+        csvAlias: string;
+        confidence: number;
+      };
+      message: string;
+    } }>(`/api/pipeline/aliases/${aliasId}`, aliasData);
+    console.log('[PipelineAPI] Update alias response:', response.data);
+    return response.data;
+  },
+
+  deleteAlias: async (aliasId: string): Promise<{
+    message: string;
+  }> => {
+    console.log(`[PipelineAPI] Deleting alias: ${aliasId}`);
+    const response = await apiService.delete<{ success: boolean; data: {
+      message: string;
+    } }>(`/api/pipeline/aliases/${aliasId}`);
+    console.log('[PipelineAPI] Delete alias response:', response.data);
+    return response.data;
+  },
 };

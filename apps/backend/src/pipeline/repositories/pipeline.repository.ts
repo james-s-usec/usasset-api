@@ -327,4 +327,125 @@ export class PipelineRepository {
   public getPrismaClient(): PrismaService {
     return this.prisma;
   }
+
+  // Asset column aliases operations
+  public async getAssetColumnAliases(): Promise<
+    Array<{
+      asset_field: string;
+      csv_alias: string;
+      confidence: number;
+    }>
+  > {
+    const aliases = await this.prisma.assetColumnAlias.findMany({
+      select: {
+        asset_field: true,
+        csv_alias: true,
+        confidence: true,
+      },
+      orderBy: {
+        confidence: 'desc',
+      },
+    });
+
+    return aliases.map((alias) => ({
+      asset_field: alias.asset_field,
+      csv_alias: alias.csv_alias,
+      confidence: Number(alias.confidence),
+    }));
+  }
+
+  // Asset Column Aliases CRUD Methods
+
+  public async getAllAssetColumnAliases(): Promise<
+    Array<{
+      id: string;
+      asset_field: string;
+      csv_alias: string;
+      confidence: unknown;
+      created_at: Date;
+      created_by: string | null;
+    }>
+  > {
+    this.logger.debug('Retrieving all asset column aliases with full details');
+
+    const aliases = await this.prisma.assetColumnAlias.findMany({
+      orderBy: {
+        confidence: 'desc',
+      },
+    });
+
+    return aliases.map((alias) => ({
+      id: alias.id,
+      asset_field: alias.asset_field,
+      csv_alias: alias.csv_alias,
+      confidence: alias.confidence,
+      created_at: alias.created_at,
+      created_by: alias.created_by,
+    }));
+  }
+
+  public async createAssetColumnAlias(data: {
+    asset_field: string;
+    csv_alias: string;
+    confidence: number;
+    created_by: string;
+  }): Promise<{
+    id: string;
+    asset_field: string;
+    csv_alias: string;
+    confidence: unknown;
+  }> {
+    this.logger.debug(`Creating asset column alias: ${data.csv_alias}`);
+
+    const alias = await this.prisma.assetColumnAlias.create({
+      data: {
+        asset_field: data.asset_field,
+        csv_alias: data.csv_alias,
+        confidence: data.confidence,
+        created_by: data.created_by,
+      },
+    });
+
+    return {
+      id: alias.id,
+      asset_field: alias.asset_field,
+      csv_alias: alias.csv_alias,
+      confidence: alias.confidence,
+    };
+  }
+
+  public async updateAssetColumnAlias(
+    aliasId: string,
+    data: Record<string, unknown>,
+  ): Promise<{
+    id: string;
+    asset_field: string;
+    csv_alias: string;
+    confidence: unknown;
+  }> {
+    this.logger.debug(`Updating asset column alias: ${aliasId}`);
+
+    const alias = await this.prisma.assetColumnAlias.update({
+      where: { id: aliasId },
+      data: {
+        ...data,
+        updated_at: new Date(),
+      },
+    });
+
+    return {
+      id: alias.id,
+      asset_field: alias.asset_field,
+      csv_alias: alias.csv_alias,
+      confidence: alias.confidence,
+    };
+  }
+
+  public async deleteAssetColumnAlias(aliasId: string): Promise<void> {
+    this.logger.debug(`Deleting asset column alias: ${aliasId}`);
+
+    await this.prisma.assetColumnAlias.delete({
+      where: { id: aliasId },
+    });
+  }
 }

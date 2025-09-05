@@ -25,6 +25,19 @@ interface MappedAssetData {
   serialNumber?: string;
 }
 
+interface MappedField {
+  csvHeader: string;
+  assetField: string;
+  confidence: number;
+}
+
+interface FieldMappingResult {
+  mappedFields: MappedField[];
+  unmappedFields: string[];
+  totalCsvColumns: number;
+  mappedCount: number;
+}
+
 /**
  * Pipeline Import Service
  * Handles business logic for importing CSV data to assets
@@ -83,7 +96,7 @@ export class PipelineImportService {
     jobId: string,
     parseResult: { errors: string[]; rows: Record<string, string>[] },
   ): Promise<void> {
-    const { stagingAssets, errors, processedCount } = this.processCsvRows(
+    const { stagingAssets, errors, processedCount } = await this.processCsvRows(
       jobId,
       parseResult.rows,
     );
@@ -419,30 +432,95 @@ export class PipelineImportService {
   }
 
   /**
+   * Get field mappings for CSV import using asset column aliases
+   */
+  public async getFieldMappings(fileId: string): Promise<FieldMappingResult> {
+    const csvHeaders = await this.extractCsvHeaders(fileId);
+    const aliases = await this.pipelineRepository.getAssetColumnAliases();
+    return this.matchHeadersToAliases(csvHeaders, aliases);
+  }
+
+  private async extractCsvHeaders(fileId: string): Promise<string[]> {
+    const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+    return parseResult.rows.length > 0 ? Object.keys(parseResult.rows[0]) : [];
+  }
+
+  private matchHeadersToAliases(
+    csvHeaders: string[],
+    aliases: Array<{
+      csv_alias: string;
+      asset_field: string;
+      confidence: number;
+    }>,
+  ): FieldMappingResult {
+    const { mapped, unmapped } = this.processHeaderMappings(
+      csvHeaders,
+      aliases,
+    );
+
+    return {
+      mappedFields: mapped.sort((a, b) => b.confidence - a.confidence),
+      unmappedFields: unmapped,
+      totalCsvColumns: csvHeaders.length,
+      mappedCount: mapped.length,
+    };
+  }
+
+  private processHeaderMappings(
+    csvHeaders: string[],
+    aliases: Array<{
+      csv_alias: string;
+      asset_field: string;
+      confidence: number;
+    }>,
+  ): { mapped: MappedField[]; unmapped: string[] } {
+    const mapped: MappedField[] = [];
+    const unmapped: string[] = [];
+
+    for (const header of csvHeaders) {
+      const alias = aliases.find(
+        (a) => a.csv_alias.toLowerCase() === header.toLowerCase(),
+      );
+      if (alias) {
+        mapped.push({
+          csvHeader: header,
+          assetField: alias.asset_field,
+          confidence: alias.confidence,
+        });
+      } else {
+        unmapped.push(header);
+      }
+    }
+
+    return { mapped, unmapped };
+  }
+
+  /**
    * Process CSV rows into staging records
    */
-  private processCsvRows(
+  private async processCsvRows(
     jobId: string,
     rows: Record<string, string>[],
-  ): {
+  ): Promise<{
     stagingAssets: Prisma.StagingAssetCreateManyInput[];
     errors: string[];
     processedCount: number;
-  } {
+  }> {
     const result = {
       stagingAssets: [] as Prisma.StagingAssetCreateManyInput[],
       errors: [] as string[],
       processedCount: 0,
     };
 
-    rows.forEach((row, index) => {
-      this.processRow(jobId, row, index, result);
-    });
+    // Process rows sequentially to avoid overwhelming the database with concurrent requests
+    for (let index = 0; index < rows.length; index++) {
+      await this.processRow(jobId, rows[index], index, result);
+    }
 
     return result;
   }
 
-  private processRow(
+  private async processRow(
     jobId: string,
     row: Record<string, string>,
     index: number,
@@ -451,12 +529,12 @@ export class PipelineImportService {
       errors: string[];
       processedCount: number;
     },
-  ): void {
+  ): Promise<void> {
     const HEADER_ROW_OFFSET = 2;
     const rowNumber = index + HEADER_ROW_OFFSET;
 
     try {
-      const stagingRecord = this.createStagingRecord(
+      const stagingRecord = await this.createStagingRecord(
         jobId,
         row,
         rowNumber,
@@ -468,13 +546,13 @@ export class PipelineImportService {
     }
   }
 
-  private createStagingRecord(
+  private async createStagingRecord(
     jobId: string,
     row: Record<string, string>,
     rowNumber: number,
     result: { processedCount: number; errors: string[] },
-  ): Prisma.StagingAssetCreateManyInput {
-    const assetData = this.mapRowToAsset(row);
+  ): Promise<Prisma.StagingAssetCreateManyInput> {
+    const assetData = await this.mapRowToAsset(row);
     const validationErrors = this.validateAssetData(assetData);
     const isValid = validationErrors.length === 0;
 
@@ -525,44 +603,120 @@ export class PipelineImportService {
   }
 
   /**
-   * Map CSV row to asset data
+   * Map CSV row to asset data using dynamic aliases
    */
-  private mapRowToAsset(row: Record<string, string>): MappedAssetData {
+  private async mapRowToAsset(
+    row: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
+    const aliases = await this.pipelineRepository.getAssetColumnAliases();
+    const assetData: Record<string, unknown> = {};
+
+    // Apply alias mappings
+    for (const [csvColumn, csvValue] of Object.entries(row)) {
+      const alias = aliases.find(
+        (a) => a.csv_alias.toLowerCase() === csvColumn.toLowerCase(),
+      );
+      if (alias && csvValue && csvValue.trim() !== '') {
+        assetData[alias.asset_field] = this.transformValue(
+          csvValue,
+          alias.asset_field,
+        );
+      }
+    }
+
+    // Apply required defaults
+    return this.applyRequiredDefaults(assetData);
+  }
+
+  private transformValue(value: string, assetField: string): unknown {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+
+    if (this.isDateField(assetField)) {
+      return this.parseDate(trimmedValue);
+    }
+    if (this.isNumberField(assetField)) {
+      return this.parseNumber(trimmedValue);
+    }
+    if (this.isIntegerField(assetField)) {
+      return this.parseInteger(trimmedValue);
+    }
+    if (assetField === 'verified') {
+      return this.parseBoolean(trimmedValue);
+    }
+    return trimmedValue;
+  }
+
+  private isDateField(field: string): boolean {
+    const dateFields = [
+      'installDate',
+      'warrantyExpirationDate',
+      'estimatedReplacementDate',
+      'purchaseDate',
+    ];
+    return dateFields.includes(field);
+  }
+
+  private isNumberField(field: string): boolean {
+    const numberFields = [
+      'purchaseCost',
+      'xCoordinate',
+      'yCoordinate',
+      'squareFeet',
+      'motorHp',
+      'observedRemainingLife',
+      'serviceLife',
+    ];
+    return numberFields.includes(field);
+  }
+
+  private isIntegerField(field: string): boolean {
+    const integerFields = ['beltQuantity', 'filterQuantity', 'quantity'];
+    return integerFields.includes(field);
+  }
+
+  private parseDate(value: string): Date | null {
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  private parseNumber(value: string): number | null {
+    const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
+    return isNaN(num) ? null : num;
+  }
+
+  private parseInteger(value: string): number | null {
+    const num = parseInt(value.replace(/[^0-9-]/g, ''), 10);
+    return isNaN(num) ? null : num;
+  }
+
+  private parseBoolean(value: string): boolean {
+    const lower = value.toLowerCase();
+    return (
+      lower === 'true' ||
+      lower === 'yes' ||
+      lower === '1' ||
+      lower === 'verified'
+    );
+  }
+
+  private applyRequiredDefaults(
+    assetData: Record<string, unknown>,
+  ): Record<string, unknown> {
     return {
-      assetTag: this.extractAssetTag(row),
-      name: this.extractName(row),
-      description: row['Description'],
-      buildingName: row['Building'],
-      floor: row['Floor'],
-      room: row['Room'],
-      status: row['Status'] || 'ACTIVE',
-      conditionAssessment: row['Condition'] || 'GOOD',
-      manufacturer: row['Manufacturer'],
-      modelNumber: this.extractModelNumber(row),
-      serialNumber: this.extractSerialNumber(row),
+      ...assetData,
+      // Required fields with fallbacks
+      assetTag: assetData.assetTag || `IMPORT-${Date.now()}`,
+      name: assetData.name || 'Unnamed Asset',
+      status: assetData.status || 'ACTIVE',
+      condition: assetData.condition || 'GOOD',
     };
-  }
-
-  private extractAssetTag(row: Record<string, string>): string {
-    return row['Asset ID'] || row['Asset Tag'] || row['ID'] || '';
-  }
-
-  private extractName(row: Record<string, string>): string {
-    return row['Name'] || row['Asset Name'] || '';
-  }
-
-  private extractModelNumber(row: Record<string, string>): string | undefined {
-    return row['Model'] || row['Model Number'];
-  }
-
-  private extractSerialNumber(row: Record<string, string>): string | undefined {
-    return row['Serial Number'] || row['Serial'];
   }
 
   /**
    * Validate mapped asset data
    */
-  private validateAssetData(assetData: MappedAssetData): string[] {
+  private validateAssetData(assetData: Record<string, unknown>): string[] {
     const validationErrors: string[] = [];
 
     if (!assetData.assetTag) {

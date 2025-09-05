@@ -499,3 +499,18 @@ enum RuleType {
   TRANSACTION_BOUNDARY  // Define transaction boundaries
   ROLLBACK_STRATEGY     // Define rollback behavior on errors
 }
+
+// Asset Column Aliases - Maps CSV headers to Asset table fields
+model AssetColumnAlias {
+  id          String   @id @default(uuid())
+  asset_field String   // Actual Asset table column name
+  csv_alias   String   @unique // CSV header variation
+  confidence  Decimal  @default(1.0) // Match confidence (0.0 to 1.0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  created_by  String?
+  
+  @@index([asset_field])
+  @@index([csv_alias])
+  @@map("asset_column_aliases")
+}
