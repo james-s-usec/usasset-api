@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PipelineService } from './pipeline.service';
+import { CreateRuleDto, UpdateRuleDto } from './dto/pipeline-dto';
 
 @ApiTags('pipeline')
 // CODE_SMELL: [Rule #4] COMPLEXITY - Controller has 18 endpoints, violates complexity budget
@@ -352,54 +353,15 @@ export class PipelineController {
   @ApiResponse({ status: 200, description: 'Rule updated successfully' })
   public async updateRule(
     @Param('ruleId') ruleId: string,
-    @Body()
-    updateRuleDto: {
-      name?: string;
-      type?: string;
-      phase?: string;
-      target?: string;
-      config?: Record<string, unknown>;
-      is_active?: boolean;
-      priority?: number;
-    },
+    @Body() updateRuleDto: UpdateRuleDto,
   ): Promise<{ rule: Record<string, unknown>; message: string }> {
-    this.buildUpdateRuleDto(updateRuleDto); // Validate DTO
-    const rule = await this.pipelineService.updateRule(ruleId);
+    const rule = await this.pipelineService.updateRule(ruleId, updateRuleDto);
     return {
       rule: rule as Record<string, unknown>,
       message: 'Rule updated successfully',
     };
   }
 
-  private buildUpdateRuleDto(updateRuleDto: {
-    name?: string;
-    type?: string;
-    phase?: string;
-    target?: string;
-    config?: Record<string, unknown>;
-    is_active?: boolean;
-    priority?: number;
-  }): {
-    name?: string;
-    type?: string;
-    phase?: string;
-    target?: string;
-    config?: { [key: string]: string | number | boolean | string[] };
-    is_active?: boolean;
-    priority?: number;
-  } {
-    return {
-      name: updateRuleDto.name,
-      type: updateRuleDto.type,
-      phase: updateRuleDto.phase,
-      target: updateRuleDto.target,
-      config: updateRuleDto.config as
-        | { [key: string]: string | number | boolean | string[] }
-        | undefined,
-      is_active: updateRuleDto.is_active,
-      priority: updateRuleDto.priority,
-    };
-  }
 
   @Delete('rules/:ruleId')
   @ApiOperation({ summary: 'Delete a pipeline rule' })

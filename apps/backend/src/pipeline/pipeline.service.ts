@@ -11,7 +11,7 @@ import {
   JobStatus,
   ProcessedRow,
 } from './interfaces/pipeline-types';
-import { CreateRuleDto } from './dto/pipeline-dto';
+import { CreateRuleDto, UpdateRuleDto } from './dto/pipeline-dto';
 
 // Constants to replace magic numbers
 const CONSTANTS = {
@@ -501,21 +501,29 @@ export class PipelineService {
     });
   }
 
-  public updateRule(ruleId: string): Promise<PipelineRule> {
-    this.logger.debug(`Updating pipeline rule: ${ruleId}`);
-    // For now, we'll need to implement this in the repository
-    // This is a simplified implementation
-    throw new Error(
-      'Update rule not implemented yet - requires repository method',
-    );
+  public async updateRule(
+    ruleId: string,
+    updateData: UpdateRuleDto,
+  ): Promise<PipelineRule> {
+    this.logger.debug(`Updating pipeline rule: ${ruleId}`, updateData);
+    
+    // Simple object that matches what RuleEngineService expects
+    const updates: any = {};
+    
+    if (updateData.name !== undefined) updates.name = updateData.name;
+    if (updateData.type !== undefined) updates.type = updateData.type as RuleType;
+    if (updateData.phase !== undefined) updates.phase = updateData.phase as PipelinePhase;
+    if (updateData.target !== undefined) updates.target = updateData.target;
+    if (updateData.config !== undefined) updates.config = updateData.config;
+    if (updateData.is_active !== undefined) updates.is_active = updateData.is_active;
+    if (updateData.priority !== undefined) updates.priority = updateData.priority;
+    
+    return await this.ruleEngine.updateRule(ruleId, updates);
   }
 
-  public deleteRule(ruleId: string): Promise<void> {
+  public async deleteRule(ruleId: string): Promise<void> {
     this.logger.debug(`Deleting pipeline rule: ${ruleId}`);
-    // For now, we'll need to implement this in the repository
-    throw new Error(
-      'Delete rule not implemented yet - requires repository method',
-    );
+    await this.ruleEngine.deleteRule(ruleId);
   }
 
   public async listJobs(): Promise<

@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { RuleType } from '@prisma/client';
 import { RuleProcessor } from '../interfaces/rule-processor.interface';
 import { TrimProcessor } from '../processors/clean/trim.processor';
+import { RegexReplaceProcessor } from '../processors/clean/regex-replace.processor';
+import { ExactReplaceProcessor } from '../processors/clean/exact-replace.processor';
+import { RemoveDuplicatesProcessor } from '../processors/clean/remove-duplicates.processor';
+import { UppercaseProcessor } from '../processors/transform/uppercase.processor';
+import { SpecialCharRemoverProcessor } from '../processors/clean/special-char-remover.processor';
 
 @Injectable()
 export class RuleProcessorFactory {
@@ -10,8 +15,14 @@ export class RuleProcessorFactory {
   public constructor() {
     // Register implemented processors
     this.registerProcessor(new TrimProcessor());
-    // this.registerProcessor(new RequiredFieldProcessor());
-    // this.registerProcessor(new FieldMappingProcessor());
+    this.registerProcessor(new RegexReplaceProcessor());
+    this.registerProcessor(new ExactReplaceProcessor());
+    this.registerProcessor(new RemoveDuplicatesProcessor());
+    this.registerProcessor(new UppercaseProcessor());
+
+    // Special char remover uses REGEX_REPLACE type but with special config
+    // We'll need to handle this differently or create a separate rule type
+    // this.registerProcessor(new SpecialCharRemoverProcessor());
   }
 
   public createProcessor(type: RuleType): RuleProcessor | null {

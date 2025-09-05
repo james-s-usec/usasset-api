@@ -258,8 +258,7 @@ export class RuleEngineService {
         return this.createConfigError(rule.name, configValidation.errors);
       }
 
-      return await this.applyRule(processor, {
-        data,
+      return await this.applyRuleToFields(processor, rule, data, {
         config: configValidation.data,
         context,
         ruleName: rule.name,
@@ -289,6 +288,52 @@ export class RuleEngineService {
     const configError = `Invalid config for rule ${ruleName}: ${errors?.join(', ')}`;
     this.logger.error(configError);
     return { success: false, configError };
+  }
+
+  private async applyRuleToFields(
+    processor: RuleProcessor,
+    rule: PipelineRule,
+    data: Record<string, unknown>,
+    params: { config: unknown; context: ProcessingContext; ruleName: string },
+  ): Promise<RuleResult> {
+    try {
+      // Parse target fields (comma-separated)
+      const targetFields = rule.target.split(',').map((field) => field.trim());
+      const processedData = { ...data };
+      const allWarnings: string[] = [];
+
+      // Apply processor to each target field
+      for (const fieldName of targetFields) {
+        if (processedData[fieldName] !== undefined) {
+          const fieldResult = await processor.process(
+            processedData[fieldName],
+            params.config,
+            params.context,
+          );
+
+          if (fieldResult.success) {
+            processedData[fieldName] = fieldResult.data;
+            if (fieldResult.warnings?.length) {
+              allWarnings.push(...fieldResult.warnings);
+            }
+          } else {
+            const error = `Rule ${params.ruleName} failed on field ${fieldName}: ${fieldResult.errors?.join(', ')}`;
+            this.logger.error(error);
+            return { success: false, error };
+          }
+        }
+      }
+
+      return {
+        success: true,
+        data: processedData,
+        warnings: allWarnings,
+      };
+    } catch (error) {
+      const errorMsg = `Rule ${params.ruleName} failed: ${error instanceof Error ? error.message : String(error)}`;
+      this.logger.error(errorMsg);
+      return { success: false, error: errorMsg };
+    }
   }
 
   private async applyRule(

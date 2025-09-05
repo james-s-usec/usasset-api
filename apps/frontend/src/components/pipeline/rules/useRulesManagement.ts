@@ -23,6 +23,7 @@ interface UseRulesManagementReturn {
   testOrchestrator: () => Promise<void>;
   saveRule: (ruleData: NewRuleData, editingRule: PipelineRule | null) => Promise<boolean>;
   deleteRule: (ruleId: string) => Promise<boolean>;
+  toggleRuleActive: (ruleId: string, isActive: boolean) => Promise<boolean>;
   clearError: () => void;
   clearTestResult: () => void;
 }
@@ -32,7 +33,7 @@ export const useRulesManagement = (): UseRulesManagementReturn => {
   const state = useRulesState();
   const { loadRules, loadJobs } = useRulesLoader(state);
   const { testRules, testOrchestrator } = useRulesTester(state);
-  const { saveRule, deleteRule } = useRulesEditor(state, loadRules);
+  const { saveRule, deleteRule, toggleRuleActive } = useRulesEditor(state, loadRules);
 
   const clearError = useCallback((): void => {
     state.setError(null);
@@ -54,6 +55,7 @@ export const useRulesManagement = (): UseRulesManagementReturn => {
     testOrchestrator,
     saveRule,
     deleteRule,
+    toggleRuleActive,
     clearError,
     clearTestResult
   };

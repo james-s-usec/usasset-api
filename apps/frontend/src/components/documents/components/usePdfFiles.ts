@@ -32,6 +32,20 @@ const enrichPdfWithPageCount = async (pdf: PDFFile): Promise<PDFFile> => {
   return { ...pdf, pageCount };
 };
 
+const deduplicatePdfsByName = (pdfs: PDFFile[]): PDFFile[] => {
+  return pdfs.reduce((acc: PDFFile[], current) => {
+    const existing = acc.find(file => file.original_name === current.original_name);
+    if (!existing) {
+      acc.push(current);
+    } else if (new Date(current.created_at) > new Date(existing.created_at)) {
+      // Replace with newer version
+      const index = acc.indexOf(existing);
+      acc[index] = current;
+    }
+    return acc;
+  }, []);
+};
+
 export const usePdfFiles = (): { pdfFiles: PDFFile[]; loading: boolean; fetchPdfFiles: () => Promise<void> } => {
   const [pdfFiles, setPdfFiles] = useState<PDFFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,12 +56,13 @@ export const usePdfFiles = (): { pdfFiles: PDFFile[]; loading: boolean; fetchPdf
       const result = await response.json();
       
       if (result.success) {
-        const pdfs = (result as FileResponse).data.files.filter((file) => 
+        const allPdfs = (result as FileResponse).data.files.filter((file) => 
           file.mimetype === "application/pdf"
         );
         
+        const uniquePdfs = deduplicatePdfsByName(allPdfs);
         const pdfsWithPageCount = await Promise.all(
-          pdfs.map(enrichPdfWithPageCount)
+          uniquePdfs.map(enrichPdfWithPageCount)
         );
         
         setPdfFiles(pdfsWithPageCount);

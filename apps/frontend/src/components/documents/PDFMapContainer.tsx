@@ -1,6 +1,6 @@
 import React from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
-import { LatLngBounds } from 'leaflet';
+import { MapContainer, ImageOverlay, useMapEvents } from 'react-leaflet';
+import L, { LatLngBounds } from 'leaflet';
 import { config } from '../../config';
 import { PDFMapEventHandler } from './PDFMapEventHandler';
 import { createPDFCRS } from './pdfUtils';
@@ -39,17 +39,29 @@ const getMapProps = (
   bounds: LatLngBounds,
   maxZoom: number
 ): MapProps => ({
-  crs: createPDFCRS(logicalWidth, logicalHeight),
+  crs: L.CRS.Simple, // Use simple CRS for ImageOverlay
   center: [logicalHeight / 2, logicalWidth / 2] as [number, number],
-  zoom: 1,
+  zoom: 0,
   minZoom: 0,
-  maxZoom,
+  maxZoom: 3, // Limit zoom for single image to avoid pixelation
   bounds,
   maxBounds: bounds,
   style: { width: '100%', height: '100%' },
   zoomControl: false,
   attributionControl: false
 });
+
+const FitBoundsOnLoad: React.FC<{ bounds: LatLngBounds }> = ({ bounds }) => {
+  const map = useMapEvents({});
+  
+  React.useEffect(() => {
+    if (bounds) {
+      map.fitBounds(bounds);
+    }
+  }, [bounds, map]);
+  
+  return null;
+};
 
 // Simplified component - now under 30 lines
 export const PDFMapContainer: React.FC<PDFMapContainerProps> = ({
@@ -62,22 +74,23 @@ export const PDFMapContainer: React.FC<PDFMapContainerProps> = ({
   zoom,
   onZoomChange
 }) => {
-  const mapProps = getMapProps(logicalWidth, logicalHeight, bounds, pdfInfo.maxZoom);
-  const tileUrl = `${config.api.baseUrl}/api/files/${fileId}/pdf-tiles/${currentPage}/{z}/{x}/{y}.png`;
+  // Create proper bounds for ImageOverlay (use actual image dimensions, not scaled)
+  const imageBounds = new L.LatLngBounds([0, 0], [logicalHeight, logicalWidth]);
+  const mapProps = getMapProps(logicalWidth, logicalHeight, imageBounds, pdfInfo.maxZoom);
+  const imageUrl = `${config.api.baseUrl}/api/files/${fileId}/pdf-image/${currentPage}.png`;
   
   return (
     <MapContainer {...mapProps}>
+      <FitBoundsOnLoad bounds={imageBounds} />
       <PDFMapEventHandler
         pdfInfo={pdfInfo}
-        bounds={bounds}
+        bounds={imageBounds}
         zoom={zoom}
         onZoomChange={onZoomChange}
       />
-      <TileLayer
-        url={tileUrl}
-        bounds={bounds}
-        tileSize={pdfInfo.tileSize}
-        noWrap={true}
+      <ImageOverlay
+        url={imageUrl}
+        bounds={imageBounds}
       />
     </MapContainer>
   );

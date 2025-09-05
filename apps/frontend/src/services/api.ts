@@ -94,6 +94,33 @@ class ApiService {
     return this.request<T>(endpoint, { method: 'DELETE' })
   }
 
+  async postFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+    const { controller, timeoutId } = this.createAbortController()
+
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+        headers: {
+          ...CorrelationIdService.getHeaders(),
+          // Don't set Content-Type for FormData - browser sets it with boundary
+        },
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`)
+      }
+
+      return response.json()
+    } catch (error) {
+      clearTimeout(timeoutId)
+      this.handleError(error)
+    }
+  }
+
   async health(): Promise<{ status: string }> {
     return this.get<{ status: string }>('/health')
   }

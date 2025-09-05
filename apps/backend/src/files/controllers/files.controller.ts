@@ -235,6 +235,26 @@ export class FilesController {
     res.send(tileBuffer);
   }
 
+  @Get(':id/pdf-image/:page.png')
+  @ApiOperation({ summary: 'Get PDF page as single PNG image' })
+  @ApiResponse({ status: 200, description: 'PDF page image' })
+  public async getPdfPageImage(
+    @Param('id') id: string,
+    @Param('page') pageStr: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const page = parseInt(pageStr, 10);
+    const imageBuffer = await this.pdfService.getPdfPageImage({
+      fileId: id,
+      page,
+      width: 2048, // High quality single image
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(imageBuffer);
+  }
+
   private parseTileCoordinates(params: {
     page: string;
     z: string;

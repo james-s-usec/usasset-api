@@ -148,6 +148,28 @@ export class PdfProcessingService {
     }
   }
 
+  public async getPdfPageImage(params: {
+    fileId: string;
+    page: number;
+    width?: number;
+  }): Promise<Buffer> {
+    const { fileId, page, width = 2048 } = params;
+    await this.validatePdfFile(fileId);
+
+    try {
+      const imageBuffer = await this.renderPreviewImage(fileId, page, width);
+      const pngBuffer = await this.processPreviewImage(imageBuffer, width);
+
+      this.logger.log(`Generated PDF page image for page ${page} of ${fileId} at ${width}px`);
+      return pngBuffer;
+    } catch (error) {
+      this.handlePreviewError(error, fileId, page, width);
+      throw new BadRequestException(
+        `Failed to generate PDF page image: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
   private async renderPreviewImage(
     fileId: string,
     page: number,

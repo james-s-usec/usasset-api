@@ -49,6 +49,7 @@ interface RulesTabProps {
   onTestOrchestrator: () => void;
   onEditRule: (rule: PipelineRule) => void;
   onDeleteRule: (id: string) => Promise<boolean>;
+  onToggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
 }
 
 const RulesTab: React.FC<RulesTabProps> = ({
@@ -61,7 +62,8 @@ const RulesTab: React.FC<RulesTabProps> = ({
   onTestRules,
   onTestOrchestrator,
   onEditRule,
-  onDeleteRule
+  onDeleteRule,
+  onToggleRule
 }) => (
   <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
     <RuleFilters
@@ -79,6 +81,7 @@ const RulesTab: React.FC<RulesTabProps> = ({
       loading={loading}
       onEditRule={onEditRule}
       onDeleteRule={onDeleteRule}
+      onToggleRule={onToggleRule}
     />
   </Box>
 );
@@ -127,6 +130,7 @@ interface MainContentProps {
   testOrchestrator: () => void;
   handleEditRule: (rule: PipelineRule) => void;
   deleteRule: (id: string) => Promise<boolean>;
+  toggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
   setShowRuleEditor: (show: boolean) => void;
   selectedFile?: string | null;
 }
@@ -145,6 +149,7 @@ const MainContent: React.FC<MainContentProps> = (props) => (
         onTestOrchestrator={props.testOrchestrator}
         onEditRule={props.handleEditRule}
         onDeleteRule={props.deleteRule}
+        onToggleRule={props.toggleRule}
       />
     )}
     {props.currentTab === 1 && (
@@ -243,6 +248,7 @@ const ManagementContent: React.FC<{
       testOrchestrator={management.testOrchestrator}
       handleEditRule={editorState.handleEditRule}
       deleteRule={management.deleteRule}
+      toggleRule={management.toggleRuleActive}
       setShowRuleEditor={editorState.setShowRuleEditor}
     />
     

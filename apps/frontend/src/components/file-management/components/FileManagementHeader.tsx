@@ -1,8 +1,13 @@
 import React from "react";
 import { Box, Typography, ToggleButton, ToggleButtonGroup } from "@mui/material";
-import { TableChart as TableIcon, AccountTree as TreeIcon, Folder as FolderViewIcon } from "@mui/icons-material";
+import { 
+  TableChart as TableIcon, 
+  AccountTree as TreeIcon, 
+  Folder as FolderViewIcon,
+  Inventory as AssetIcon 
+} from "@mui/icons-material";
 
-type ViewMode = "table" | "tree" | "folders";
+type ViewMode = "table" | "tree" | "folders" | "assets";
 
 interface FileManagementHeaderProps {
   viewMode: ViewMode;
@@ -32,6 +37,10 @@ export const FileManagementHeader: React.FC<FileManagementHeaderProps> = ({
       <ToggleButton value="folders" aria-label="folder view">
         <FolderViewIcon />
         Folders
+      </ToggleButton>
+      <ToggleButton value="assets" aria-label="asset view">
+        <AssetIcon />
+        Assets
       </ToggleButton>
     </ToggleButtonGroup>
   </Box>

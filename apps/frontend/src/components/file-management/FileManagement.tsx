@@ -15,7 +15,7 @@ const ErrorAlert: React.FC<{ error: string; onClose: () => void }> = ({ error, o
   </Alert>
 );
 
-type ViewMode = "table" | "tree" | "folders";
+type ViewMode = "table" | "tree" | "folders" | "assets";
 
 const FileManagementView: React.FC<{
   state: ReturnType<typeof useFileManagement>;

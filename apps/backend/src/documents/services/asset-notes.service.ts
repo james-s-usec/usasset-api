@@ -46,11 +46,38 @@ export class AssetNotesService {
     return asset;
   }
 
+  private buildNotesUpdateData(notes: AssetNotesDto): Record<string, any> {
+    const data: Record<string, any> = {};
+    const noteFields = [1, 2, 3, 4, 5, 6];
+
+    noteFields.forEach((num) => {
+      const subjectKey = `note${num}Subject` as keyof AssetNotesDto;
+      const noteKey = `note${num}` as keyof AssetNotesDto;
+
+      if (notes[subjectKey] !== undefined) {
+        data[subjectKey] = notes[subjectKey];
+      }
+      if (notes[noteKey] !== undefined) {
+        data[noteKey] = notes[noteKey];
+      }
+    });
+
+    return data;
+  }
+
+  private getNoteSelectFields(): Record<string, boolean> {
+    const fields: Record<string, boolean> = {};
+    [1, 2, 3, 4, 5, 6].forEach((num) => {
+      fields[`note${num}Subject`] = true;
+      fields[`note${num}`] = true;
+    });
+    return fields;
+  }
+
   public async updateAssetNotes(
     assetId: string,
     notes: AssetNotesDto,
   ): Promise<AssetNotesDto> {
-    // Verify asset exists
     const asset = await this.prisma.asset.findUnique({
       where: { id: assetId, is_deleted: false },
     });
@@ -59,49 +86,10 @@ export class AssetNotesService {
       throw new NotFoundException(`Asset with ID ${assetId} not found`);
     }
 
-    // Update notes
     const updatedAsset = await this.prisma.asset.update({
       where: { id: assetId },
-      data: {
-        ...(notes.note1Subject !== undefined && {
-          note1Subject: notes.note1Subject,
-        }),
-        ...(notes.note1 !== undefined && { note1: notes.note1 }),
-        ...(notes.note2Subject !== undefined && {
-          note2Subject: notes.note2Subject,
-        }),
-        ...(notes.note2 !== undefined && { note2: notes.note2 }),
-        ...(notes.note3Subject !== undefined && {
-          note3Subject: notes.note3Subject,
-        }),
-        ...(notes.note3 !== undefined && { note3: notes.note3 }),
-        ...(notes.note4Subject !== undefined && {
-          note4Subject: notes.note4Subject,
-        }),
-        ...(notes.note4 !== undefined && { note4: notes.note4 }),
-        ...(notes.note5Subject !== undefined && {
-          note5Subject: notes.note5Subject,
-        }),
-        ...(notes.note5 !== undefined && { note5: notes.note5 }),
-        ...(notes.note6Subject !== undefined && {
-          note6Subject: notes.note6Subject,
-        }),
-        ...(notes.note6 !== undefined && { note6: notes.note6 }),
-      },
-      select: {
-        note1Subject: true,
-        note1: true,
-        note2Subject: true,
-        note2: true,
-        note3Subject: true,
-        note3: true,
-        note4Subject: true,
-        note4: true,
-        note5Subject: true,
-        note5: true,
-        note6Subject: true,
-        note6: true,
-      },
+      data: this.buildNotesUpdateData(notes),
+      select: this.getNoteSelectFields(),
     });
 
     return updatedAsset;

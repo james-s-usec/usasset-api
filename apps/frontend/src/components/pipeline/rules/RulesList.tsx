@@ -24,6 +24,7 @@ interface RulesListProps {
   loading: boolean;
   onEditRule: (rule: PipelineRule) => void;
   onDeleteRule: (ruleId: string) => void;
+  onToggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
 }
 
 interface RuleRowProps {
@@ -31,11 +32,22 @@ interface RuleRowProps {
   loading: boolean;
   onEditRule: (rule: PipelineRule) => void;
   onDeleteRule: (ruleId: string) => void;
+  onToggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
 }
 
-const RuleActiveCell: React.FC<{ isActive: boolean }> = ({ isActive }) => (
+const RuleActiveCell: React.FC<{ 
+  isActive: boolean;
+  ruleId: string;
+  loading: boolean;
+  onToggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
+}> = ({ isActive, ruleId, loading, onToggleRule }) => (
   <TableCell>
-    <Switch checked={isActive} size="small" />
+    <Switch 
+      checked={isActive} 
+      size="small"
+      disabled={loading}
+      onChange={(e) => onToggleRule(ruleId, e.target.checked)}
+    />
   </TableCell>
 );
 
@@ -109,10 +121,16 @@ const RuleRow: React.FC<RuleRowProps> = ({
   rule, 
   loading, 
   onEditRule, 
-  onDeleteRule 
+  onDeleteRule,
+  onToggleRule
 }) => (
   <TableRow key={rule.id} hover>
-    <RuleActiveCell isActive={rule.is_active} />
+    <RuleActiveCell 
+      isActive={rule.is_active}
+      ruleId={rule.id}
+      loading={loading}
+      onToggleRule={onToggleRule}
+    />
     <RuleNameCell name={rule.name} description={rule.description} />
     <RulePhaseCell phase={rule.phase} />
     <RuleTypeCell type={rule.type} />
@@ -155,7 +173,8 @@ const RulesTable: React.FC<RulesListProps> = ({
   rules, 
   loading, 
   onEditRule, 
-  onDeleteRule 
+  onDeleteRule,
+  onToggleRule
 }) => (
   <TableContainer component={Paper}>
     <Table size="small" stickyHeader>
@@ -171,6 +190,7 @@ const RulesTable: React.FC<RulesListProps> = ({
               loading={loading}
               onEditRule={onEditRule}
               onDeleteRule={onDeleteRule}
+              onToggleRule={onToggleRule}
             />
           ))
         )}
@@ -183,7 +203,8 @@ export const RulesList: React.FC<RulesListProps> = ({
   rules,
   loading,
   onEditRule,
-  onDeleteRule
+  onDeleteRule,
+  onToggleRule
 }) => (
   <Box sx={{ flex: 1, overflow: 'auto', m: 2 }}>
     <RulesTable 
@@ -191,6 +212,7 @@ export const RulesList: React.FC<RulesListProps> = ({
       loading={loading}
       onEditRule={onEditRule}
       onDeleteRule={onDeleteRule}
+      onToggleRule={onToggleRule}
     />
   </Box>
 );

@@ -180,12 +180,12 @@ export const PDFPreviewDialog: React.FC<PDFPreviewDialogProps> = ({
     <DialogContent>
       {externalLoading ? (
         <DialogLoadingContent />
-      ) : (
+      ) : open ? (
         <PDFLeafletViewer 
           fileId={fileId} 
           getPdfInfo={getPdfInfo || createDefaultGetPdfInfo()} 
         />
-      )}
+      ) : null}
     </DialogContent>
   </Dialog>
 );
