@@ -329,7 +329,141 @@ npx prisma migrate resolve --rolled-back MIGRATION_NAME
 
 ---
 
-## Lessons Learned (2025-09-05)
+## 🚨 CRITICAL UPDATE: Production Migration Incident (2025-09-05)
+
+### THE GOLDEN RULE: Never Deploy with Pending Migrations
+
+**INCIDENT SUMMARY**: Production deployment failed due to schema drift. Backend code had 3 pending migrations that were never applied to production database, causing:
+- Folders API returning 500 errors (`folders.project_id` column missing)
+- Seeding failures due to constraint violations
+- Pipeline rules not loading (seeding incomplete)
+- Only 2 users in production instead of expected 6
+
+### MANDATORY PRE-DEPLOYMENT MIGRATION CHECK
+
+**EVERY DEPLOYMENT MUST INCLUDE THIS CHECK:**
+
+```bash
+# 1. Check local migration status
+cd apps/backend
+npx prisma migrate status
+
+# 2. Check production migration status (CRITICAL!)
+export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+npx prisma migrate status
+
+# Expected: "Database schema is up to date!"
+# If pending migrations exist: STOP and apply them BEFORE deployment
+npx prisma migrate deploy
+```
+
+### NEW DEVELOPER WORKFLOW: Immediate Production Sync
+
+**When you create ANY migration, do this immediately:**
+
+```bash
+# 1. Create migration locally
+npx prisma migrate dev --name "your_feature"
+
+# 2. Test locally
+npm run ci
+
+# 3. Apply to production IMMEDIATELY (don't wait for deployment!)
+export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+
+# Add temporary firewall rule if needed
+MY_IP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-dev-access \
+  --start-ip-address $MY_IP --end-ip-address $MY_IP
+
+# Apply migration
+npx prisma migrate deploy
+
+# Clean up firewall rule
+az postgres flexible-server firewall-rule delete \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-dev-access --yes
+
+# 4. Verify production is current
+npx prisma migrate status  # Should show "up to date"
+```
+
+### Recovery Procedure for Failed Production Migrations
+
+If a migration fails in production (like today's incident):
+
+```bash
+# 1. Access production database
+MY_IP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-migration-fix \
+  --start-ip-address $MY_IP --end-ip-address $MY_IP
+
+export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+
+# 2. Check migration status
+npx prisma migrate status
+
+# 3. If migration failed, mark as rolled back
+npx prisma migrate resolve --rolled-back "FAILED_MIGRATION_NAME"
+
+# 4. Manually apply the migration SQL (from the migration file)
+psql "$DATABASE_URL" < prisma/migrations/MIGRATION_NAME/migration.sql
+
+# 5. Mark as applied
+npx prisma migrate resolve --applied "MIGRATION_NAME"
+
+# 6. Apply any remaining migrations
+npx prisma migrate deploy
+
+# 7. Clean up firewall rule
+az postgres flexible-server firewall-rule delete \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-migration-fix --yes
+```
+
+### Warning Signs of Migration Issues
+
+🚨 **STOP DEPLOYMENT immediately if you see:**
+
+- Seeding errors: `column "field_name" does not exist`
+- API errors: 500 responses from previously working endpoints
+- Constraint errors: `Unique constraint failed on the fields: (name)`
+- Empty API responses: folders, users, or other core data missing
+- Database connection timeouts during seeding
+
+### Today's Specific Issues and Fixes
+
+**Issue 1: Missing Migrations**
+- Root cause: 3 migrations created locally but never applied to production
+- Missing migrations: `add_asset_column_aliases`, `add_phase_result_tracking`, `fix_folders_and_files_schema`
+- Fix: Applied migrations manually, then marked as applied
+
+**Issue 2: Partial Migration Failure**
+- Root cause: Migration partially applied (phase_results table created, but folders changes failed)
+- Fix: Marked as rolled back, manually applied missing parts, marked as applied
+
+**Issue 3: Incomplete Seeding**
+- Root cause: Seeding failed at folders step due to constraint changes, pipeline rules never created
+- Fix: Created missing pipeline rules via API
+
+### Prevention Strategy
+
+1. **Migration Status Check**: Now mandatory in deployment checklist
+2. **Immediate Production Sync**: Apply migrations to prod when created, not during deployment
+3. **Schema Validation**: Check API responses after any migration
+4. **Seeding Verification**: Confirm all expected data exists after deployment
+
+---
+
+## Lessons Learned (Historical)
 
 ### Schema Drift Resolution
 **Issue:** Folders table missing `project_id` field causing seed failures.

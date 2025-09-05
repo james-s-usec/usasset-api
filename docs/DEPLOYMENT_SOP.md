@@ -59,6 +59,22 @@
    # Fix any errors before deploying
    ```
 
+5. **Check Database Migration Status** ⚠️ **CRITICAL**
+   ```bash
+   cd apps/backend
+   # For local verification (optional):
+   npx prisma migrate status
+   
+   # For production verification (REQUIRED before deployment):
+   export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+   npx prisma migrate status
+   # Should show "Database schema is up to date!"
+   # If migrations are pending, apply them BEFORE deploying:
+   npx prisma migrate deploy
+   ```
+   
+   **WHY THIS MATTERS:** Deploying with pending migrations causes schema drift, broken APIs, and seeding failures. This check prevents "broken windows" in production.
+
 ## 🗄️ DATABASE CONFIGURATION & SEEDING
 
 ### Production Database Seeding Setup
@@ -283,6 +299,128 @@ curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.i
 - Ensure seeding completed successfully (check logs)
 - Folders marked as `is_default: true` for system identification
 - Frontend fetches folders from `/api/folders` endpoint
+
+## 🛡️ PREVENTING MIGRATION DISASTERS
+
+### The Golden Rule: **NEVER Deploy with Pending Migrations**
+
+**2025-09-05 INCIDENT**: Production deployment failed due to schema drift. Backend code had new migrations that were never applied to production, causing broken APIs and seeding failures.
+
+### Migration Safety Checklist ⚠️ **MANDATORY BEFORE EVERY DEPLOYMENT**
+
+```bash
+# 1. Check migration status (local verification)
+cd apps/backend
+npx prisma migrate status
+
+# 2. Check production migration status (CRITICAL)
+export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+
+# Add temporary firewall rule if needed
+MY_IP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-deployment-check \
+  --start-ip-address $MY_IP --end-ip-address $MY_IP
+
+npx prisma migrate status
+
+# Expected output: "Database schema is up to date!"
+# If you see pending migrations, STOP and apply them:
+npx prisma migrate deploy
+
+# Clean up firewall rule
+az postgres flexible-server firewall-rule delete \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-deployment-check --yes
+```
+
+### When You Create New Migrations
+
+**DO THIS IMMEDIATELY** after creating a migration:
+
+```bash
+# 1. Create migration locally
+npx prisma migrate dev --name "add_new_feature"
+
+# 2. Test migration locally
+npm run ci  # Ensure everything works
+
+# 3. IMMEDIATELY apply to production (don't wait for deployment!)
+export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+
+# Add temporary firewall rule for database access
+MY_IP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-dev-migration \
+  --start-ip-address $MY_IP --end-ip-address $MY_IP
+
+# Apply migration
+npx prisma migrate deploy
+
+# 4. Verify production schema
+npx prisma migrate status  # Should show "Database schema is up to date!"
+
+# Clean up firewall rule
+az postgres flexible-server firewall-rule delete \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-dev-migration --yes
+```
+
+### Red Flags That Indicate Migration Issues
+
+🚨 **STOP DEPLOYMENT if you see:**
+- Seeding fails with "column does not exist" errors
+- API endpoints returning 500 errors 
+- Folder API returning empty results
+- New features not working in production
+- Database connection errors during seeding
+
+### Recovery Process for Migration Failures
+
+If you accidentally deployed with pending migrations:
+
+```bash
+# 1. Add temporary firewall rule
+MY_IP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-migration-fix \
+  --start-ip-address $MY_IP --end-ip-address $MY_IP
+
+# 2. Fix failed migrations
+cd apps/backend
+export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+
+# If migration is marked as failed:
+npx prisma migrate resolve --rolled-back "MIGRATION_NAME"
+# Then manually apply the migration SQL
+# Then mark as applied:
+npx prisma migrate resolve --applied "MIGRATION_NAME"
+
+# 3. Apply any remaining migrations
+npx prisma migrate deploy
+
+# 4. Clean up firewall rule
+az postgres flexible-server firewall-rule delete \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-migration-fix --yes
+```
+
+### Why This Happens
+
+**Root Cause**: Prisma migrations are tracked in the database. If you deploy backend code that expects schema changes, but those changes weren't applied to the production database, you get schema drift.
+
+**The Fix**: Always apply migrations to production BEFORE or DURING deployment, never after.
+
+**Prevention**: Check migration status before every deployment. Make it a habit.
 
 ## 🚀 STEP-BY-STEP DEPLOYMENT GUIDE
 

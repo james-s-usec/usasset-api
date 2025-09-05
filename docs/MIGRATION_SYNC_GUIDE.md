@@ -1,13 +1,16 @@
 # Database Migration Sync Guide
 
+## 🚨 CRITICAL UPDATE (2025-09-05)
+**PRODUCTION INCIDENT**: Schema drift caused by deploying code with pending migrations that were never applied to production database. This guide has been updated with mandatory prevention steps.
+
 ## Overview
-Ensuring production database migrations stay synchronized with codebase for USAsset API deployment.
+Ensuring production database migrations stay synchronized with both codebase AND production database for USAsset API deployment.
 
 ## The Problem
 Database migrations must be available in production containers for `prisma migrate deploy` to work correctly. If migrations aren't synced to git and deployed with the application, production deployments fail.
 
-## Current Status ✅
-Migrations are **already properly configured** and synced to git:
+## Current Status ⚠️ **NEEDS ADDITIONAL VERIFICATION**
+Migrations are **already properly configured** and synced to git, but **2025-09-05 incident revealed this is NOT SUFFICIENT**:
 
 ```bash
 # Migrations are tracked in git:
@@ -16,6 +19,22 @@ apps/backend/prisma/migrations/20250828034338_init/migration.sql
 apps/backend/prisma/migrations/20250828044828_add_log_entries/migration.sql
 apps/backend/prisma/migrations/migration_lock.toml
 ```
+
+**NEW CRITICAL REQUIREMENT**: Git sync alone is not enough. Migrations must also be applied to production database BEFORE deployment.
+
+## The Two-Part Sync Problem (Discovered 2025-09-05)
+
+### Part 1: Code Sync ✅ (Already Working)
+- Migrations committed to git
+- Docker containers include migration files
+- `prisma migrate deploy` can find migration files
+
+### Part 2: Database Sync ❌ **WAS MISSING** 
+- Production database must have migrations applied
+- Can't just deploy code and hope migrations apply automatically
+- Must verify production database is up-to-date BEFORE deployment
+
+**ROOT CAUSE OF INCIDENT**: Code had migrations, but production database never received them, creating schema drift.
 
 ## How It Works
 
@@ -37,6 +56,34 @@ git add apps/backend/prisma/migrations/
 git commit -m "feat: add new feature database migration"
 git push
 ```
+
+### 2.5. **NEW MANDATORY STEP**: Production Database Sync
+```bash
+# Apply migration to production IMMEDIATELY after git push
+export DATABASE_URL="$(az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string --query value -o tsv)"
+
+# Add temporary firewall rule
+MY_IP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-migration-sync \
+  --start-ip-address $MY_IP --end-ip-address $MY_IP
+
+# Apply migration to production
+npx prisma migrate deploy
+
+# Verify sync
+npx prisma migrate status  # Should show "Database schema is up to date!"
+
+# Clean up firewall rule
+az postgres flexible-server firewall-rule delete \
+  --resource-group useng-usasset-api-rg \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --rule-name temp-migration-sync --yes
+```
+
+**WHY THIS IS MANDATORY**: Without this step, production database falls behind code, causing deployment failures and broken APIs.
 
 ### 3. Production Deployment
 When containers deploy:
