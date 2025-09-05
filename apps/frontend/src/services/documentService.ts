@@ -5,7 +5,7 @@ class DocumentService {
   // Get all documents for an asset
   async getAssetDocuments(projectId: string, assetId: string): Promise<AssetDocument[]> {
     const response = await apiService.get<{ data: AssetDocument[] }>(
-      `/projects/${projectId}/assets/${assetId}/documents`
+      `/api/projects/${projectId}/assets/${assetId}/documents`
     );
     return response.data;
   }
@@ -13,7 +13,7 @@ class DocumentService {
   // Get complete documentation with stats
   async getAssetDocumentation(projectId: string, assetId: string): Promise<AssetDocumentation> {
     const response = await apiService.get<{ data: AssetDocumentation }>(
-      `/projects/${projectId}/assets/${assetId}/documentation`
+      `/api/projects/${projectId}/assets/${assetId}/documentation`
     );
     return response.data;
   }
@@ -29,7 +29,7 @@ class DocumentService {
     formData.append('file', file);
     
     const response = await apiService.postFormData<{ data: AssetDocument }>(
-      `/projects/${projectId}/assets/${assetId}/documents?file_type=${fileType}`,
+      `/api/projects/${projectId}/assets/${assetId}/documents?file_type=${fileType}`,
       formData
     );
     return response.data;
@@ -42,14 +42,14 @@ class DocumentService {
     documentId: string
   ): Promise<void> {
     await apiService.delete(
-      `/projects/${projectId}/assets/${assetId}/documents/${documentId}`
+      `/api/projects/${projectId}/assets/${assetId}/documents/${documentId}`
     );
   }
 
   // Get asset notes
   async getAssetNotes(projectId: string, assetId: string): Promise<AssetNotes> {
     const response = await apiService.get<{ data: AssetNotes }>(
-      `/projects/${projectId}/assets/${assetId}/notes`
+      `/api/projects/${projectId}/assets/${assetId}/notes`
     );
     return response.data;
   }
@@ -61,7 +61,7 @@ class DocumentService {
     notes: Partial<AssetNotes>
   ): Promise<AssetNotes> {
     const response = await apiService.put<{ data: AssetNotes }>(
-      `/projects/${projectId}/assets/${assetId}/notes`,
+      `/api/projects/${projectId}/assets/${assetId}/notes`,
       notes
     );
     return response.data;

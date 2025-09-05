@@ -7,6 +7,7 @@ import { columnCategories, getEnabledColumns, type ColumnCategory } from '../col
 interface UseAssetGridLogicProps {
   onEdit: (asset: Asset) => void;
   onDelete: (id: string) => Promise<void>;
+  onViewDocuments?: (asset: Asset) => void;
 }
 
 export interface UseAssetGridLogicResult {
@@ -20,8 +21,8 @@ export interface UseAssetGridLogicResult {
   updateCategories: (categories: ColumnCategory[]) => void;
 }
 
-export const useAssetGridLogic = ({ onEdit, onDelete }: UseAssetGridLogicProps): UseAssetGridLogicResult => {
-  const actionsCellRenderer = useActionsCellRenderer({ onEdit, onDelete });
+export const useAssetGridLogic = ({ onEdit, onDelete, onViewDocuments }: UseAssetGridLogicProps): UseAssetGridLogicResult => {
+  const actionsCellRenderer = useActionsCellRenderer({ onEdit, onDelete, onViewDocuments });
   const statusCellRenderer = useStatusCellRenderer();
   const components = useGridComponents(actionsCellRenderer, statusCellRenderer);
 

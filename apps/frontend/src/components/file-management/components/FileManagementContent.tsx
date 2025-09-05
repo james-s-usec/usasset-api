@@ -70,8 +70,12 @@ const FileUploadAndFilters: React.FC<{
 );
 
 export const FileManagementContent: React.FC<FileManagementContentProps> = (props) => {
+  console.log('🔍 FileManagementContent - viewMode:', props.viewMode);
+  console.log('🔍 FileManagementContent - projects:', props.projects);
+  
   // Show AssetDocumentView for assets mode, otherwise show normal file views
   if (props.viewMode === 'assets') {
+    console.log('🔍 Rendering AssetDocumentView');
     return (
       <Box>
         <AssetDocumentView

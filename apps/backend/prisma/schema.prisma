@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
@@ -15,22 +9,20 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  name       String?
-  role       UserRole @default(USER)
-  is_deleted Boolean  @default(false)
-  created_at DateTime @default(now())
-  created_by String?
-  updated_at DateTime @updatedAt
-  updated_by String?
-  deleted_at DateTime?
-  deleted_by String?
-  
-  // Relations
-  owned_projects Project[]
+  id                  String          @id @default(uuid())
+  email               String          @unique
+  name                String?
+  role                UserRole        @default(USER)
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+  created_by          String?
+  deleted_at          DateTime?
+  deleted_by          String?
+  is_deleted          Boolean         @default(false)
+  updated_by          String?
   project_memberships ProjectMember[]
-  
+  owned_projects      Project[]
+
   @@index([email])
   @@index([role])
   @@index([created_at])
@@ -38,56 +30,42 @@ model User {
   @@map("users")
 }
 
-enum UserRole {
-  USER
-  ADMIN
-  SUPER_ADMIN
-}
-
 model LogEntry {
-  id            String   @id @default(uuid())
-  timestamp     DateTime @default(now())
-  level         LogLevel
+  id             String   @id @default(uuid())
+  timestamp      DateTime @default(now())
+  level          LogLevel
   correlation_id String
-  message       String
-  metadata      Json?
-  created_at    DateTime @default(now())
-  
+  message        String
+  metadata       Json?
+  created_at     DateTime @default(now())
+
   @@index([timestamp])
   @@index([correlation_id])
   @@index([level])
   @@map("log_entries")
 }
 
-enum LogLevel {
-  DEBUG
-  INFO
-  WARN
-  ERROR
-  FATAL
-}
-
 model Project {
-  id          String        @id @default(uuid())
+  id          String          @id @default(uuid())
   name        String
   description String?
-  status      ProjectStatus @default(DRAFT)
+  status      ProjectStatus   @default(DRAFT)
   owner_id    String?
-  is_deleted  Boolean       @default(false)
-  created_at  DateTime      @default(now())
+  is_deleted  Boolean         @default(false)
+  created_at  DateTime        @default(now())
   created_by  String?
-  updated_at  DateTime      @updatedAt
+  updated_at  DateTime        @updatedAt
   updated_by  String?
   deleted_at  DateTime?
   deleted_by  String?
   
   // Relations
-  owner       User?         @relation(fields: [owner_id], references: [id])
+  owner       User?           @relation(fields: [owner_id], references: [id])
   members     ProjectMember[]
   folders     Folder[]      // Project can have many folders
   files       File[]        // Project can have many files
   assets      Asset[]       // Project can have many assets
-  
+
   @@index([owner_id])
   @@index([status])
   @@index([created_at])
@@ -101,28 +79,12 @@ model ProjectMember {
   user_id    String
   role       ProjectRole @default(MEMBER)
   joined_at  DateTime    @default(now())
-  
-  // Relations
   project    Project     @relation(fields: [project_id], references: [id])
   user       User        @relation(fields: [user_id], references: [id])
-  
+
   @@unique([project_id, user_id])
   @@index([user_id])
   @@map("project_members")
-}
-
-enum ProjectStatus {
-  DRAFT
-  ACTIVE
-  COMPLETED
-  ARCHIVED
-}
-
-enum ProjectRole {
-  OWNER
-  ADMIN
-  MEMBER
-  VIEWER
 }
 
 model Folder {
@@ -143,224 +105,181 @@ model Folder {
   @@unique([name, project_id]) // Names unique within project only
   @@index([project_id])
   @@index([is_deleted])
+  @@index([name])
   @@map("folders")
 }
 
 model File {
-  id            String   @id @default(uuid())
-  filename      String
-  original_name String
-  mimetype      String
-  size          Int
-  blob_url      String
+  id             String      @id @default(uuid())
+  filename       String
+  original_name  String
+  mimetype       String
+  size           Int
+  blob_url       String
   container_name String
-  blob_name     String
-  project_id    String?  // Optional - files can exist without a project during development
-  folder_id     String?  // Optional - files can be unorganized
-  asset_id      String?  // Optional - files can be linked to specific assets
-  file_type     FileType @default(DOCUMENT) // Categorize files for better organization
-  is_deleted    Boolean  @default(false)
-  created_at    DateTime @default(now())
-  created_by    String?
-  updated_at    DateTime @updatedAt
-  updated_by    String?
-  deleted_at    DateTime?
-  deleted_by    String?
-  
-  // Relations
-  project       Project? @relation(fields: [project_id], references: [id])
-  folder        Folder?  @relation(fields: [folder_id], references: [id])
-  asset         Asset?   @relation(fields: [asset_id], references: [id])
-  import_jobs   ImportJob[]
-  
+  blob_name      String
+  file_type      FileType    @default(DOCUMENT)
+  asset_id       String?
+  is_deleted     Boolean     @default(false)
+  created_at     DateTime    @default(now())
+  created_by     String?
+  updated_at     DateTime    @updatedAt
+  updated_by     String?
+  deleted_at     DateTime?
+  deleted_by     String?
+  folder_id      String?
+  project_id     String?
+  folder         Folder?     @relation(fields: [folder_id], references: [id])
+  project        Project?    @relation(fields: [project_id], references: [id])
+  asset          Asset?      @relation(fields: [asset_id], references: [id])
+  import_jobs    ImportJob[]
+
   @@index([project_id])
   @@index([folder_id])
   @@index([asset_id])
-  @@index([file_type])
   @@index([created_at])
   @@index([is_deleted])
   @@map("files")
 }
 
-enum FileType {
-  DOCUMENT
-  MANUAL
-  SPECIFICATION
-  PHOTO
-  DRAWING
-  CERTIFICATE
-  MAINTENANCE
-  OTHER
-}
-
 model Asset {
-  id           String      @id @default(uuid())
-  assetTag     String      // Removed @unique - HVAC assets can have duplicate tags
-  name         String
-  manufacturer String?
-  modelNumber  String?
-  serialNumber String?
-  status       AssetStatus @default(ACTIVE)
-  condition    AssetCondition @default(GOOD)
-  location     String?
-  
-  // Enhanced identification
-  description  String?
-  catalogName  String?
-  catalogItemId String?
-  
-  // Comprehensive categorization fields
-  trade                    String?     // Trade/Department responsible
-  title                    String?     // Asset title/role
-  preconSystem             String?     // Preconstruction system
-  operationsSystem         String?     // Operations system
-  drawingAbbreviation      String?     // Drawing abbreviation
-  preconTag                String?     // Preconstruction tag
-  systemTypeId             String?     // System type ID
-  systemCategory           String?     // System category
-  assetCategory            String?     // Asset category
-  assetCategoryName        String?     // Asset category name
-  assetType                String?     // Asset type
-  type                     String?     // Generic type
-  equipNameId              String?     // Equipment name ID
-  subSystemType            String?     // Sub system type
-  subSystemId              String?     // Sub system ID
-  subSystemClass           String?     // Sub system class
-  subSystemClassification  String?     // Sub system classification
-  classId                  String?     // Class ID
-  equipServedBy            String?     // Equipment served by
-  
-  // Comprehensive location fields
-  customerName             String?     // Customer name
-  propertyName             String?     // Property name
-  buildingName             String?     // Building name
-  floor                    String?     // Floor
-  floorName                String?     // Floor name
-  area                     String?     // Area
-  roomNumber               String?     // Room number
-  assetLocation            String?     // Asset location description
-  propertyZoneServed       String?     // Property zone served
-  xCoordinate              Decimal?    @db.Decimal(10,6)  // X coordinate
-  yCoordinate              Decimal?    @db.Decimal(10,6)  // Y coordinate
-  
-  // Size & measurement fields
-  equipmentSize            String?     // Equipment size
-  assetSizeRounded         String?     // Asset size (rounded up)
-  size                     String?     // Size
-  unit                     String?     // Unit of measurement
-  idUnit                   String?     // ID unit
-  squareFeet               Decimal?    @db.Decimal(10,2)  // Square feet
-  quantity                 Int?        // Quantity
-  weight                   Decimal?    @db.Decimal(10,2)  // Weight
-  
-  // Lifecycle & date fields
-  installDate              DateTime?   // Installation date
-  manufactureDate          DateTime?   // Manufacture date
-  serviceLife              Int?        // Service life in years
-  industryServiceLife      Int?        // Industry standard service life
-  expectedLifetime         Int?        // Expected lifetime in years
-  observedRemainingLife    Int?        // Observed remaining life in years
-  estimatedReplacementDate DateTime?   // Estimated replacement date
-  warrantyExpirationDate   DateTime?   // Warranty expiration date
-  
-  // Technical specification fields
-  motorHp                  Decimal?    @db.Decimal(10,2)  // Motor horsepower
-  estimatedOperatingHours  Int?        // Estimated operating hours per year
-  numberOfCircuits         Int?        // Number of circuits
-  supplyFanMotorSize       String?     // Supply fan motor size
-  returnFanMotorSize       String?     // Return fan motor size
-  beltSize                 String?     // Belt size
-  beltQuantity             Int?        // Belt quantity
-  filterType               String?     // Filter type
-  filterSize               String?     // Filter size
-  filterQuantity           Int?        // Filter quantity
-  refrigerant              String?     // Refrigerant type
-  refrigerantDefaultDescription String? // Refrigerant default description
-  refrigerantDescription   String?     // Refrigerant description
-  refrigerantQuantity      Decimal?    @db.Decimal(10,2)  // Refrigerant quantity
-  ratingName               String?     // Rating name
-  ratingValue              String?     // Rating value
-  
-  // TCO & cost fields
-  purchaseCost             Decimal?    @db.Decimal(12,2)  // Initial purchase cost
-  installationCost         Decimal?    @db.Decimal(12,2)  // Installation cost
-  annualMaintenanceCost    Decimal?    @db.Decimal(12,2)  // Annual maintenance cost
-  estimatedAnnualOperatingCost Decimal? @db.Decimal(12,2)  // Estimated annual operating cost
-  disposalCost             Decimal?    @db.Decimal(12,2)  // Expected disposal cost
-  salvageValue             Decimal?    @db.Decimal(12,2)  // Expected salvage value
-  totalCostOfOwnership     Decimal?    @db.Decimal(12,2)  // Calculated TCO
-  depreciationMethod       String?     // Depreciation method
-  currentBookValue         Decimal?    @db.Decimal(12,2)  // Current book value
-  
-  // Energy calculation fields
-  ratedPowerKw             Decimal?    @db.Decimal(10,3)  // Rated power in kilowatts
-  actualPowerKw            Decimal?    @db.Decimal(10,3)  // Actual measured power in kilowatts
-  powerFactor              Decimal?    @db.Decimal(3,2)   // Power factor (0-1)
-  voltage                  Int?        // Operating voltage
-  amperage                 Decimal?    @db.Decimal(10,2)  // Operating amperage
-  phase                    Int?        // Electrical phase (1 or 3)
-  dailyOperatingHours      Decimal?    @db.Decimal(4,2)   // Average daily operating hours
-  annualOperatingDays      Int?        // Operating days per year
-  loadFactor               Decimal?    @db.Decimal(3,2)   // Average load factor (0-1)
-  energyEfficiencyRating   String?     // Energy efficiency rating
-  energyEfficiencyValue    Decimal?    @db.Decimal(10,2)  // Energy efficiency value
-  estimatedAnnualKwh       Decimal?    @db.Decimal(12,2)  // Estimated annual kWh consumption
-  peakDemandKw             Decimal?    @db.Decimal(10,3)  // Peak demand in kW
-  gasConsumptionRate       Decimal?    @db.Decimal(10,3)  // Gas consumption rate
-  annualGasConsumption     Decimal?    @db.Decimal(12,2)  // Annual gas consumption
-  btuRating                Int?        // BTU rating
-  
-  // Energy cost calculation fields
-  estimatedAnnualElectricityCost Decimal? @db.Decimal(12,2)  // Calculated annual electricity cost
-  estimatedAnnualGasCost   Decimal?    @db.Decimal(12,2)  // Calculated annual gas cost
-  totalAnnualEnergyCost    Decimal?    @db.Decimal(12,2)  // Total annual energy cost
-  annualCarbonEmissions    Decimal?    @db.Decimal(12,2)  // Annual carbon emissions (kg CO2)
-  overrideElectricityRate  Decimal?    @db.Decimal(6,4)   // Override electricity rate
-  overrideGasRate          Decimal?    @db.Decimal(6,4)   // Override gas rate
-  useOverrideRates         Boolean     @default(false)    // Flag to use override rates
-  
-  // Vendor & service fields
-  vendor                   String?     // Vendor name
-  vendorWebsite            String?     // Vendor website
-  serviceId                String?     // Service contract ID
-  
-  // Status & metadata fields
-  verified                 Boolean     @default(false)    // Data verified flag
-  ownerId                  String?     // Owner ID
-  
-  // Notes fields
-  notes                    String?     // General notes
-  note1Subject             String?     // Note 1 subject
-  note1                    String?     // Note 1 content
-  note2Subject             String?     // Note 2 subject
-  note2                    String?     // Note 2 content
-  note3Subject             String?     // Note 3 subject
-  note3                    String?     // Note 3 content
-  note4Subject             String?     // Note 4 subject
-  note4                    String?     // Note 4 content
-  note5Subject             String?     // Note 5 subject
-  note5                    String?     // Note 5 content
-  note6Subject             String?     // Note 6 subject
-  note6                    String?     // Note 6 content
-  
-  // Legacy reference fields
-  legacyBranchId           String?     // Legacy branch ID
-  legacyClientSiteEquipmentRn String?  // Legacy client site equipment RN
-  legacyClientSiteEquipmentName String? // Legacy client site equipment name
-  legacyInternalAssetId    String?     // Legacy internal asset ID
-  legacyUsAssetId          String?     // Legacy USAsset ID
-  legacyUseAssetId         String?     // Legacy USE Asset ID
-  
-  // Project relationship
-  projectId    String?
-  project      Project?    @relation(fields: [projectId], references: [id])
-  files        File[]      // Asset can have many files
-  
-  // Audit fields
-  is_deleted   Boolean     @default(false)
-  created_at   DateTime    @default(now())
-  updated_at   DateTime    @updatedAt
-  
+  id                             String         @id @default(uuid())
+  assetTag                       String
+  name                           String
+  is_deleted                     Boolean        @default(false)
+  created_at                     DateTime       @default(now())
+  updated_at                     DateTime       @updatedAt
+  location                       String?
+  manufacturer                   String?
+  modelNumber                    String?
+  projectId                      String?
+  serialNumber                   String?
+  status                         AssetStatus    @default(ACTIVE)
+  amperage                       Decimal?       @db.Decimal(10, 2)
+  annualMaintenanceCost          Decimal?       @db.Decimal(12, 2)
+  area                           String?
+  assetCategory                  String?
+  assetType                      String?
+  btuRating                      Int?
+  buildingName                   String?
+  catalogItemId                  String?
+  catalogName                    String?
+  currentBookValue               Decimal?       @db.Decimal(12, 2)
+  dailyOperatingHours            Decimal?       @db.Decimal(4, 2)
+  description                    String?
+  equipmentSize                  String?
+  estimatedAnnualKwh             Decimal?       @db.Decimal(12, 2)
+  estimatedAnnualOperatingCost   Decimal?       @db.Decimal(12, 2)
+  expectedLifetime               Int?
+  floor                          String?
+  installDate                    DateTime?
+  installationCost               Decimal?       @db.Decimal(12, 2)
+  manufactureDate                DateTime?
+  motorHp                        Decimal?       @db.Decimal(10, 2)
+  operationsSystem               String?
+  phase                          Int?
+  purchaseCost                   Decimal?       @db.Decimal(12, 2)
+  quantity                       Int?
+  ratedPowerKw                   Decimal?       @db.Decimal(10, 3)
+  roomNumber                     String?
+  serviceLife                    Int?
+  size                           String?
+  squareFeet                     Decimal?       @db.Decimal(10, 2)
+  systemCategory                 String?
+  totalCostOfOwnership           Decimal?       @db.Decimal(12, 2)
+  trade                          String?
+  unit                           String?
+  voltage                        Int?
+  weight                         Decimal?       @db.Decimal(10, 2)
+  actualPowerKw                  Decimal?       @db.Decimal(10, 3)
+  annualCarbonEmissions          Decimal?       @db.Decimal(12, 2)
+  annualGasConsumption           Decimal?       @db.Decimal(12, 2)
+  annualOperatingDays            Int?
+  assetCategoryName              String?
+  assetLocation                  String?
+  assetSizeRounded               String?
+  beltQuantity                   Int?
+  beltSize                       String?
+  classId                        String?
+  customerName                   String?
+  depreciationMethod             String?
+  disposalCost                   Decimal?       @db.Decimal(12, 2)
+  drawingAbbreviation            String?
+  energyEfficiencyRating         String?
+  energyEfficiencyValue          Decimal?       @db.Decimal(10, 2)
+  equipNameId                    String?
+  equipServedBy                  String?
+  estimatedAnnualElectricityCost Decimal?       @db.Decimal(12, 2)
+  estimatedAnnualGasCost         Decimal?       @db.Decimal(12, 2)
+  estimatedOperatingHours        Int?
+  estimatedReplacementDate       DateTime?
+  filterQuantity                 Int?
+  filterSize                     String?
+  filterType                     String?
+  floorName                      String?
+  gasConsumptionRate             Decimal?       @db.Decimal(10, 3)
+  idUnit                         String?
+  industryServiceLife            Int?
+  legacyBranchId                 String?
+  legacyClientSiteEquipmentName  String?
+  legacyClientSiteEquipmentRn    String?
+  legacyInternalAssetId          String?
+  legacyUsAssetId                String?
+  legacyUseAssetId               String?
+  loadFactor                     Decimal?       @db.Decimal(3, 2)
+  note1                          String?
+  note1Subject                   String?
+  note2                          String?
+  note2Subject                   String?
+  note3                          String?
+  note3Subject                   String?
+  note4                          String?
+  note4Subject                   String?
+  note5                          String?
+  note5Subject                   String?
+  note6                          String?
+  note6Subject                   String?
+  notes                          String?
+  numberOfCircuits               Int?
+  observedRemainingLife          Int?
+  overrideElectricityRate        Decimal?       @db.Decimal(6, 4)
+  overrideGasRate                Decimal?       @db.Decimal(6, 4)
+  ownerId                        String?
+  peakDemandKw                   Decimal?       @db.Decimal(10, 3)
+  powerFactor                    Decimal?       @db.Decimal(3, 2)
+  preconSystem                   String?
+  preconTag                      String?
+  propertyName                   String?
+  propertyZoneServed             String?
+  ratingName                     String?
+  ratingValue                    String?
+  refrigerant                    String?
+  refrigerantDefaultDescription  String?
+  refrigerantDescription         String?
+  refrigerantQuantity            Decimal?       @db.Decimal(10, 2)
+  returnFanMotorSize             String?
+  salvageValue                   Decimal?       @db.Decimal(12, 2)
+  serviceId                      String?
+  subSystemClass                 String?
+  subSystemClassification        String?
+  subSystemId                    String?
+  subSystemType                  String?
+  supplyFanMotorSize             String?
+  systemTypeId                   String?
+  title                          String?
+  totalAnnualEnergyCost          Decimal?       @db.Decimal(12, 2)
+  type                           String?
+  useOverrideRates               Boolean        @default(false)
+  vendor                         String?
+  vendorWebsite                  String?
+  verified                       Boolean        @default(false)
+  warrantyExpirationDate         DateTime?
+  xCoordinate                    Decimal?       @db.Decimal(10, 6)
+  yCoordinate                    Decimal?       @db.Decimal(10, 6)
+  condition                      AssetCondition @default(GOOD)
+  project                        Project?       @relation(fields: [projectId], references: [id])
+  files                          File[]
+
   @@index([assetTag])
   @@index([status])
   @@index([projectId])
@@ -375,12 +294,113 @@ model Asset {
   @@map("assets")
 }
 
+model ImportJob {
+  id             String         @id @default(uuid())
+  file_id        String
+  status         JobStatus      @default(PENDING)
+  total_rows     Int?
+  processed_rows Int            @default(0)
+  error_rows     Int            @default(0)
+  errors         Json           @default("[]")
+  started_at     DateTime       @default(now())
+  completed_at   DateTime?
+  created_by     String?
+  file           File           @relation(fields: [file_id], references: [id])
+  staging_assets StagingAsset[]
+
+  @@index([status])
+  @@index([started_at])
+  @@index([file_id])
+  @@map("import_jobs")
+}
+
+model StagingAsset {
+  id                String    @id @default(uuid())
+  import_job_id     String
+  row_number        Int
+  raw_data          Json
+  mapped_data       Json
+  validation_errors Json?
+  is_valid          Boolean   @default(true)
+  will_import       Boolean   @default(true)
+  created_at        DateTime  @default(now())
+  import_job        ImportJob @relation(fields: [import_job_id], references: [id], onDelete: Cascade)
+
+  @@index([import_job_id])
+  @@index([is_valid])
+  @@index([will_import])
+  @@map("staging_assets")
+}
+
+model PipelineRule {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  phase       PipelinePhase
+  type        RuleType
+  target      String
+  config      Json
+  priority    Int           @default(100)
+  is_active   Boolean       @default(true)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+  created_by  String?
+  updated_by  String?
+
+  @@index([phase, is_active, priority])
+  @@index([type, target])
+  @@index([is_active])
+  @@map("pipeline_rules")
+}
+
+model AssetColumnAlias {
+  id          String   @id @default(uuid())
+  asset_field String
+  csv_alias   String   @unique
+  confidence  Decimal  @default(1.0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  created_by  String?
+
+  @@index([asset_field])
+  @@index([csv_alias])
+  @@map("asset_column_aliases")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
 enum AssetStatus {
   ACTIVE
-  INACTIVE
   MAINTENANCE
   RETIRED
   DISPOSED
+  INACTIVE
   LOST
   STOLEN
 }
@@ -395,81 +415,14 @@ enum AssetCondition {
   FOR_DISPOSAL
 }
 
-// Import job tracking for pipeline
-model ImportJob {
-  id              String     @id @default(uuid())
-  file_id         String
-  status          JobStatus  @default(PENDING)
-  total_rows      Int?
-  processed_rows  Int        @default(0)
-  error_rows      Int        @default(0)
-  errors          Json       @default("[]")
-  started_at      DateTime   @default(now())
-  completed_at    DateTime?
-  created_by      String?
-  
-  // Relations
-  file            File       @relation(fields: [file_id], references: [id])
-  staging_assets  StagingAsset[]
-  
-  @@index([status])
-  @@index([started_at])
-  @@index([file_id])
-  @@map("import_jobs")
-}
-
-// Staging table for import preview and quality gate
-model StagingAsset {
-  id              String     @id @default(uuid())
-  import_job_id   String
-  row_number      Int
-  raw_data        Json       // Original CSV row data
-  mapped_data     Json       // Mapped to asset fields
-  validation_errors Json?    // Any validation issues
-  is_valid        Boolean    @default(true)
-  will_import     Boolean    @default(true) // User can toggle this
-  created_at      DateTime   @default(now())
-  
-  // Relations
-  import_job      ImportJob  @relation(fields: [import_job_id], references: [id], onDelete: Cascade)
-  
-  @@index([import_job_id])
-  @@index([is_valid])
-  @@index([will_import])
-  @@map("staging_assets")
-}
-
 enum JobStatus {
   PENDING
   RUNNING
-  STAGED      // Data is in staging table for review
-  APPROVED    // User approved, ready to commit
-  COMPLETED   // Successfully imported to database
+  COMPLETED
   FAILED
   CANCELLED
-}
-
-// Extensible ETL Rules System
-model PipelineRule {
-  id          String         @id @default(uuid())
-  name        String         // Human-readable rule name
-  description String?        // Optional description for UI
-  phase       PipelinePhase  // Which pipeline phase this rule applies to
-  type        RuleType       // Specific rule type within the phase
-  target      String         // Field/column/property this rule targets
-  config      Json           // Rule-specific configuration (typed per rule type)
-  priority    Int            @default(100)  // Lower number = higher priority
-  is_active   Boolean        @default(true) // Toggle rule on/off
-  created_at  DateTime       @default(now())
-  updated_at  DateTime       @updatedAt
-  created_by  String?
-  updated_by  String?
-  
-  // Indexes for performance
-  @@index([phase, is_active, priority])
-  @@index([type, target])
-  @@index([is_active])
-  @@map("pipeline_rules")
+  STAGED
+  APPROVED
 }
 
 enum PipelinePhase {
@@ -482,86 +435,38 @@ enum PipelinePhase {
 }
 
 enum RuleType {
-  // EXTRACT Phase Rules
-  ENCODING_DETECTOR     // Detect and normalize file encoding
-  COLUMN_MAPPER         // Map CSV columns to expected field names
-  DELIMITER_DETECTOR    // Auto-detect CSV delimiter
-  HEADER_VALIDATOR      // Validate expected column headers
-  
-  // VALIDATE Phase Rules
-  REQUIRED_FIELD        // Ensure required fields are present
-  DATA_TYPE_CHECK       // Validate field data types
-  RANGE_VALIDATOR       // Check numeric ranges
-  FORMAT_VALIDATOR      // Validate formats (email, phone, etc.)
-  
-  // CLEAN Phase Rules
-  TRIM                  // Remove leading/trailing whitespace
-  REGEX_REPLACE         // Find and replace using regex
-  EXACT_REPLACE         // Exact string replacement
-  REMOVE_DUPLICATES     // Remove duplicate values within field
-  
-  // TRANSFORM Phase Rules
-  TO_UPPERCASE          // Convert to uppercase
-  TO_LOWERCASE          // Convert to lowercase
-  TITLE_CASE            // Convert to title case
-  DATE_FORMAT           // Convert date formats
-  NUMERIC_FORMAT        // Format numeric values
-  CALCULATE_FIELD       // Calculate derived fields
-  
-  // MAP Phase Rules
-  FIELD_MAPPING         // Map source fields to target schema
-  ENUM_MAPPING          // Map string values to enum values
-  REFERENCE_LOOKUP      // Lookup values in reference tables
-  DEFAULT_VALUE         // Set default values for empty fields
-  
-  // LOAD Phase Rules
-  CONFLICT_RESOLUTION   // Handle duplicate key conflicts
-  BATCH_SIZE            // Control batch insert size
-  TRANSACTION_BOUNDARY  // Define transaction boundaries
-  ROLLBACK_STRATEGY     // Define rollback behavior on errors
+  ENCODING_DETECTOR
+  COLUMN_MAPPER
+  DELIMITER_DETECTOR
+  HEADER_VALIDATOR
+  REQUIRED_FIELD
+  DATA_TYPE_CHECK
+  RANGE_VALIDATOR
+  FORMAT_VALIDATOR
+  TRIM
+  REGEX_REPLACE
+  EXACT_REPLACE
+  REMOVE_DUPLICATES
+  TO_UPPERCASE
+  TO_LOWERCASE
+  TITLE_CASE
+  DATE_FORMAT
+  NUMERIC_FORMAT
+  CALCULATE_FIELD
+  FIELD_MAPPING
+  ENUM_MAPPING
+  REFERENCE_LOOKUP
+  DEFAULT_VALUE
+  CONFLICT_RESOLUTION
+  BATCH_SIZE
+  TRANSACTION_BOUNDARY
+  ROLLBACK_STRATEGY
 }
 
-// Asset Column Aliases - Maps CSV headers to Asset table fields
-model AssetColumnAlias {
-  id          String   @id @default(uuid())
-  asset_field String   // Actual Asset table column name
-  csv_alias   String   @unique // CSV header variation
-  confidence  Decimal  @default(1.0) // Match confidence (0.0 to 1.0)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-  created_by  String?
-  
-  @@index([asset_field])
-  @@index([csv_alias])
-  @@map("asset_column_aliases")
-}
-
-// Asset Value Mappings - Maps raw values to standardized values (Phase 2)
-model AssetValueMapping {
-  id            String          @id @default(uuid())
-  asset_field   String          // Which field this applies to (manufacturer, status, etc.)
-  mapping_type  ValueMappingType // How to match the source value
-  source_value  String          // Raw value from CSV (or pattern for REGEX)
-  target_value  String          // Standardized value to use
-  confidence    Decimal         @default(1.0) // Match confidence (0.0 to 1.0)
-  is_active     Boolean         @default(true)
-  created_at    DateTime        @default(now())
-  updated_at    DateTime        @updatedAt
-  created_by    String?
-  
-  @@index([asset_field])
-  @@index([mapping_type])
-  @@index([source_value])
-  @@index([is_active])
-  @@unique([asset_field, source_value]) // Prevent duplicate exact mappings
-  @@map("asset_value_mappings")
-}
-
-enum ValueMappingType {
-  EXACT_MATCH    // "JCI" → "Johnson Controls" (exact string match)
-  FUZZY_MATCH    // "Johnsen Controls" → "Johnson Controls" (handle typos)
-  REGEX          // "Bldg (\\d+)" → "Building $1" (pattern replacement)  
-  CATEGORY       // "AHU" → "HVAC_UNIT" (category standardization)
-  RANGE          // "1-5" → "POOR", "6-8" → "GOOD" (numeric ranges)
-  CONTAINS       // "Johnson" anywhere → "Johnson Controls"
+enum FileType {
+  DOCUMENT
+  IMAGE
+  PDF
+  SPREADSHEET
+  OTHER
 }

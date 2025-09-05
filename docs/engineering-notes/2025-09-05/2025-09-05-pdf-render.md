@@ -85,8 +85,8 @@ const uniquePdfs = allPdfs.reduce((acc: PDFFile[], current) => {
 
 ## Architecture Decision
 
-**Old Approach**: File ’ Tile Generation ’ Multiple PNG tiles ’ TileLayer  
-**New Approach**: File ’ Single PNG image ’ ImageOverlay
+**Old Approach**: File ï¿½ Tile Generation ï¿½ Multiple PNG tiles ï¿½ TileLayer  
+**New Approach**: File ï¿½ Single PNG image ï¿½ ImageOverlay
 
 **Rationale**: 
 - Simpler implementation and maintenance
@@ -120,6 +120,20 @@ const uniquePdfs = allPdfs.reduce((acc: PDFFile[], current) => {
 3. Click PDF - should see single `/pdf-image/1.png` request
 4. Verify full PDF renders properly fitted to viewport
 5. Test page navigation and zoom controls
+
+## Future Enhancements
+
+### PDF Validation Caching
+**Issue**: PDF validation takes 10-30 seconds and re-runs every time user clicks "Validate Pages"
+**Solution**: Store validation results in database as metadata
+```sql
+-- Add to files table:
+pdf_validation_status   VARCHAR,     -- 'validated', 'failed', etc.
+pdf_validation_result   JSONB,       -- Store validation results as JSON
+pdf_validation_date     TIMESTAMP    -- When validation was performed
+```
+**Benefits**: Instant validation results after first run, better UX
+**Deferred**: Requires database migration with potential data loss
 
 ## Learning
 - Browser console investigation is invaluable for understanding well-performing examples

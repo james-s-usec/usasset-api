@@ -6,7 +6,6 @@ import { RegexReplaceProcessor } from '../processors/clean/regex-replace.process
 import { ExactReplaceProcessor } from '../processors/clean/exact-replace.processor';
 import { RemoveDuplicatesProcessor } from '../processors/clean/remove-duplicates.processor';
 import { UppercaseProcessor } from '../processors/transform/uppercase.processor';
-import { SpecialCharRemoverProcessor } from '../processors/clean/special-char-remover.processor';
 
 @Injectable()
 export class RuleProcessorFactory {

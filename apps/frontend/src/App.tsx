@@ -14,6 +14,7 @@ import { FloatingDebugConsole } from './components/FloatingDebugConsole'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { FilesPage } from './pages/FilesPage'
 import { AssetsPage } from './pages/AssetsPage'
+import { AssetDetailPage } from './pages/AssetDetailPage'
 import { DocumentsPage } from './components/documents/DocumentsPage'
 import { PipelinePage } from './pages/PipelinePage'
 
@@ -99,6 +100,7 @@ const AppRoutes = (): React.ReactElement => (
     <Route path="/users" element={<UsersPage />} />
     <Route path="/projects" element={<ProjectsPage />} />
     <Route path="/assets" element={<AssetsPage />} />
+    <Route path="/assets/:id" element={<AssetDetailPage />} />
     <Route path="/pipeline" element={<PipelinePage />} />
     <Route path="/files" element={<FilesPage />} />
     <Route path="/documents" element={<DocumentsPage />} />

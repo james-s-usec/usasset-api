@@ -9,7 +9,7 @@ import {
   Box,
   Chip,
 } from "@mui/material";
-import { PictureAsPdf as PdfIcon, Visibility as ViewIcon } from "@mui/icons-material";
+import { PictureAsPdf as PdfIcon, Visibility as ViewIcon, CheckCircle as ValidateIcon } from "@mui/icons-material";
 import { formatFileSize, formatDate } from "./formatters";
 
 interface PDFFile {
@@ -24,6 +24,7 @@ interface PDFFile {
 interface PDFCardProps {
   file: PDFFile;
   onView: (file: PDFFile) => void;
+  onValidate?: (file: PDFFile) => void;
 }
 
 const PDFCardMedia: React.FC = () => (
@@ -70,8 +71,11 @@ const PDFCardContent: React.FC<{ file: PDFFile }> = ({ file }) => (
   </CardContent>
 );
 
-const PDFCardActions: React.FC<{ onView: () => void }> = ({ onView }) => (
-  <CardActions>
+const PDFCardActions: React.FC<{ 
+  onView: () => void; 
+  onValidate?: () => void; 
+}> = ({ onView, onValidate }) => (
+  <CardActions sx={{ flexDirection: 'column', gap: 1 }}>
     <Button
       size="small"
       startIcon={<ViewIcon />}
@@ -81,13 +85,28 @@ const PDFCardActions: React.FC<{ onView: () => void }> = ({ onView }) => (
     >
       View Document
     </Button>
+    {onValidate && (
+      <Button
+        size="small"
+        startIcon={<ValidateIcon />}
+        onClick={onValidate}
+        variant="outlined"
+        fullWidth
+        color="secondary"
+      >
+        Validate Pages
+      </Button>
+    )}
   </CardActions>
 );
 
-export const PDFCard: React.FC<PDFCardProps> = ({ file, onView }) => (
+export const PDFCard: React.FC<PDFCardProps> = ({ file, onView, onValidate }) => (
   <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
     <PDFCardMedia />
     <PDFCardContent file={file} />
-    <PDFCardActions onView={() => onView(file)} />
+    <PDFCardActions 
+      onView={(): void => onView(file)} 
+      onValidate={onValidate ? (): void => onValidate(file) : undefined}
+    />
   </Card>
 );

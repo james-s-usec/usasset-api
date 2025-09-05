@@ -4,7 +4,7 @@ import { Check, Pause } from '@mui/icons-material';
 import type { PipelineRule } from './types';
 import config from '../../../config';
 
-interface TransformRule {
+interface CleanRule {
   id: string;
   name: string;
   type: string;
@@ -12,12 +12,12 @@ interface TransformRule {
   is_active: boolean;
 }
 
-const RulesList: React.FC<{ rules: TransformRule[] }> = ({ rules }) => (
+const RulesList: React.FC<{ rules: CleanRule[] }> = ({ rules }) => (
   <List dense>
     {rules.length === 0 ? (
       <ListItem>
         <ListItemText 
-          primary="No active transform rules" 
+          primary="No active clean rules" 
           secondary="Create rules in the Rules Management tab to see them here"
         />
       </ListItem>
@@ -42,37 +42,37 @@ const RulesList: React.FC<{ rules: TransformRule[] }> = ({ rules }) => (
   </List>
 );
 
-export const TransformRules: React.FC = () => {
-  const [rules, setRules] = useState<TransformRule[]>([]);
+export const CleanRules: React.FC = () => {
+  const [rules, setRules] = useState<CleanRule[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchTransformRules = async (): Promise<void> => {
+    const fetchCleanRules = async (): Promise<void> => {
       try {
         const response = await fetch(`${config.api.baseUrl}/api/pipeline/rules`);
         const data = await response.json();
         
         if (data.success) {
-          // Filter for TRANSFORM phase rules only
-          const transformRules = data.data.rules.filter((rule: PipelineRule) => 
-            rule.phase === 'TRANSFORM'
+          // Filter for CLEAN phase rules only
+          const cleanRules = data.data.rules.filter((rule: PipelineRule) => 
+            rule.phase === 'CLEAN'
           );
-          setRules(transformRules);
+          setRules(cleanRules);
         }
       } catch (error) {
-        console.error('Failed to fetch transform rules:', error);
+        console.error('Failed to fetch clean rules:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTransformRules();
+    fetchCleanRules();
   }, []);
 
   return (
     <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
       <Typography variant="subtitle2" gutterBottom>
-        Transformation Rules ({rules.filter(r => r.is_active).length} Active)
+        Cleaning Rules ({rules.filter(r => r.is_active).length} Active)
       </Typography>
       {loading ? (
         <Typography variant="body2" color="text.secondary">Loading rules...</Typography>
@@ -81,7 +81,7 @@ export const TransformRules: React.FC = () => {
       )}
       {rules.length > 0 && (
         <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
-          Manage rules in the Rules tab to add, edit, or toggle these transformation rules
+          These rules will be applied during the CLEAN phase to normalize and clean your data
         </Typography>
       )}
     </Paper>

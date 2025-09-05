@@ -506,19 +506,29 @@ export class PipelineService {
     updateData: UpdateRuleDto,
   ): Promise<PipelineRule> {
     this.logger.debug(`Updating pipeline rule: ${ruleId}`, updateData);
-    
-    // Simple object that matches what RuleEngineService expects
-    const updates: any = {};
-    
-    if (updateData.name !== undefined) updates.name = updateData.name;
-    if (updateData.type !== undefined) updates.type = updateData.type as RuleType;
-    if (updateData.phase !== undefined) updates.phase = updateData.phase as PipelinePhase;
-    if (updateData.target !== undefined) updates.target = updateData.target;
-    if (updateData.config !== undefined) updates.config = updateData.config;
-    if (updateData.is_active !== undefined) updates.is_active = updateData.is_active;
-    if (updateData.priority !== undefined) updates.priority = updateData.priority;
-    
+
+    const updates = this.buildRuleUpdates(updateData);
     return await this.ruleEngine.updateRule(ruleId, updates);
+  }
+
+  private buildRuleUpdates(updateData: UpdateRuleDto): Record<string, unknown> {
+    const updates: Record<string, unknown> = {};
+
+    const mappings = [
+      { field: 'name', value: updateData.name },
+      { field: 'type', value: updateData.type as RuleType },
+      { field: 'phase', value: updateData.phase as PipelinePhase },
+      { field: 'target', value: updateData.target },
+      { field: 'config', value: updateData.config },
+      { field: 'is_active', value: updateData.is_active },
+      { field: 'priority', value: updateData.priority },
+    ];
+
+    mappings.forEach(({ field, value }) => {
+      if (value !== undefined) updates[field] = value;
+    });
+
+    return updates;
   }
 
   public async deleteRule(ruleId: string): Promise<void> {

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Alert } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import type { ColDef, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
 import type { Asset } from './types';
 import type { ColumnCategory } from './columnConfig';
@@ -46,9 +47,16 @@ const AssetManagementContent: React.FC<{
 
 export const AssetGridManagement: React.FC = () => {
   const { assets, loading, error, fetchAssets, deleteAsset } = useAssets();
+  const navigate = useNavigate();
+  
+  const handleViewDocuments = (asset: Asset): void => {
+    navigate(`/assets/${asset.id}`);
+  };
+
   const { columnDefs, components, onGridReady, categories, updateCategories } = useAssetGridLogic({
     onEdit: (asset: Asset) => alert(`Edit ${asset.name} coming soon!`),
     onDelete: deleteAsset,
+    onViewDocuments: handleViewDocuments,
   });
 
   const handleAdd = (): void => alert('Add asset functionality coming soon!');

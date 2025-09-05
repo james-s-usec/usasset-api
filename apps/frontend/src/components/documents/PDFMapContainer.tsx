@@ -3,17 +3,14 @@ import { MapContainer, ImageOverlay, useMapEvents } from 'react-leaflet';
 import L, { LatLngBounds } from 'leaflet';
 import { config } from '../../config';
 import { PDFMapEventHandler } from './PDFMapEventHandler';
-import { createPDFCRS } from './pdfUtils';
 
 interface PDFMapContainerProps {
   fileId: string;
   currentPage: number;
-  logicalWidth: number;
-  logicalHeight: number;
-  bounds: LatLngBounds;
   pdfInfo: {
     maxZoom: number;
     tileSize: number;
+    dimensions: { width: number; height: number };
   };
   zoom: number;
   onZoomChange: (newZoom: number) => void;
@@ -34,16 +31,15 @@ interface MapProps {
 }
 
 const getMapProps = (
-  logicalWidth: number, 
-  logicalHeight: number, 
-  bounds: LatLngBounds,
-  maxZoom: number
+  imageWidth: number, 
+  imageHeight: number, 
+  bounds: LatLngBounds
 ): MapProps => ({
   crs: L.CRS.Simple, // Use simple CRS for ImageOverlay
-  center: [logicalHeight / 2, logicalWidth / 2] as [number, number],
-  zoom: 0,
-  minZoom: 0,
-  maxZoom: 3, // Limit zoom for single image to avoid pixelation
+  center: [imageHeight / 2, imageWidth / 2] as [number, number],
+  zoom: 1, // Start at a reasonable zoom level
+  minZoom: -2, // Allow zooming out significantly  
+  maxZoom: 6, // Allow zooming in much more for high-res 2048px images
   bounds,
   maxBounds: bounds,
   style: { width: '100%', height: '100%' },
@@ -58,7 +54,8 @@ const FitBoundsOnLoad: React.FC<{ bounds: LatLngBounds }> = ({ bounds }) => {
     if (bounds) {
       map.fitBounds(bounds);
     }
-  }, [bounds, map]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount, ignore bounds/map changes
   
   return null;
 };
@@ -67,16 +64,18 @@ const FitBoundsOnLoad: React.FC<{ bounds: LatLngBounds }> = ({ bounds }) => {
 export const PDFMapContainer: React.FC<PDFMapContainerProps> = ({
   fileId,
   currentPage,
-  logicalWidth,
-  logicalHeight,
-  bounds,
   pdfInfo,
   zoom,
   onZoomChange
 }) => {
-  // Create proper bounds for ImageOverlay (use actual image dimensions, not scaled)
-  const imageBounds = new L.LatLngBounds([0, 0], [logicalHeight, logicalWidth]);
-  const mapProps = getMapProps(logicalWidth, logicalHeight, imageBounds, pdfInfo.maxZoom);
+  // Calculate aspect ratio and dimensions
+  const aspectRatio = pdfInfo.dimensions.width / pdfInfo.dimensions.height;
+  const imageWidth = 2048;
+  const imageHeight = imageWidth / aspectRatio;
+  
+  // Create bounds and props  
+  const imageBounds = new L.LatLngBounds([0, 0], [imageHeight, imageWidth]);
+  const mapProps = getMapProps(imageWidth, imageHeight, imageBounds);
   const imageUrl = `${config.api.baseUrl}/api/files/${fileId}/pdf-image/${currentPage}.png`;
   
   return (
@@ -89,6 +88,7 @@ export const PDFMapContainer: React.FC<PDFMapContainerProps> = ({
         onZoomChange={onZoomChange}
       />
       <ImageOverlay
+        key={`${fileId}-page-${currentPage}`}
         url={imageUrl}
         bounds={imageBounds}
       />

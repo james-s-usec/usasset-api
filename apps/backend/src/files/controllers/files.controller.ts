@@ -235,6 +235,17 @@ export class FilesController {
     res.send(tileBuffer);
   }
 
+  @Get(':id/pdf-validate')
+  @ApiOperation({ summary: 'Validate PDF pages for rendering errors' })
+  @ApiResponse({ status: 200, description: 'PDF page validation results' })
+  public async validatePdfPages(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const validation = await this.pdfService.validatePdfPages(id);
+    res.json({ success: true, data: validation });
+  }
+
   @Get(':id/pdf-image/:page.png')
   @ApiOperation({ summary: 'Get PDF page as single PNG image' })
   @ApiResponse({ status: 200, description: 'PDF page image' })

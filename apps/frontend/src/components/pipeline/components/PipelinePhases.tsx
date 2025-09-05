@@ -1,5 +1,6 @@
 import React from 'react';
 import { ExtractPhase } from '../phases/ExtractPhase';
+import { CleanPhase } from '../phases/CleanPhase';
 import { TransformPhase } from '../phases/TransformPhase';
 import { LoadPhase } from '../phases/LoadPhase';
 import type { JobStatus } from '../types';
@@ -44,6 +45,24 @@ const ExtractPhaseSection: React.FC<{
       onStartImport={onStartImport}
       isProcessing={isProcessing}
       currentJobId={currentJobId}
+    />
+  );
+};
+
+// Clean phase component - simplified logic
+const CleanPhaseSection: React.FC<{
+  currentJobId: string | null;
+  jobStatus: JobStatus | null;
+}> = ({ currentJobId, jobStatus }) => {
+  const shouldShow = currentJobId && 
+    (jobStatus?.status === 'RUNNING' || jobStatus?.status === 'STAGED');
+  
+  if (!shouldShow) return null;
+  
+  return (
+    <CleanPhase
+      currentJobId={currentJobId}
+      jobStatus={jobStatus}
     />
   );
 };
@@ -112,6 +131,11 @@ export const PipelinePhases: React.FC<PipelinePhasesProps> = (props) => (
       onStartImport={props.onStartImport}
       isProcessing={props.isProcessing}
       currentJobId={props.currentJobId}
+    />
+    
+    <CleanPhaseSection 
+      currentJobId={props.currentJobId}
+      jobStatus={props.jobStatus}
     />
     
     <TransformPhaseSection 

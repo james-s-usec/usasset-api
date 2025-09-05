@@ -30,6 +30,34 @@ const formatFileSize = (bytes: number): string => {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 };
 
+const DocumentTitle: React.FC<{ doc: AssetDocument }> = ({ doc }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    {doc.original_name}
+    <Chip
+      label={FILE_TYPE_LABELS[doc.file_type as FileType] || doc.file_type}
+      size="small"
+      sx={{
+        backgroundColor: FILE_TYPE_COLORS[doc.file_type as FileType] || '#607D8B',
+        color: 'white'
+      }}
+    />
+  </Box>
+);
+
+const DocumentActions: React.FC<{
+  onDownload: () => void;
+  onDelete: () => void;
+}> = ({ onDownload, onDelete }) => (
+  <ListItemSecondaryAction>
+    <IconButton edge="end" aria-label="download" onClick={onDownload} sx={{ mr: 1 }}>
+      <DownloadIcon />
+    </IconButton>
+    <IconButton edge="end" aria-label="delete" onClick={onDelete}>
+      <DeleteIcon />
+    </IconButton>
+  </ListItemSecondaryAction>
+);
+
 const DocumentListItem: React.FC<{
   doc: AssetDocument;
   onDownload: () => void;
@@ -37,34 +65,10 @@ const DocumentListItem: React.FC<{
 }> = ({ doc, onDownload, onDelete }) => (
   <ListItem divider>
     <ListItemText
-      primary={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {doc.original_name}
-          <Chip
-            label={FILE_TYPE_LABELS[doc.file_type as FileType] || doc.file_type}
-            size="small"
-            sx={{
-              backgroundColor: FILE_TYPE_COLORS[doc.file_type as FileType] || '#607D8B',
-              color: 'white'
-            }}
-          />
-        </Box>
-      }
+      primary={<DocumentTitle doc={doc} />}
       secondary={`${formatFileSize(doc.size)} • Uploaded ${new Date(doc.created_at).toLocaleDateString()}`}
     />
-    <ListItemSecondaryAction>
-      <IconButton
-        edge="end"
-        aria-label="download"
-        onClick={onDownload}
-        sx={{ mr: 1 }}
-      >
-        <DownloadIcon />
-      </IconButton>
-      <IconButton edge="end" aria-label="delete" onClick={onDelete}>
-        <DeleteIcon />
-      </IconButton>
-    </ListItemSecondaryAction>
+    <DocumentActions onDownload={onDownload} onDelete={onDelete} />
   </ListItem>
 );
 

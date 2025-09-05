@@ -14,13 +14,18 @@ interface PDFFile {
 interface PDFGridProps {
   files: PDFFile[];
   onFileSelect: (file: PDFFile) => void;
+  onFileValidate?: (file: PDFFile) => void;
 }
 
-export const PDFGrid: React.FC<PDFGridProps> = ({ files, onFileSelect }) => (
+export const PDFGrid: React.FC<PDFGridProps> = ({ files, onFileSelect, onFileValidate }) => (
   <Grid container spacing={3}>
     {files.map((file) => (
       <Grid key={file.id} size={{ xs: 12, sm: 6, md: 4 }}>
-        <PDFCard file={file} onView={onFileSelect} />
+        <PDFCard 
+          file={file} 
+          onView={onFileSelect} 
+          onValidate={onFileValidate}
+        />
       </Grid>
     ))}
   </Grid>

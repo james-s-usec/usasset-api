@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PipelineService } from './pipeline.service';
-import { CreateRuleDto, UpdateRuleDto } from './dto/pipeline-dto';
+import { UpdateRuleDto } from './dto/pipeline-dto';
 
 @ApiTags('pipeline')
 // CODE_SMELL: [Rule #4] COMPLEXITY - Controller has 18 endpoints, violates complexity budget
@@ -361,7 +361,6 @@ export class PipelineController {
       message: 'Rule updated successfully',
     };
   }
-
 
   @Delete('rules/:ruleId')
   @ApiOperation({ summary: 'Delete a pipeline rule' })

@@ -8,8 +8,9 @@ export interface Asset {
 }
 
 export interface AssetDocumentViewProps {
-  projects: Array<{ id: string; name: string }>;
-  onFileDownload: (fileId: string) => Promise<void>;
+  projects?: Array<{ id: string; name: string }>;
+  onFileDownload?: (fileId: string) => Promise<void>;
+  preSelectedAssetId?: string;
 }
 
 export interface SelectionState {

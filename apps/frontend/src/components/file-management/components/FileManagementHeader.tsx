@@ -14,34 +14,40 @@ interface FileManagementHeaderProps {
   onViewModeChange: (mode: ViewMode) => void;
 }
 
+const ViewModeButton: React.FC<{
+  value: ViewMode;
+  icon: React.ReactElement;
+  label: string;
+}> = ({ value, icon, label }) => (
+  <ToggleButton value={value} aria-label={`${label.toLowerCase()} view`}>
+    {icon}
+    {label}
+  </ToggleButton>
+);
+
+const ViewModeToggle: React.FC<{
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+}> = ({ viewMode, onViewModeChange }) => (
+  <ToggleButtonGroup
+    value={viewMode}
+    exclusive
+    onChange={(_, newMode) => newMode && onViewModeChange(newMode)}
+    size="small"
+  >
+    <ViewModeButton value="table" icon={<TableIcon />} label="Table" />
+    <ViewModeButton value="tree" icon={<TreeIcon />} label="Tree" />
+    <ViewModeButton value="folders" icon={<FolderViewIcon />} label="Folders" />
+    <ViewModeButton value="assets" icon={<AssetIcon />} label="Assets" />
+  </ToggleButtonGroup>
+);
+
 export const FileManagementHeader: React.FC<FileManagementHeaderProps> = ({
   viewMode,
   onViewModeChange,
 }) => (
   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
     <Typography variant="h4">File Management</Typography>
-    <ToggleButtonGroup
-      value={viewMode}
-      exclusive
-      onChange={(_, newMode) => newMode && onViewModeChange(newMode)}
-      size="small"
-    >
-      <ToggleButton value="table" aria-label="table view">
-        <TableIcon />
-        Table
-      </ToggleButton>
-      <ToggleButton value="tree" aria-label="tree view">
-        <TreeIcon />
-        Tree
-      </ToggleButton>
-      <ToggleButton value="folders" aria-label="folder view">
-        <FolderViewIcon />
-        Folders
-      </ToggleButton>
-      <ToggleButton value="assets" aria-label="asset view">
-        <AssetIcon />
-        Assets
-      </ToggleButton>
-    </ToggleButtonGroup>
+    <ViewModeToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
   </Box>
 );

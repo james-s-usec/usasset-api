@@ -25,7 +25,7 @@ export class UppercaseProcessor implements RuleProcessor<UppercaseConfig> {
 
   public process(
     data: unknown,
-    config: UppercaseConfig,
+    _config: UppercaseConfig,
     context: ProcessingContext,
   ): Promise<ProcessingResult> {
     return Promise.resolve(this.performProcessing(data, context));

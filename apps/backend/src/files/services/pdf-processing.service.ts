@@ -27,6 +27,8 @@ const SCALE_FACTOR = 2;
 const DEFAULT_PDF_WIDTH = 612;
 const DEFAULT_PDF_HEIGHT = 792;
 const DEFAULT_PREVIEW_WIDTH = 800;
+const DEFAULT_PAGE_IMAGE_WIDTH = 2048;
+const A4_ASPECT_RATIO = 1.414;
 
 @Injectable()
 export class PdfProcessingService {
@@ -148,24 +150,78 @@ export class PdfProcessingService {
     }
   }
 
+  public async validatePdfPages(fileId: string): Promise<{
+    totalPages: number;
+    validPages: number[];
+    invalidPages: Array<{ page: number; error: string }>;
+  }> {
+    const file = await this.validatePdfFile(fileId);
+    const pdfInfo = await this.getPdfInfo(fileId);
+    
+    const validPages: number[] = [];
+    const invalidPages: Array<{ page: number; error: string }> = [];
+    
+    this.logger.log(`🔍 Validating ${pdfInfo.pageCount} pages for ${file.original_name}`);
+    
+    // Test render each page with minimal width for speed
+    for (let page = 1; page <= pdfInfo.pageCount; page++) {
+      try {
+        await this.renderPreviewImage(fileId, page, 200); // Small size for speed
+        validPages.push(page);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('Missing field') || errorMessage.includes('beginGroup')) {
+          invalidPages.push({ page, error: 'PDF parsing error - complex elements' });
+          this.logger.warn(`📄 Page ${page} validation failed: ${errorMessage}`);
+        } else {
+          invalidPages.push({ page, error: errorMessage });
+          this.logger.error(`📄 Page ${page} validation error: ${errorMessage}`);
+        }
+      }
+    }
+    
+    this.logger.log(`✅ PDF Validation Complete - Valid: ${validPages.length}, Invalid: ${invalidPages.length}`);
+    
+    return {
+      totalPages: pdfInfo.pageCount,
+      validPages,
+      invalidPages,
+    };
+  }
+
   public async getPdfPageImage(params: {
     fileId: string;
     page: number;
     width?: number;
   }): Promise<Buffer> {
-    const { fileId, page, width = 2048 } = params;
+    const { fileId, page, width = DEFAULT_PAGE_IMAGE_WIDTH } = params;
     await this.validatePdfFile(fileId);
 
     try {
       const imageBuffer = await this.renderPreviewImage(fileId, page, width);
       const pngBuffer = await this.processPreviewImage(imageBuffer, width);
 
-      this.logger.log(`Generated PDF page image for page ${page} of ${fileId} at ${width}px`);
+      this.logger.log(
+        `Generated PDF page image for page ${page} of ${fileId} at ${width}px`,
+      );
       return pngBuffer;
     } catch (error) {
+      // Handle unpdf parsing errors with fallback image
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (
+        errorMessage.includes('Missing field') ||
+        errorMessage.includes('beginGroup')
+      ) {
+        this.logger.warn(
+          `UnPDF render failed for page ${page}, creating fallback image: ${errorMessage}`,
+        );
+        return this.createErrorFallbackPageImage(page, width);
+      }
+
       this.handlePreviewError(error, fileId, page, width);
       throw new BadRequestException(
-        `Failed to generate PDF page image: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to generate PDF page image: ${errorMessage}`,
       );
     }
   }
@@ -453,6 +509,43 @@ export class PdfProcessingService {
   ): void {
     this.pageCache.set(cacheKey, errorBuffer);
     this.logger.log(`🚫 Error Fallback Created - Page ${page}, Zoom ${zoom}`);
+  }
+
+  private async createErrorFallbackPageImage(
+    page: number,
+    width: number,
+  ): Promise<Buffer> {
+    const height = Math.floor(width * A4_ASPECT_RATIO); // Approximate A4 aspect ratio
+
+    return sharp({
+      create: {
+        width,
+        height,
+        channels: 3,
+        background: { r: 248, g: 249, b: 250 },
+      },
+    })
+      .composite([
+        {
+          input: Buffer.from(
+            `<svg width="${width}" height="${height}">
+            <text x="50%" y="40%" text-anchor="middle" font-size="48" fill="#666">
+              Page ${page}
+            </text>
+            <text x="50%" y="55%" text-anchor="middle" font-size="24" fill="#999">
+              Rendering Error
+            </text>
+            <text x="50%" y="65%" text-anchor="middle" font-size="18" fill="#999">
+              This page contains complex elements that couldn't be rendered
+            </text>
+          </svg>`,
+          ),
+          top: 0,
+          left: 0,
+        },
+      ])
+      .png()
+      .toBuffer();
   }
 
   public async getPdfTile(params: {
