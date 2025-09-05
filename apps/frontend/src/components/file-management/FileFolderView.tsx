@@ -6,6 +6,8 @@ import { FileFolderHeader } from "./folder-view/FileFolderHeader";
 import { EmptyState } from "./folder-view/EmptyState";
 import { FileGroup } from "./folder-view/FileGroup";
 import { FileCard } from "./FileCard";
+import { CreateFolderDialog } from "./CreateFolderDialog";
+import { useFileManagement } from "./useFileManagement";
 
 interface Folder {
   id: string;
@@ -83,27 +85,89 @@ const FileGroupsList: React.FC<{
   </>
 );
 
+const useFolderDialogState = (
+  createFolder: (data: { name: string; description?: string; color?: string }) => Promise<void>, 
+  onRefresh?: () => Promise<void>
+): {
+  createDialogOpen: boolean;
+  handleCreateFolder: () => void;
+  handleCloseDialog: () => void;
+  handleFolderCreated: (folderData: { name: string; description?: string; color?: string }) => Promise<void>;
+} => {
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  const handleCreateFolder = (): void => setCreateDialogOpen(true);
+  const handleCloseDialog = (): void => setCreateDialogOpen(false);
+
+  const handleFolderCreated = async (folderData: { name: string; description?: string; color?: string }): Promise<void> => {
+    await createFolder(folderData);
+    setCreateDialogOpen(false);
+    if (onRefresh) {
+      await onRefresh();
+    }
+  };
+
+  return { createDialogOpen, handleCreateFolder, handleCloseDialog, handleFolderCreated };
+};
+
+interface FolderViewContentProps {
+  groupedData: Array<[string, GroupData]>;
+  expandedPanels: Set<string>;
+  handlePanelChange: (panelId: string) => (_event: React.SyntheticEvent<Element, Event>, isExpanded: boolean) => void;
+  onDownload: (fileId: string) => Promise<void>;
+  onDelete: (fileId: string, fileName: string) => Promise<void>;
+  onPreview?: (fileId: string) => Promise<string>;
+}
+
+const FolderViewContent: React.FC<FolderViewContentProps> = ({ 
+  groupedData, 
+  expandedPanels, 
+  handlePanelChange, 
+  onDownload,
+  onDelete,
+  onPreview
+}) => (
+  <Box sx={{ p: 2 }}>
+    {groupedData.length === 0 ? (
+      <EmptyState />
+    ) : (
+      <FileGroupsList
+        groupedData={groupedData}
+        expandedPanels={expandedPanels}
+        handlePanelChange={handlePanelChange}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        onPreview={onPreview}
+      />
+    )}
+  </Box>
+);
+
 export const FileFolderView: React.FC<FileFolderViewProps> = (props) => {
   const groupedData = useGroupedFiles(props.files, props.folders, props.projects);
   const { expandedPanels, handlePanelChange } = usePanelExpansion();
+  const { createFolder } = useFileManagement();
+  const { createDialogOpen, handleCreateFolder, handleCloseDialog, handleFolderCreated } = useFolderDialogState(createFolder, props.onRefresh);
 
   return (
     <Paper sx={{ mt: 2 }}>
-      <FileFolderHeader onRefresh={props.onRefresh} />
-      <Box sx={{ p: 2 }}>
-        {groupedData.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <FileGroupsList
-            groupedData={groupedData}
-            expandedPanels={expandedPanels}
-            handlePanelChange={handlePanelChange}
-            onDownload={props.onDownload}
-            onDelete={props.onDelete}
-            onPreview={props.onPreview}
-          />
-        )}
-      </Box>
+      <FileFolderHeader 
+        onRefresh={props.onRefresh}
+        onCreateFolder={handleCreateFolder}
+      />
+      <FolderViewContent
+        groupedData={groupedData}
+        expandedPanels={expandedPanels}
+        handlePanelChange={handlePanelChange}
+        onDownload={props.onDownload}
+        onDelete={props.onDelete}
+        onPreview={props.onPreview}
+      />
+      <CreateFolderDialog
+        open={createDialogOpen}
+        onClose={handleCloseDialog}
+        onCreateFolder={handleFolderCreated}
+      />
     </Paper>
   );
 };

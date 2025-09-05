@@ -65,9 +65,12 @@
 
 The backend Docker container includes automatic database seeding for production deployments. This creates essential system data including:
 
-- **Default Users**: Admin, Super Admin, and Regular User accounts
+- **Development Users**: 3 generic accounts (admin@usasset.com, superadmin@usasset.com, user@usasset.com)
+- **Production Users**: 3 real USEngineering.com accounts (Tom Poeling, Levi Morgan, James Swanson)
+- **Sample Projects**: 3 active projects (Edwards Pavillion, Shaw Cancer Center, Wichita Animal Hospital)
 - **Default Folders**: 9 pre-configured folders (Calculations, Controls, Cost Estimates, Drawings, Field, For Encore, Issues Log, Photos, Submittals)
 - **Asset Column Aliases**: 143+ mappings for CSV import compatibility
+- **Pipeline Cleaning Rules**: 4 example ETL data cleaning rules (TRIM, REGEX_REPLACE, EXACT_REPLACE, REMOVE_DUPLICATES)
 
 ### Enabling Seeding in Production
 
@@ -118,18 +121,36 @@ az containerapp logs show \
   --follow
 
 # Look for these success messages:
-# ✅ Seeded users: { admin, superAdmin, user }
+# ✅ Seeded users: { admin, superAdmin, user, tomPoeling, leviMorgan, jamesSwanson }
+# ✅ Seeded projects: Edwards Pavillion, Shaw Cancer Center, Wichita Animal Hospital
 # ✅ Seeded folders: Calculations, Controls, Cost Estimates...
 # ✅ Seeded asset column aliases: 143
+# ✅ Seeded pipeline rules: Trim Whitespace from Text Fields, Standardize Manufacturer Names...
 # 🌱 Database seeding completed!
+# 📊 Summary:
+#    • Users: 6 (3 development + 3 production)
+#    • Projects: 3
+#    • Folders: 9
+#    • Asset column aliases: 143
+#    • Pipeline rules: 4
 ```
 
 ### Default Seeded Data
 
-**Users Created:**
+**Development Users Created:**
 - `admin@usasset.com` (Admin role)
 - `superadmin@usasset.com` (Super Admin role)
 - `user@usasset.com` (Regular User role)
+
+**Production Users Created:**
+- `Tom.Poeling@USEngineering.com` (Admin role)
+- `Levi.Morgan@USEngineering.com` (User role)
+- `James.Swanson@USEngineering.com` (Super Admin role)
+
+**Projects Created:**
+- Edwards Pavillion (Active - Owner: Tom Poeling)
+- Shaw Cancer Center (Active - Owner: James Swanson)
+- Wichita Animal Hospital (Active - Owner: Tom Poeling)
 
 **Folders Created:**
 - Calculations (Blue #2196F3)
@@ -141,6 +162,111 @@ az containerapp logs show \
 - Issues Log (Red #F44336)
 - Photos (Cyan #00BCD4)
 - Submittals (Light Green #8BC34A)
+
+**Pipeline Rules Created:**
+- Trim Whitespace from Text Fields (CLEAN/TRIM - Priority 10)
+- Standardize Manufacturer Names (CLEAN/REGEX_REPLACE - Priority 20)
+- Fix Common Misspellings (CLEAN/EXACT_REPLACE - Priority 30)
+- Remove Duplicate Values in Fields (CLEAN/REMOVE_DUPLICATES - Priority 40)
+
+### Manual Database Seeding (Without Rebuild)
+
+Sometimes you need to seed an existing production database without rebuilding and redeploying the entire application. This is useful for:
+- Adding missing reference data
+- Updating pipeline rules after deployment
+- Seeding a database that was restored from backup
+
+#### Option 1: Trigger Seeding via Container App
+
+Re-run the existing container with seeding enabled:
+```bash
+# Enable seeding on next restart
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --set-env-vars RUN_SEED=true
+
+# Restart the container to trigger seeding
+az containerapp revision restart \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg
+
+# Monitor logs to verify seeding
+az containerapp logs show \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --follow
+
+# After seeding completes, disable it for future restarts
+az containerapp update \
+  --name usasset-backend \
+  --resource-group useng-usasset-api-rg \
+  --set-env-vars RUN_SEED=false
+```
+
+#### Option 2: Run Seeding from Local Development
+
+Connect directly to production database and run seed script:
+```bash
+# From project root
+cd apps/backend
+
+# Set production database URL temporarily
+export DATABASE_URL="<PRODUCTION_DATABASE_URL>"
+
+# Run seeding script
+npx prisma db seed
+
+# Verify seeding completed successfully
+echo "Check for success messages above"
+```
+
+**⚠️ IMPORTANT**: Get the production database URL from Azure Key Vault:
+```bash
+az keyvault secret show \
+  --vault-name usasset-kv-yf2eqktewmxp2 \
+  --name database-connection-string \
+  --query value -o tsv
+```
+
+#### Option 3: Direct SQL Execution (Advanced)
+
+For specific data additions without full seeding:
+```bash
+# Connect to production database using Azure CLI
+az postgres flexible-server connect \
+  --name usasset-db-yf2eqktewmxp2-v2 \
+  --admin-user dbadmin \
+  --database usasset
+
+# Or use connection string directly
+psql "<PRODUCTION_DATABASE_URL>"
+
+# Then run specific INSERT/UPSERT statements as needed
+```
+
+#### Verification After Manual Seeding
+
+Always verify seeding completed correctly:
+```bash
+# Check user count
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/users" | jq '.data | length'
+
+# Check project count  
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/projects" | jq '.data | length'
+
+# Check folder count
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/folders" | jq '.data | length'
+
+# Check pipeline rules count
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/pipeline/rules" | jq '.data.rules | length'
+```
+
+**Expected counts after seeding:**
+- Users: 6
+- Projects: 3  
+- Folders: 9
+- Pipeline rules: 4+
 
 ### Troubleshooting Seeding Issues
 
@@ -324,6 +450,29 @@ curl -s https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io
 # Frontend - CHECK THE FOOTER!
 # Open https://usasset-frontend.purpledune-aecc1021.eastus.azurecontainerapps.io/
 # Look at bottom of page - should show: "Version: <commit> | Built: <timestamp>"
+
+# 🚨 CRITICAL: VERIFY DATABASE SEEDING (REQUIRED FOR NEW DEPLOYMENTS)
+echo "=== Verifying Database Seeding ==="
+
+# Check user count (should be 6 after seeding)
+echo "Users:"
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/users" | jq '.data | length'
+
+# Check project count (should be 3 after seeding)  
+echo "Projects:"
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/projects" | jq '.data | length'
+
+# Check folder count (should be 9 after seeding)
+echo "Folders:"
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/folders" | jq '.data | length'
+
+# Check pipeline rules count (should be 4+ after seeding)
+echo "Pipeline Rules:"
+curl -s "https://usasset-backend.purpledune-aecc1021.eastus.azurecontainerapps.io/api/pipeline/rules" | jq '.data.rules | length'
+
+echo "=== Expected Counts After Seeding ==="
+echo "Users: 6, Projects: 3, Folders: 9, Pipeline Rules: 4+"
+echo "⚠️  If counts are 0 or low, run manual seeding (see Manual Database Seeding section)"
 
 # Check active revisions
 az containerapp revision list -n usasset-backend -g useng-usasset-api-rg --query "[?properties.active==\`true\`].name" -o tsv

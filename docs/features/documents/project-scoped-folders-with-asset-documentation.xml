@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature-plan>
+  <metadata>
+    <title>Project-Scoped Folders with Asset-Level Documentation</title>
+    <version>1.0</version>
+    <created-date>2025-09-05</created-date>
+    <status>design-complete</status>
+    <priority>high</priority>
+    <estimated-effort>2-3 weeks</estimated-effort>
+  </metadata>
+
+  <context>
+    <problem>
+      <description>
+        Current folder system uses global shared folders that don't scale well for multiple projects.
+        Files are organized either by project OR by folder, leading to poor organization and mixed content.
+        Asset documentation is scattered across generic folders with no direct asset association.
+      </description>
+      
+      <current-limitations>
+        <limitation>Global folder names must be unique across all projects</limitation>
+        <limitation>Folder lists become unwieldy with many projects</limitation>
+        <limitation>No project isolation - files from different projects mixed together</limitation>
+        <limitation>Asset documentation not directly linked to specific assets</limitation>
+        <limitation>Difficult to implement project-based security/permissions</limitation>
+      </limitations>
+    </problem>
+
+    <business-value>
+      <benefit>Better organization and scalability for multi-project environments</benefit>
+      <benefit>Industry-standard project isolation and security model</benefit>
+      <benefit>Direct asset-to-documentation traceability for maintenance and compliance</benefit>
+      <benefit>Flexible folder structures customized per project type</benefit>
+      <benefit>Easier project archiving and lifecycle management</benefit>
+    </business-value>
+
+    <industry-standards>
+      <standard>Google Drive/Workspace: Project-scoped shared drives</standard>
+      <standard>Microsoft SharePoint: Project sites with isolated folder structures</standard>
+      <standard>Autodesk Vault: Project-based file organization</standard>
+      <standard>GitHub/GitLab: Repository-scoped file organization</standard>
+      <standard>Enterprise PLM systems: Asset-centric documentation</standard>
+    </industry-standards>
+  </context>
+
+  <solution>
+    <overview>
+      Implement a three-level documentation hierarchy:
+      1. Project Level: High-level project documentation in project-scoped folders
+      2. Asset Level: Equipment-specific documentation directly linked to assets
+      3. File Categorization: Structured file types (manuals, specs, photos, etc.)
+    </overview>
+
+    <architecture>
+      <hierarchy>
+        <level name="project" description="Project contains multiple project-scoped folders and assets"/>
+        <level name="folder" description="Project-scoped folders for general project documentation"/>
+        <level name="asset" description="Individual assets with dedicated documentation and notes"/>
+        <level name="file" description="Files can belong to project folders OR specific assets"/>
+      </hierarchy>
+
+      <organization-structure>
+        <example>
+          📁 Edwards Pavillion Project
+            📂 Project-Level Folders
+              📂 Calculations (project-scoped)
+              📂 Drawings (project-scoped)  
+              📂 Photos (project-scoped)
+            📋 Assets (125 assets)
+              🔧 HVAC-001: Main Chiller Unit
+                📄 Asset Files (manuals, photos, specs)
+                📝 Asset Notes (structured 6-field notes)
+              🔧 HVAC-002: Rooftop Unit #1
+                📄 Asset Files
+                📝 Asset Notes
+        </example>
+      </organization-structure>
+    </architecture>
+  </solution>
+
+  <technical-implementation>
+    <database-changes>
+      <schema-updates>
+        <model name="Folder">
+          <change type="add-field">project_id String (required)</change>
+          <change type="add-relation">project Project @relation(fields: [project_id], references: [id])</change>
+          <change type="modify-constraint">@@unique([name, project_id]) // Names unique within project</change>
+          <change type="remove-constraint">Remove global unique constraint on name</change>
+          <change type="add-index">@@index([project_id])</change>
+        </model>
+
+        <model name="File">
+          <change type="add-field">asset_id String? // Optional asset association</change>
+          <change type="add-field">file_type FileType @default(DOCUMENT)</change>
+          <change type="add-relation">asset Asset? @relation(fields: [asset_id], references: [id])</change>
+          <change type="add-index">@@index([asset_id])</change>
+        </model>
+
+        <enum name="FileType">
+          <values>
+            <value>DOCUMENT</value>
+            <value>MANUAL</value>
+            <value>SPECIFICATION</value>
+            <value>PHOTO</value>
+            <value>DRAWING</value>
+            <value>CERTIFICATE</value>
+            <value>MAINTENANCE</value>
+            <value>OTHER</value>
+          </values>
+        </enum>
+
+        <model name="Project">
+          <change type="add-relation">folders Folder[] // Project has many folders</change>
+          <change type="add-relation">files File[] // Project has many files (existing)</change>
+          <change type="add-relation">assets Asset[] // Project has many assets (existing)</change>
+        </model>
+
+        <model name="Asset">
+          <change type="add-relation">files File[] // Asset has many files</change>
+          <note>Asset already has 6 structured note fields (note1-note6 with subjects)</note>
+        </model>
+      </schema-updates>
+
+      <migration-strategy>
+        <step order="1">Create migration to add project_id to Folder model</step>
+        <step order="2">Create migration to add asset_id and file_type to File model</step>
+        <step order="3">Create migration to add FileType enum</step>
+        <step order="4">Data migration: Assign existing global folders to projects (manual/script)</step>
+        <step order="5">Update unique constraints and indexes</step>
+      </migration-strategy>
+
+      <seeding-updates>
+        <seeding-order>
+          <step order="1">Users (existing)</step>
+          <step order="2">Projects (existing)</step>
+          <step order="3">Assets (NEW - must be added)</step>
+          <step order="4">Project-scoped Folders (updated)</step>
+          <step order="5">Pipeline Rules (existing)</step>
+          <step order="6">Asset Column Aliases (existing)</step>
+        </seeding-order>
+
+        <required-test-data>
+          <category name="Sample Assets">
+            <asset project="Edwards Pavillion" tag="HVAC-001" name="Main Chiller Unit" manufacturer="Carrier"/>
+            <asset project="Edwards Pavillion" tag="HVAC-002" name="Rooftop Unit #1" manufacturer="Trane"/>
+            <asset project="Edwards Pavillion" tag="ELEC-001" name="Main Electrical Panel" manufacturer="GE"/>
+            <asset project="Shaw Cancer Center" tag="HVAC-101" name="Operating Room HVAC" manufacturer="Johnson Controls"/>
+            <asset project="Shaw Cancer Center" tag="MED-001" name="MRI Cooling System" manufacturer="Siemens"/>
+            <asset project="Wichita Animal Hospital" tag="HVAC-201" name="Kennel Ventilation" manufacturer="Carrier"/>
+          </category>
+
+          <category name="Project-Scoped Folders">
+            <folder project="Edwards Pavillion" name="Calculations" color="#2196F3"/>
+            <folder project="Edwards Pavillion" name="Drawings" color="#9C27B0"/>
+            <folder project="Edwards Pavillion" name="Photos" color="#00BCD4"/>
+            <folder project="Shaw Cancer Center" name="Calculations" color="#2196F3"/>
+            <folder project="Shaw Cancer Center" name="Medical Equipment" color="#E91E63"/>
+            <folder project="Wichita Animal Hospital" name="Photos" color="#00BCD4"/>
+          </category>
+
+          <category name="Asset Documentation">
+            <asset-file asset="HVAC-001" type="MANUAL" filename="carrier-chiller-manual.pdf"/>
+            <asset-file asset="HVAC-001" type="PHOTO" filename="chiller-installation.jpg"/>
+            <asset-note asset="HVAC-001" subject="Installation Notes" content="Installed 2024-01-15 with custom mounting"/>
+            <asset-file asset="HVAC-002" type="SPECIFICATION" filename="trane-rtu-specs.pdf"/>
+            <asset-note asset="HVAC-002" subject="Maintenance Schedule" content="Filter change every 3 months"/>
+          </category>
+        </required-test-data>
+
+        <foreign-key-dependencies>
+          <dependency>Folders.project_id → Projects.id (REQUIRED)</dependency>
+          <dependency>Files.asset_id → Assets.id (OPTIONAL)</dependency>
+          <dependency>Files.project_id → Projects.id (OPTIONAL)</dependency>
+          <dependency>Files.folder_id → Folders.id (OPTIONAL)</dependency>
+          <dependency>Assets.projectId → Projects.id (OPTIONAL - existing)</dependency>
+        </foreign-key-dependencies>
+      </seeding-updates>
+    </database-changes>
+
+    <api-changes>
+      <endpoints>
+        <group name="Project-Scoped Folders">
+          <endpoint method="GET" path="/api/projects/:projectId/folders">
+            <description>Get all folders for a specific project</description>
+            <response>Array of project-scoped folders with file counts</response>
+          </endpoint>
+          
+          <endpoint method="POST" path="/api/projects/:projectId/folders">
+            <description>Create new folder within project</description>
+            <body>{ name: string, description?: string, color?: string }</body>
+            <validation>Name must be unique within project only</validation>
+          </endpoint>
+          
+          <endpoint method="GET" path="/api/projects/:projectId/folders/:folderId">
+            <description>Get specific folder within project</description>
+          </endpoint>
+          
+          <endpoint method="PUT" path="/api/projects/:projectId/folders/:folderId">
+            <description>Update folder within project</description>
+          </endpoint>
+          
+          <endpoint method="DELETE" path="/api/projects/:projectId/folders/:folderId">
+            <description>Delete folder within project</description>
+          </endpoint>
+        </group>
+
+        <group name="Asset Documentation">
+          <endpoint method="GET" path="/api/projects/:projectId/assets/:assetId/files">
+            <description>Get all files for specific asset</description>
+            <response>Array of files with file_type categorization</response>
+          </endpoint>
+          
+          <endpoint method="POST" path="/api/projects/:projectId/assets/:assetId/files">
+            <description>Upload file to specific asset</description>
+            <body>multipart/form-data with file_type selection</body>
+          </endpoint>
+          
+          <endpoint method="DELETE" path="/api/projects/:projectId/assets/:assetId/files/:fileId">
+            <description>Delete asset file</description>
+          </endpoint>
+          
+          <endpoint method="GET" path="/api/projects/:projectId/assets/:assetId/notes">
+            <description>Get asset notes (structured 6-field notes)</description>
+          </endpoint>
+          
+          <endpoint method="PUT" path="/api/projects/:projectId/assets/:assetId/notes">
+            <description>Update asset notes</description>
+            <body>{ note1Subject?: string, note1?: string, ..., note6Subject?: string, note6?: string }</body>
+          </endpoint>
+          
+          <endpoint method="GET" path="/api/projects/:projectId/assets/:assetId/documentation">
+            <description>Get complete asset documentation (files + notes)</description>
+            <response>Combined response with files array and notes array</response>
+          </endpoint>
+        </group>
+
+        <group name="Enhanced File Operations">
+          <endpoint method="POST" path="/api/projects/:projectId/files">
+            <description>Upload file to project (folder OR asset context)</description>
+            <body>multipart/form-data with optional folder_id, asset_id, file_type</body>
+          </endpoint>
+          
+          <endpoint method="PATCH" path="/api/files/:fileId/move">
+            <description>Move file between contexts (folder to asset, etc.)</description>
+            <body>{ folder_id?: string, asset_id?: string, file_type?: FileType }</body>
+          </endpoint>
+        </group>
+      </endpoints>
+
+      <breaking-changes>
+        <change>Global /api/folders endpoints will be deprecated</change>
+        <change>Folder creation now requires project context</change>
+        <change>File organization now supports three-level hierarchy</change>
+      </breaking-changes>
+    </api-changes>
+
+    <frontend-changes>
+      <types>
+        <interface name="Folder">
+          <field>project_id: string // NEW: Required project association</field>
+          <field>project?: Project // NEW: Populated project data</field>
+        </interface>
+        
+        <interface name="File">
+          <field>asset_id?: string // NEW: Optional asset association</field>
+          <field>asset?: Asset // NEW: Populated asset data</field>
+          <field>file_type: FileType // NEW: File categorization</field>
+        </interface>
+        
+        <interface name="ProjectWithFolders">
+          <field>extends Project</field>
+          <field>folders: Folder[] // NEW: Project includes folders</field>
+        </interface>
+        
+        <enum name="FileType">
+          <values>DOCUMENT, MANUAL, SPECIFICATION, PHOTO, DRAWING, CERTIFICATE, MAINTENANCE, OTHER</values>
+        </enum>
+      </types>
+
+      <components>
+        <component name="ProjectFolderView">
+          <description>Replaces global FolderView with project-scoped version</description>
+          <props>projectId: string, project: Project</props>
+          <features>
+            <feature>Expandable project sections</feature>
+            <feature>Project-scoped folder creation</feature>
+            <feature>Asset documentation preview</feature>
+          </features>
+        </component>
+        
+        <component name="AssetDocumentationPanel">
+          <description>Complete asset documentation interface</description>
+          <tabs>
+            <tab name="Files">Asset file list with upload and categorization</tab>
+            <tab name="Notes">6-field structured notes editor</tab>
+            <tab name="Summary">Documentation overview and statistics</tab>
+          </tabs>
+        </component>
+        
+        <component name="FileTypeSelector">
+          <description>File categorization during upload</description>
+          <options>Manual, Specification, Photo, Drawing, Certificate, Maintenance, Other</options>
+        </component>
+        
+        <component name="AssetFileUpload">
+          <description>Asset-specific file upload with type selection</description>
+          <props>assetId: string, projectId: string</props>
+        </component>
+        
+        <component name="CreateProjectFolderDialog">
+          <description>Updated folder creation with project context</description>
+          <props>projectId: string, project: Project</props>
+          <validation>Folder names unique within project only</validation>
+        </component>
+      </components>
+
+      <navigation-changes>
+        <current>Files → Folder View → Global Folders</current>
+        <new>Files → Project View → Project Folders + Asset Documentation</new>
+        
+        <hierarchy>
+          📁 Projects
+            📁 Edwards Pavillion (3 folders, 24 files, 45 assets)
+              📂 Project Folders
+                📂 Calculations (5 files)
+                📂 Drawings (12 files)
+              📋 Assets (45 assets)
+                🔧 HVAC-001 (4 files, 3 notes)
+                🔧 HVAC-002 (2 files, 1 note)
+        </hierarchy>
+      </navigation-changes>
+    </frontend-changes>
+  </technical-implementation>
+
+  <implementation-phases>
+    <phase number="1" name="Database Foundation">
+      <duration>3-4 days</duration>
+      <tasks>
+        <task>Create database migration for project_id in Folder model</task>
+        <task>Create database migration for asset_id and file_type in File model</task>
+        <task>Add FileType enum</task>
+        <task>Update Prisma schema and generate client</task>
+        <task>Create data migration script for existing folders</task>
+      </tasks>
+      <deliverables>
+        <deliverable>Updated database schema with project-scoped folders</deliverable>
+        <deliverable>Asset-file relationship established</deliverable>
+        <deliverable>File categorization system in place</deliverable>
+      </deliverables>
+    </phase>
+
+    <phase number="2" name="Backend API Implementation">
+      <duration>5-6 days</duration>
+      <tasks>
+        <task>Implement project-scoped folder CRUD endpoints</task>
+        <task>Implement asset documentation endpoints (files + notes)</task>
+        <task>Update existing file upload to support asset context</task>
+        <task>Add file type categorization logic</task>
+        <task>Update folder validation (unique within project)</task>
+        <task>Add comprehensive API tests for new endpoints</task>
+      </tasks>
+      <deliverables>
+        <deliverable>Complete project-scoped folder API</deliverable>
+        <deliverable>Asset documentation API endpoints</deliverable>
+        <deliverable>Enhanced file upload with categorization</deliverable>
+        <deliverable>Updated test suite covering new functionality</deliverable>
+      </deliverables>
+    </phase>
+
+    <phase number="3" name="Frontend Core Components">
+      <duration>4-5 days</duration>
+      <tasks>
+        <task>Update TypeScript interfaces for new data structures</task>
+        <task>Create ProjectFolderView component</task>
+        <task>Update CreateFolderDialog for project context</task>
+        <task>Implement FileTypeSelector component</task>
+        <task>Update file upload components for asset context</task>
+        <task>Update API service layer for project-scoped calls</task>
+      </tasks>
+      <deliverables>
+        <deliverable>Updated TypeScript types and interfaces</deliverable>
+        <deliverable>Project-scoped folder management UI</deliverable>
+        <deliverable>Enhanced file upload with categorization</deliverable>
+        <deliverable>Updated API integration layer</deliverable>
+      </deliverables>
+    </phase>
+
+    <phase number="4" name="Asset Documentation UI">
+      <duration>3-4 days</duration>
+      <tasks>
+        <task>Create AssetDocumentationPanel component</task>
+        <task>Implement asset file list with categorization</task>
+        <task>Create asset notes editor (6-field structured notes)</task>
+        <task>Add asset file upload with type selection</task>
+        <task>Create documentation summary/statistics view</task>
+        <task>Integrate asset documentation into asset detail pages</task>
+      </tasks>
+      <deliverables>
+        <deliverable>Complete asset documentation interface</deliverable>
+        <deliverable>Structured asset notes management</deliverable>
+        <deliverable>Asset-specific file upload and management</deliverable>
+        <deliverable>Documentation statistics and overview</deliverable>
+      </deliverables>
+    </phase>
+
+    <phase number="5" name="Integration & Testing">
+      <duration>2-3 days</duration>
+      <tasks>
+        <task>Update main file management navigation</task>
+        <task>Integrate new components into existing pages</task>
+        <task>Update smoke tests for new functionality</task>
+        <task>End-to-end testing of complete documentation workflow</task>
+        <task>Performance testing with large datasets</task>
+        <task>Update documentation and user guides</task>
+      </tasks>
+      <deliverables>
+        <deliverable>Fully integrated documentation system</deliverable>
+        <deliverable>Comprehensive test coverage</deliverable>
+        <deliverable>Updated user documentation</deliverable>
+        <deliverable>Performance validation</deliverable>
+      </deliverables>
+    </phase>
+  </implementation-phases>
+
+  <testing-strategy>
+    <unit-tests>
+      <category name="Backend API">
+        <test>Project-scoped folder CRUD operations</test>
+        <test>Asset documentation endpoints</test>
+        <test>File categorization and upload</test>
+        <test>Folder name uniqueness within project</test>
+        <test>Asset notes management</test>
+      </category>
+      
+      <category name="Frontend Components">
+        <test>ProjectFolderView rendering and interactions</test>
+        <test>AssetDocumentationPanel functionality</test>
+        <test>File type selection and validation</test>
+        <test>Asset notes editor</test>
+        <test>File upload with context</test>
+      </category>
+    </unit-tests>
+
+    <integration-tests>
+      <test name="Complete Documentation Workflow">
+        <steps>
+          <step>Create project-scoped folder</step>
+          <step>Upload file to folder</step>
+          <step>Create asset</step>
+          <step>Upload file to asset with categorization</step>
+          <step>Add asset notes</step>
+          <step>Verify complete documentation hierarchy</step>
+        </steps>
+      </test>
+      
+      <test name="Multi-Project Isolation">
+        <steps>
+          <step>Create folders with same names in different projects</step>
+          <step>Verify folder name uniqueness scoped to project</step>
+          <step>Verify project isolation in file lists</step>
+        </steps>
+      </test>
+    </integration-tests>
+
+    <smoke-tests>
+      <test name="Extended Folder Operations Test">
+        <description>Update existing folder-operations-test.sh to include project-scoped operations</description>
+        <coverage>
+          <item>Project-scoped folder creation</item>
+          <item>Asset documentation upload</item>
+          <item>File categorization</item>
+          <item>Asset notes management</item>
+        </coverage>
+      </test>
+    </smoke-tests>
+  </testing-strategy>
+
+  <migration-considerations>
+    <data-migration>
+      <existing-folders>
+        <strategy>Assign existing global folders to a default "Legacy" project</strategy>
+        <alternative>Distribute existing folders across existing projects based on file associations</alternative>
+        <recommendation>Create "Shared Resources" project for truly global folders</recommendation>
+      </existing-folders>
+      
+      <existing-files>
+        <strategy>Files with project_id but no folder_id remain at project level</strategy>
+        <strategy>Files with folder_id get updated folder relationship (now project-scoped)</strategy>
+        <strategy>Unorganized files remain unorganized within their project context</strategy>
+      </existing-files>
+    </data-migration>
+
+    <user-communication>
+      <notification>Inform users about folder organization changes</notification>
+      <training>Provide documentation on new three-level hierarchy</training>
+      <support>Offer migration assistance for existing folder structures</support>
+    </user-communication>
+
+    <rollback-strategy>
+      <database>Maintain database migration rollback scripts</database>
+      <api>Keep legacy API endpoints available during transition period</api>
+      <frontend>Feature flags to toggle between old and new folder views</frontend>
+    </rollback-strategy>
+  </migration-considerations>
+
+  <success-criteria>
+    <functional>
+      <criterion>Users can create project-scoped folders with duplicate names across projects</criterion>
+      <criterion>Files can be organized at project, folder, or asset level</criterion>
+      <criterion>Asset documentation is directly accessible from asset details</criterion>
+      <criterion>File categorization helps users organize asset documentation</criterion>
+      <criterion>Asset notes provide structured documentation fields</criterion>
+      <criterion>Complete documentation hierarchy is navigable and searchable</criterion>
+    </functional>
+
+    <performance>
+      <criterion>Folder lists load in &lt;500ms for projects with 100+ folders</criterion>
+      <criterion>Asset documentation loads in &lt;1s for assets with 20+ files</criterion>
+      <criterion>File upload maintains current performance characteristics</criterion>
+    </performance>
+
+    <usability>
+      <criterion>Users can easily navigate between project, folder, and asset documentation</criterion>
+      <criterion>File upload context is clear and intuitive</criterion>
+      <criterion>Asset documentation is discoverable from asset management pages</criterion>
+      <criterion>Folder management is accessible and follows familiar patterns</criterion>
+    </usability>
+
+    <scalability>
+      <criterion>System supports 1000+ projects with 100+ folders each</criterion>
+      <criterion>Asset documentation scales to 10,000+ assets with multiple files each</criterion>
+      <criterion>Database queries remain efficient with large datasets</criterion>
+    </scalability>
+  </success-criteria>
+
+  <risks-and-mitigations>
+    <risk category="technical" severity="medium">
+      <description>Database migration complexity for existing folder data</description>
+      <mitigation>Comprehensive testing of migration scripts on production data copies</mitigation>
+      <contingency>Rollback capability and staged migration approach</contingency>
+    </risk>
+
+    <risk category="user-experience" severity="low">
+      <description>Learning curve for new three-level hierarchy</description>
+      <mitigation>Progressive disclosure and intuitive navigation design</mitigation>
+      <contingency>Training materials and in-app guidance</contingency>
+    </risk>
+
+    <risk category="performance" severity="low">
+      <description>Increased database queries for hierarchical data loading</description>
+      <mitigation>Efficient queries with proper indexing and eager loading</mitigation>
+      <contingency>Caching layer and query optimization</contingency>
+    </risk>
+
+    <risk category="integration" severity="medium">
+      <description>Breaking changes to existing file management workflows</description>
+      <mitigation>Comprehensive testing and gradual rollout</mitigation>
+      <contingency>Feature flags and rollback procedures</contingency>
+    </risk>
+  </risks-and-mitigations>
+
+  <future-enhancements>
+    <enhancement name="Advanced File Search">
+      <description>Search across project, folder, and asset documentation with filters</description>
+      <priority>high</priority>
+    </enhancement>
+
+    <enhancement name="Documentation Templates">
+      <description>Predefined folder structures and file templates for different project types</description>
+      <priority>medium</priority>
+    </enhancement>
+
+    <enhancement name="Asset Documentation Workflows">
+      <description>Review/approval workflows for critical asset documentation</description>
+      <priority>medium</priority>
+    </enhancement>
+
+    <enhancement name="Documentation Analytics">
+      <description>Insights on documentation completeness and usage patterns</description>
+      <priority>low</priority>
+    </enhancement>
+
+    <enhancement name="External System Integration">
+      <description>Sync asset documentation with CMMS and other maintenance systems</description>
+      <priority>medium</priority>
+    </enhancement>
+  </future-enhancements>
+</feature-plan>

@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
-import type { PipelineRule, ImportJob, ApiResponse } from '../types';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import type { PipelineRule, ImportJob } from '../types';
+import { apiService } from '../../../../services/api';
 
 interface RulesState {
   setLoading: (loading: boolean) => void;
@@ -9,19 +8,6 @@ interface RulesState {
   setRules: (rules: PipelineRule[]) => void;
   setJobs: (jobs: ImportJob[]) => void;
 }
-
-// Generic fetch helper to reduce duplication
-const fetchData = async <T>(
-  url: string,
-  errorMessage: string
-): Promise<T> => {
-  const response = await fetch(url);
-  const data: ApiResponse<T> = await response.json();
-  if (!data.success) {
-    throw new Error(data.error?.message || errorMessage);
-  }
-  return data.data;
-};
 
 // Wrapper to handle loading state
 const withLoadingState = async (
@@ -41,11 +27,8 @@ const withLoadingState = async (
 const createRulesLoader = (state: RulesState) => async (): Promise<void> => {
   await withLoadingState(state, async () => {
     try {
-      const data = await fetchData<{ rules: PipelineRule[] }>(
-        `${API_BASE_URL}/api/pipeline/rules`,
-        'Failed to load rules'
-      );
-      state.setRules(data.rules || []);
+      const response = await apiService.get<{ success: boolean; data: { rules: PipelineRule[] } }>('/api/pipeline/rules');
+      state.setRules(response.data?.rules || []);
     } catch (err) {
       state.setError('Failed to load rules');
       console.error('Error loading rules:', err);
@@ -57,11 +40,8 @@ const createRulesLoader = (state: RulesState) => async (): Promise<void> => {
 const createJobsLoader = (state: RulesState) => async (): Promise<void> => {
   await withLoadingState(state, async () => {
     try {
-      const data = await fetchData<{ jobs: ImportJob[] }>(
-        `${API_BASE_URL}/api/pipeline/jobs`,
-        'Failed to load jobs'
-      );
-      state.setJobs(data.jobs || []);
+      const response = await apiService.get<{ success: boolean; data: { jobs: ImportJob[] } }>('/api/pipeline/jobs');
+      state.setJobs(response.data?.jobs || []);
     } catch (err) {
       state.setError('Failed to load jobs');
       console.error('Error loading jobs:', err);

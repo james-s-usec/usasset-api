@@ -12,6 +12,7 @@ import { TestResults } from './TestResults';
 import { RulesList } from './RulesList';
 import { JobsList } from './JobsList';
 import { RuleEditor } from './RuleEditor';
+import { FieldMappingsTable } from '../components/FieldMappingsTable';
 import type { PipelineRule, NewRuleData, ImportJob, RulesTestResult } from './types';
 
 interface TabHeaderProps {
@@ -32,6 +33,7 @@ const TabHeader: React.FC<TabHeaderProps> = ({ currentTab, onTabChange }) => (
     >
       <Tab label="Rules" />
       <Tab label="Jobs" />
+      <Tab label="Field Mappings" />
     </Tabs>
   </Box>
 );
@@ -126,6 +128,7 @@ interface MainContentProps {
   handleEditRule: (rule: PipelineRule) => void;
   deleteRule: (id: string) => Promise<boolean>;
   setShowRuleEditor: (show: boolean) => void;
+  selectedFile?: string | null;
 }
 
 const MainContent: React.FC<MainContentProps> = (props) => (
@@ -150,6 +153,11 @@ const MainContent: React.FC<MainContentProps> = (props) => (
         loading={props.loading} 
         onRefresh={props.loadJobs} 
       />
+    )}
+    {props.currentTab === 2 && (
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
+        <FieldMappingsTable selectedFile={null} />
+      </Box>
     )}
   </>
 );

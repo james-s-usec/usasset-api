@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, ProjectStatus } from '@prisma/client';
+import { PrismaClient, UserRole, ProjectStatus, PipelinePhase, RuleType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -230,12 +230,88 @@ async function main() {
   }
 
   console.log('✅ Seeded asset column aliases:', createdAliases.length);
+
+  // Create sample ETL pipeline rules (one of each type for CLEAN phase)
+  const pipelineRules = [
+    {
+      name: 'Trim Whitespace from Text Fields',
+      description: 'Remove leading and trailing whitespace from all text fields',
+      phase: PipelinePhase.CLEAN,
+      type: RuleType.TRIM,
+      target: 'name,manufacturer,description',
+      config: {
+        sides: 'both',
+        customChars: ' \t\n\r'
+      },
+      priority: 10,
+      is_active: true
+    },
+    {
+      name: 'Standardize Manufacturer Names',
+      description: 'Replace common manufacturer name variations with standard names',
+      phase: PipelinePhase.CLEAN,
+      type: RuleType.REGEX_REPLACE,
+      target: 'manufacturer',
+      config: {
+        pattern: '\\b(carrier|CARRIER|Carrier Corp\\.?)\\b',
+        replacement: 'Carrier',
+        flags: 'gi'
+      },
+      priority: 20,
+      is_active: true
+    },
+    {
+      name: 'Fix Common Misspellings',
+      description: 'Replace exact matches of common misspellings',
+      phase: PipelinePhase.CLEAN,
+      type: RuleType.EXACT_REPLACE,
+      target: 'description,name',
+      config: {
+        replacements: [
+          { from: 'HVAC Unit', to: 'HVAC Unit' },
+          { from: 'Air Conditioner', to: 'Air Conditioning Unit' },
+          { from: 'Boiler', to: 'Boiler System' }
+        ]
+      },
+      priority: 30,
+      is_active: true
+    },
+    {
+      name: 'Remove Duplicate Values in Fields',
+      description: 'Remove duplicate comma-separated values within single fields',
+      phase: PipelinePhase.CLEAN,
+      type: RuleType.REMOVE_DUPLICATES,
+      target: 'description',
+      config: {
+        delimiter: ',',
+        caseSensitive: false
+      },
+      priority: 40,
+      is_active: true
+    }
+  ];
+
+  const createdRules = [];
+  for (const ruleData of pipelineRules) {
+    const rule = await prisma.pipelineRule.upsert({
+      where: { name: ruleData.name },
+      update: {},
+      create: {
+        ...ruleData,
+        created_by: 'system',
+      },
+    });
+    createdRules.push(rule);
+  }
+
+  console.log('✅ Seeded pipeline rules:', createdRules.map(r => r.name).join(', '));
   console.log('🌱 Database seeding completed!');
   console.log('📊 Summary:');
   console.log(`   • Users: ${6} (${3} development + ${3} production)`);
   console.log(`   • Projects: ${createdProjects.length}`);
   console.log(`   • Folders: ${createdFolders.length}`);
   console.log(`   • Asset column aliases: ${createdAliases.length}`);
+  console.log(`   • Pipeline rules: ${createdRules.length}`);
 }
 
 main()
