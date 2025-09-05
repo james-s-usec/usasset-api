@@ -57,11 +57,11 @@ export class AssetService {
       const asset = await this.prisma.asset.create({
         data: createAssetDto,
       });
-      
+
       // Clear cache after creating new asset
       this.cache.clearPattern('asset:*');
       this.logger.log('Cache cleared after asset creation');
-      
+
       return asset;
     } catch (error: unknown) {
       if (this.isPrismaUniqueConstraintError(error)) {
@@ -87,11 +87,11 @@ export class AssetService {
         where: { id },
         data: updateAssetDto,
       });
-      
+
       // Clear cache after updating asset
       this.cache.clearPattern('asset:*');
       this.logger.log('Cache cleared after asset update');
-      
+
       return updatedAsset;
     } catch (error: unknown) {
       if (this.isPrismaUniqueConstraintError(error)) {
@@ -113,6 +113,10 @@ export class AssetService {
       where: { id },
       data: { is_deleted: true },
     });
+
+    // Clear cache after deleting asset
+    this.cache.clearPattern('asset:*');
+    this.logger.log('Cache cleared after asset deletion');
   }
 
   private isPrismaUniqueConstraintError(

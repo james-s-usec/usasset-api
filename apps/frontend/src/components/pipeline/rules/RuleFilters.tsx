@@ -25,86 +25,87 @@ interface RuleFiltersProps {
   loading: boolean;
 }
 
-export const RuleFilters: React.FC<RuleFiltersProps> = ({
-  selectedPhase,
-  onPhaseChange,
-  onRefresh,
-  onAddRule,
-  onTestRules,
-  onTestOrchestrator,
-  loading
-}) => {
-  return (
-    <Box sx={{ 
-      p: 2, 
-      borderBottom: 1, 
-      borderColor: 'divider' 
-    }}>
-      <Box sx={{ 
-        display: 'flex', 
-        gap: 1, 
-        alignItems: 'center', 
-        flexWrap: 'wrap' 
-      }}>
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Phase Filter</InputLabel>
-          <Select
-            value={selectedPhase}
-            onChange={(e) => onPhaseChange(e.target.value)}
-            label="Phase Filter"
-          >
-            <MenuItem value="">All Phases</MenuItem>
-            {PHASES.map(phase => (
-              <MenuItem key={phase} value={phase}>
-                {phase}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<RefreshIcon />}
-          onClick={onRefresh}
-          disabled={loading}
-        >
-          Refresh
-        </Button>
-        
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={onAddRule}
-        >
-          Add Rule
-        </Button>
-        
-        <Divider orientation="vertical" flexItem />
-        
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<TestIcon />}
-          onClick={onTestRules}
-          disabled={loading}
-          color="primary"
-        >
-          Test Rules
-        </Button>
-        
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<TestIcon />}
-          onClick={onTestOrchestrator}
-          disabled={loading}
-          color="secondary"
-        >
-          Test Orchestrator
-        </Button>
-      </Box>
+const PhaseSelector: React.FC<{
+  selectedPhase: string;
+  onPhaseChange: (phase: string) => void;
+}> = ({ selectedPhase, onPhaseChange }) => (
+  <FormControl size="small" sx={{ minWidth: 120 }}>
+    <InputLabel>Phase Filter</InputLabel>
+    <Select
+      value={selectedPhase}
+      onChange={(e): void => onPhaseChange(e.target.value)}
+      label="Phase Filter"
+    >
+      <MenuItem value="">All Phases</MenuItem>
+      {PHASES.map(phase => (
+        <MenuItem key={phase} value={phase}>
+          {phase}
+        </MenuItem>
+      ))}
+    </Select>
+  </FormControl>
+);
+
+const ActionButtons: React.FC<{
+  onRefresh: () => void;
+  onAddRule: () => void;
+  onTestRules: () => void;
+  onTestOrchestrator: () => void;
+  loading: boolean;
+}> = ({ onRefresh, onAddRule, onTestRules, onTestOrchestrator, loading }) => (
+  <>
+    <Button 
+      variant="outlined" 
+      size="small" 
+      startIcon={<RefreshIcon />} 
+      onClick={onRefresh} 
+      disabled={loading}
+    >
+      Refresh
+    </Button>
+    <Button 
+      variant="outlined" 
+      size="small" 
+      startIcon={<AddIcon />} 
+      onClick={onAddRule}
+    >
+      Add Rule
+    </Button>
+    <Divider orientation="vertical" flexItem />
+    <Button 
+      variant="contained" 
+      size="small" 
+      startIcon={<TestIcon />} 
+      onClick={onTestRules} 
+      disabled={loading} 
+      color="primary"
+    >
+      Test Rules
+    </Button>
+    <Button 
+      variant="contained" 
+      size="small" 
+      startIcon={<TestIcon />} 
+      onClick={onTestOrchestrator} 
+      disabled={loading} 
+      color="secondary"
+    >
+      Test Orchestrator
+    </Button>
+  </>
+);
+
+export const RuleFilters: React.FC<RuleFiltersProps> = (props) => (
+  <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+      <PhaseSelector selectedPhase={props.selectedPhase} onPhaseChange={props.onPhaseChange} />
+      <ActionButtons 
+        onRefresh={props.onRefresh}
+        onAddRule={props.onAddRule}
+        onTestRules={props.onTestRules}
+        onTestOrchestrator={props.onTestOrchestrator}
+        loading={props.loading}
+      />
     </Box>
-  );
-};
+  </Box>
+);

@@ -4,6 +4,10 @@ import { PrismaService } from '../../database/prisma.service';
 import { AssetSearchDto } from '../dto/asset-search.dto';
 import { SimpleCacheService } from '../../common/services/simple-cache.service';
 
+const CACHE_CONSTANTS = {
+  SUMMARY_TTL_SECONDS: 300,
+};
+
 @Injectable()
 export class AssetQueryService {
   private readonly logger = new Logger(AssetQueryService.name);
@@ -260,15 +264,17 @@ export class AssetQueryService {
       averageCost: number;
       totalValue: number;
     }>(cacheKey);
-    
+
     if (cached) {
       this.logger.log('Cache HIT for asset summary');
       return cached;
     }
-    
-    this.logger.log('Cache MISS for asset summary - performing expensive queries');
+
+    this.logger.log(
+      'Cache MISS for asset summary - performing expensive queries',
+    );
     const startTime = Date.now();
-    
+
     const [total, byStatus, byCondition, costStats] = await Promise.all([
       this.prisma.asset.count({ where: { is_deleted: false } }),
       this.countByStatus(),
@@ -287,13 +293,13 @@ export class AssetQueryService {
       averageCost: Number(costStats._avg.purchaseCost) || 0,
       totalValue: Number(costStats._sum.purchaseCost) || 0,
     };
-    
+
     const queryTime = Date.now() - startTime;
     this.logger.log(`Asset summary query took ${queryTime}ms`);
-    
+
     // Cache for 5 minutes
-    this.cache.set(cacheKey, result, 300);
-    
+    this.cache.set(cacheKey, result, CACHE_CONSTANTS.SUMMARY_TTL_SECONDS);
+
     return result;
   }
 }

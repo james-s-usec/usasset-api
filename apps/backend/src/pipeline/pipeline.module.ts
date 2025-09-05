@@ -9,6 +9,8 @@ import { PipelineJobService } from './services/pipeline-job.service';
 import { PipelineValidationService } from './services/pipeline-validation.service';
 import { PipelineImportService } from './services/pipeline-import.service';
 import { PipelineRepository } from './repositories/pipeline.repository';
+import { RuleEngineService } from './services/rule-engine.service';
+import { RuleProcessorFactory } from './services/rule-processor.factory';
 
 @Module({
   imports: [ConfigModule, DatabaseModule, FilesModule],
@@ -22,6 +24,10 @@ import { PipelineRepository } from './repositories/pipeline.repository';
     PipelineJobService,
     PipelineValidationService,
     PipelineImportService,
+
+    // Rule engine services
+    RuleEngineService,
+    RuleProcessorFactory,
 
     // Utility services
     CsvParserService,

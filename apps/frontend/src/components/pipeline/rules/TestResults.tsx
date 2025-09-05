@@ -27,45 +27,27 @@ const ResultAlert: React.FC<{ testResult: RulesTestResult }> = ({ testResult }) 
   </Alert>
 );
 
+const DataPanel: React.FC<{ title: string; data: unknown }> = ({ title, data }) => (
+  <Paper sx={{ p: 2 }}>
+    <Typography variant="subtitle2" gutterBottom>
+      {title}:
+    </Typography>
+    <pre style={{ fontSize: '12px', overflow: 'auto', maxHeight: '200px' }}>
+      {JSON.stringify(data, null, 2)}
+    </pre>
+  </Paper>
+);
+
 const DataComparison: React.FC<{ testResult: RulesTestResult }> = ({ testResult }) => (
-  <Box sx={{ 
-    mt: 2, 
-    display: 'grid', 
-    gridTemplateColumns: '1fr 1fr', 
-    gap: 2 
-  }}>
-    <Paper sx={{ p: 2 }}>
-      <Typography variant="subtitle2" gutterBottom>
-        Before:
-      </Typography>
-      <pre style={{ 
-        fontSize: '12px', 
-        overflow: 'auto', 
-        maxHeight: '200px' 
-      }}>
-        {JSON.stringify(testResult.testData.before, null, 2)}
-      </pre>
-    </Paper>
-    <Paper sx={{ p: 2 }}>
-      <Typography variant="subtitle2" gutterBottom>
-        After:
-      </Typography>
-      <pre style={{ 
-        fontSize: '12px', 
-        overflow: 'auto', 
-        maxHeight: '200px' 
-      }}>
-        {JSON.stringify(testResult.testData.after, null, 2)}
-      </pre>
-    </Paper>
+  <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+    <DataPanel title="Before" data={testResult.testData.before} />
+    <DataPanel title="After" data={testResult.testData.after} />
   </Box>
 );
 
-export const TestResults: React.FC<TestResultsProps> = ({ testResult }) => {
-  return (
-    <Box sx={{ m: 2 }}>
-      <ResultAlert testResult={testResult} />
-      <DataComparison testResult={testResult} />
-    </Box>
-  );
-};
+export const TestResults: React.FC<TestResultsProps> = ({ testResult }) => (
+  <Box sx={{ m: 2 }}>
+    <ResultAlert testResult={testResult} />
+    <DataComparison testResult={testResult} />
+  </Box>
+);

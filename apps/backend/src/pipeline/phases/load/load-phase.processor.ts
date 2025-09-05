@@ -6,6 +6,10 @@ import {
   PhaseResult,
 } from '../../orchestrator/phase-processor.interface';
 
+const CONSTANTS = {
+  DEFAULT_BATCH_SIZE: 10,
+};
+
 interface LoadResult {
   action: string;
   data: Record<string, unknown>;
@@ -33,9 +37,9 @@ export class LoadPhaseProcessor implements PhaseProcessor {
   private readonly logger = new Logger(LoadPhaseProcessor.name);
 
   // Configuration constants
-  private readonly BATCH_SIZE = 10;
+  private readonly BATCH_SIZE = CONSTANTS.DEFAULT_BATCH_SIZE;
   private readonly RULES = {
-    BATCH_SIZE: 'BATCH_SIZE (10)',
+    BATCH_SIZE: `BATCH_SIZE (${CONSTANTS.DEFAULT_BATCH_SIZE})`,
     CONFLICT_RESOLUTION: 'CONFLICT_RESOLUTION (upsert)',
     TRANSACTION_BOUNDARY: 'TRANSACTION_BOUNDARY (per batch)',
   };
@@ -204,7 +208,7 @@ export class LoadPhaseProcessor implements PhaseProcessor {
   }
 
   private async checkExistingRecord(
-    row: Record<string, unknown>,
+    _row: Record<string, unknown>,
   ): Promise<boolean> {
     // PLACEHOLDER: Would check database for existing record
     // For now, always return false to simulate inserts

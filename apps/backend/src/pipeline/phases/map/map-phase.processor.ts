@@ -1,181 +1,309 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PipelinePhase } from '@prisma/client';
+import { PipelinePhase, AssetStatus, AssetCondition } from '@prisma/client';
 import {
   PhaseProcessor,
   PhaseContext,
   PhaseResult,
+  PhaseInputData,
+  AssetRowData,
+  FIELD_NAMES,
 } from '../../orchestrator/phase-processor.interface';
+
+// Database field mapping
+const CSV_TO_DB_MAPPING: Record<string, string> = {
+  [FIELD_NAMES.ASSET_TAG]: 'assetTag',
+  [FIELD_NAMES.ASSET_NAME]: 'name',
+  [FIELD_NAMES.STATUS]: 'status',
+  [FIELD_NAMES.CONDITION]: 'condition',
+  [FIELD_NAMES.MANUFACTURER]: 'manufacturer',
+  [FIELD_NAMES.MODEL]: 'modelNumber',
+  [FIELD_NAMES.SERIAL]: 'serialNumber',
+  [FIELD_NAMES.BUILDING]: 'buildingName',
+  [FIELD_NAMES.FLOOR]: 'floor',
+  [FIELD_NAMES.ROOM]: 'roomNumber',
+  [FIELD_NAMES.PURCHASE_DATE]: 'purchaseDate',
+  [FIELD_NAMES.PURCHASE_COST]: 'purchasePrice',
+};
+
+// Status mapping
+const STATUS_MAP: Record<string, AssetStatus> = {
+  ACTIVE: AssetStatus.ACTIVE,
+  INACTIVE: AssetStatus.INACTIVE,
+  MAINTENANCE: AssetStatus.MAINTENANCE,
+  RETIRED: AssetStatus.RETIRED,
+  DISPOSED: AssetStatus.DISPOSED,
+  LOST: AssetStatus.LOST,
+  STOLEN: AssetStatus.STOLEN,
+  // Map common variations
+  PENDING: AssetStatus.INACTIVE,
+  RESERVED: AssetStatus.ACTIVE,
+};
+
+// Condition mapping
+const CONDITION_MAP: Record<string, AssetCondition> = {
+  NEW: AssetCondition.NEW,
+  EXCELLENT: AssetCondition.EXCELLENT,
+  GOOD: AssetCondition.GOOD,
+  FAIR: AssetCondition.FAIR,
+  POOR: AssetCondition.POOR,
+  FOR_REPAIR: AssetCondition.FOR_REPAIR,
+  FOR_DISPOSAL: AssetCondition.FOR_DISPOSAL,
+  // Map common variations
+  REQUIRES_REPAIR: AssetCondition.FOR_REPAIR,
+  OBSOLETE: AssetCondition.FOR_DISPOSAL,
+};
+
+interface MappedAssetData {
+  assetTag?: string;
+  name?: string;
+  status?: AssetStatus;
+  condition?: AssetCondition;
+  manufacturer?: string;
+  modelNumber?: string;
+  serialNumber?: string;
+  buildingName?: string;
+  floor?: string;
+  roomNumber?: string;
+  purchaseDate?: Date;
+  purchasePrice?: number;
+  id?: string;
+  created_at?: Date;
+  updated_at?: Date;
+}
 
 @Injectable()
 export class MapPhaseProcessor implements PhaseProcessor {
   public readonly phase = PipelinePhase.MAP;
-  public readonly name = 'Schema Mapper';
-  public readonly description =
-    'Maps CSV fields to database schema: FIELD_MAPPING, ENUM_MAPPING, etc.';
+  public readonly name = 'Field Mapper';
+  public readonly description = 'Maps CSV fields to database schema';
 
   private readonly logger = new Logger(MapPhaseProcessor.name);
 
-  public async process(data: any, context: PhaseContext): Promise<PhaseResult> {
+  /**
+   * Main process method - orchestrates mapping
+   */
+  public async process(
+    data: PhaseInputData,
+    context: PhaseContext,
+  ): Promise<PhaseResult> {
     const startTime = new Date();
     this.logger.debug(`[${context.correlationId}] Starting MAP phase`);
 
     try {
-      const sourceRows =
-        data.transformedRows || data.cleanedRows || data.validRows || data.rows;
-      if (!sourceRows || !Array.isArray(sourceRows)) {
-        throw new Error(
-          'Invalid input: expected rows array from previous phase',
-        );
-      }
+      // Get input rows
+      const inputRows = this.getInputRows(data);
 
-      const mappedData = {
-        ...data,
-        mappedRows: [],
-      };
+      // Map all rows
+      const mappedRows = this.mapAllRows(inputRows, context);
 
-      const transformations = [];
-
-      // PLACEHOLDER: Map CSV columns to database schema
-      const fieldMappings = {
-        'Asset Tag': 'assetTag',
-        'Asset Name': 'name',
-        Manufacturer: 'manufacturer',
-        Status: 'status',
-        Condition: 'condition',
-      };
-
-      const statusEnumMapping = {
-        ACTIVE: 'ACTIVE',
-        INACTIVE: 'INACTIVE',
-        MAINTENANCE: 'MAINTENANCE',
-        RETIRED: 'RETIRED',
-      };
-
-      const conditionEnumMapping = {
-        GOOD: 'GOOD',
-        FAIR: 'FAIR',
-        POOR: 'POOR',
-        EXCELLENT: 'EXCELLENT',
-      };
-
-      for (let i = 0; i < sourceRows.length; i++) {
-        const row = sourceRows[i];
-        const mappedRow: any = {};
-
-        // Map CSV fields to database fields
-        Object.entries(fieldMappings).forEach(([csvField, dbField]) => {
-          if (row[csvField] !== undefined) {
-            mappedRow[dbField] = row[csvField];
-
-            transformations.push({
-              field: `${csvField}_row_${i + 1}`,
-              before: `CSV: "${csvField}"`,
-              after: `DB: "${dbField}"`,
-            });
-          }
-        });
-
-        // Map status enum values
-        if (mappedRow.status) {
-          const originalStatus = mappedRow.status;
-          const mappedStatus =
-            statusEnumMapping[
-              originalStatus.toUpperCase() as keyof typeof statusEnumMapping
-            ] || 'ACTIVE';
-
-          if (originalStatus !== mappedStatus) {
-            transformations.push({
-              field: `status_enum_row_${i + 1}`,
-              before: originalStatus,
-              after: mappedStatus,
-            });
-          }
-
-          mappedRow.status = mappedStatus;
-        }
-
-        // Map condition enum values
-        if (mappedRow.condition) {
-          const originalCondition = mappedRow.condition;
-          const mappedCondition =
-            conditionEnumMapping[
-              originalCondition.toUpperCase() as keyof typeof conditionEnumMapping
-            ] || 'GOOD';
-
-          if (originalCondition !== mappedCondition) {
-            transformations.push({
-              field: `condition_enum_row_${i + 1}`,
-              before: originalCondition,
-              after: mappedCondition,
-            });
-          }
-
-          mappedRow.condition = mappedCondition;
-        }
-
-        // Add default/calculated database fields
-        mappedRow.id = `generated-uuid-${i + 1}`; // Placeholder UUID
-        mappedRow.created_at = new Date().toISOString();
-        mappedRow.updated_at = new Date().toISOString();
-
-        mappedData.mappedRows.push(mappedRow);
-      }
-
-      const endTime = new Date();
-      const durationMs = endTime.getTime() - startTime.getTime();
-      const recordsProcessed = sourceRows.length;
-
-      this.logger.debug(
-        `[${context.correlationId}] MAP phase completed: ${recordsProcessed} records mapped in ${durationMs}ms`,
-      );
-
-      return {
-        success: true,
-        phase: this.phase,
-        data: mappedData,
-        errors: [],
-        warnings: [],
-        metrics: {
-          startTime,
-          endTime,
-          durationMs,
-          recordsProcessed,
-          recordsSuccess: recordsProcessed,
-          recordsFailed: 0,
-        },
-        debug: {
-          rulesApplied: [
-            'FIELD_MAPPING',
-            'ENUM_MAPPING (status)',
-            'ENUM_MAPPING (condition)',
-          ],
-          transformations,
-        },
-      };
+      // Build result
+      return this.buildPhaseResult(data, mappedRows, startTime, context);
     } catch (error) {
-      const endTime = new Date();
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      this.logger.error(
-        `[${context.correlationId}] MAP phase failed: ${errorMessage}`,
-      );
-
-      return {
-        success: false,
-        phase: this.phase,
-        data: data,
-        errors: [`MAP failed: ${errorMessage}`],
-        warnings: [],
-        metrics: {
-          startTime,
-          endTime,
-          durationMs: endTime.getTime() - startTime.getTime(),
-          recordsProcessed: 0,
-          recordsSuccess: 0,
-          recordsFailed: 1,
-        },
-      };
+      return this.buildErrorResult(error, startTime, context);
     }
+  }
+
+  /**
+   * Get input rows from previous phase
+   */
+  private getInputRows(data: PhaseInputData): AssetRowData[] {
+    // Try different sources in order of preference
+    const rows =
+      data.transformedRows ||
+      data.cleanedRows ||
+      data.validRows ||
+      data.rows ||
+      [];
+
+    if (!Array.isArray(rows)) {
+      throw new Error('Invalid input: expected array of rows');
+    }
+
+    return rows;
+  }
+
+  /**
+   * Map all rows to database schema
+   */
+  private mapAllRows(
+    rows: AssetRowData[],
+    context: PhaseContext,
+  ): MappedAssetData[] {
+    const mappedRows: MappedAssetData[] = [];
+
+    for (const row of rows) {
+      const mappedRow = this.mapSingleRow(row, context);
+      mappedRows.push(mappedRow);
+    }
+
+    return mappedRows;
+  }
+
+  /**
+   * Map a single row
+   */
+  private mapSingleRow(
+    row: AssetRowData,
+    context: PhaseContext,
+  ): MappedAssetData {
+    // Map CSV fields to database fields
+    const mappedData = this.mapCsvFieldsToDatabase(row);
+
+    // Map enum values
+    this.mapEnumValues(mappedData, row);
+
+    // Add system fields
+    this.addSystemFields(mappedData);
+
+    return mappedData;
+  }
+
+  /**
+   * Map CSV field names to database field names
+   */
+  private mapCsvFieldsToDatabase(row: AssetRowData): MappedAssetData {
+    const mappedData: MappedAssetData = {};
+
+    for (const [csvField, dbField] of Object.entries(CSV_TO_DB_MAPPING)) {
+      const value = row[csvField];
+      if (value !== undefined && value !== null && value !== '') {
+        (mappedData as Record<string, unknown>)[dbField] = value;
+      }
+    }
+
+    return mappedData;
+  }
+
+  /**
+   * Map enum values (status, condition)
+   */
+  private mapEnumValues(mapped: MappedAssetData, row: AssetRowData): void {
+    // Map status enum
+    const statusValue = row[FIELD_NAMES.STATUS];
+    if (statusValue) {
+      const normalizedStatus = statusValue.trim().toUpperCase();
+      mapped.status = STATUS_MAP[normalizedStatus] || AssetStatus.ACTIVE;
+    } else {
+      mapped.status = AssetStatus.ACTIVE;
+    }
+
+    // Map condition enum
+    const conditionValue = row[FIELD_NAMES.CONDITION];
+    if (conditionValue) {
+      const normalizedCondition = conditionValue.trim().toUpperCase();
+      mapped.condition =
+        CONDITION_MAP[normalizedCondition] || AssetCondition.GOOD;
+    } else {
+      mapped.condition = AssetCondition.GOOD;
+    }
+
+    // Convert purchase date
+    if (mapped.purchaseDate) {
+      const dateStr = String(mapped.purchaseDate);
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        mapped.purchaseDate = date;
+      } else {
+        delete mapped.purchaseDate;
+      }
+    }
+
+    // Convert purchase price
+    if (mapped.purchasePrice) {
+      const price = parseFloat(String(mapped.purchasePrice));
+      if (!isNaN(price)) {
+        mapped.purchasePrice = price;
+      } else {
+        delete mapped.purchasePrice;
+      }
+    }
+  }
+
+  /**
+   * Add system fields (timestamps, etc.)
+   */
+  private addSystemFields(mapped: MappedAssetData): void {
+    const now = new Date();
+    mapped.created_at = now;
+    mapped.updated_at = now;
+  }
+
+  /**
+   * Build successful phase result
+   */
+  private buildPhaseResult(
+    inputData: PhaseInputData,
+    mappedRows: MappedAssetData[],
+    startTime: Date,
+    context: PhaseContext,
+  ): PhaseResult {
+    const endTime = new Date();
+
+    const outputData: PhaseInputData = {
+      ...inputData,
+      mappedRows: mappedRows as unknown as AssetRowData[],
+    };
+
+    this.logger.debug(
+      `[${context.correlationId}] MAP phase completed: ` +
+        `${mappedRows.length} rows mapped`,
+    );
+
+    return {
+      success: true,
+      phase: this.phase,
+      data: outputData,
+      errors: [],
+      warnings: [],
+      metrics: {
+        startTime,
+        endTime,
+        durationMs: endTime.getTime() - startTime.getTime(),
+        recordsProcessed: mappedRows.length,
+        recordsSuccess: mappedRows.length,
+        recordsFailed: 0,
+      },
+      debug: {
+        transformations: Object.entries(CSV_TO_DB_MAPPING)
+          .map(([csv, db]) => ({
+            field: csv,
+            before: csv,
+            after: db,
+          }))
+          .slice(0, 5),
+      },
+    };
+  }
+
+  /**
+   * Build error result
+   */
+  private buildErrorResult(
+    error: unknown,
+    startTime: Date,
+    context: PhaseContext,
+  ): PhaseResult {
+    const endTime = new Date();
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+
+    this.logger.error(
+      `[${context.correlationId}] MAP phase failed: ${errorMessage}`,
+    );
+
+    return {
+      success: false,
+      phase: this.phase,
+      errors: [errorMessage],
+      warnings: [],
+      metrics: {
+        startTime,
+        endTime,
+        durationMs: endTime.getTime() - startTime.getTime(),
+        recordsProcessed: 0,
+        recordsSuccess: 0,
+        recordsFailed: 0,
+      },
+    };
   }
 }

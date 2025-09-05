@@ -243,7 +243,20 @@ export class PipelineController {
     }>;
   }> {
     const rules = await this.pipelineService.getRules();
-    return { rules };
+    return {
+      rules: rules.map((rule) => ({
+        id: rule.id,
+        name: rule.name,
+        type: rule.type,
+        phase: rule.phase,
+        target: rule.target,
+        config: rule.config as Record<string, unknown>,
+        is_active: rule.is_active,
+        priority: rule.priority,
+        created_at: rule.created_at,
+        updated_at: rule.updated_at,
+      })),
+    };
   }
 
   @Post('rules')
@@ -261,8 +274,22 @@ export class PipelineController {
       priority?: number;
     },
   ): Promise<{ rule: Record<string, unknown>; message: string }> {
-    const rule = await this.pipelineService.createRule(createRuleDto);
-    return { rule, message: 'Rule created successfully' };
+    const properDto = {
+      name: createRuleDto.name,
+      type: createRuleDto.type,
+      phase: createRuleDto.phase,
+      target: createRuleDto.target,
+      config: createRuleDto.config as {
+        [key: string]: string | number | boolean | string[];
+      },
+      is_active: createRuleDto.is_active,
+      priority: createRuleDto.priority,
+    };
+    const rule = await this.pipelineService.createRule(properDto);
+    return {
+      rule: rule as Record<string, unknown>,
+      message: 'Rule created successfully',
+    };
   }
 
   @Patch('rules/:ruleId')
@@ -281,8 +308,22 @@ export class PipelineController {
       priority?: number;
     },
   ): Promise<{ rule: Record<string, unknown>; message: string }> {
-    const rule = await this.pipelineService.updateRule(ruleId, updateRuleDto);
-    return { rule, message: 'Rule updated successfully' };
+    const properDto = {
+      name: updateRuleDto.name,
+      type: updateRuleDto.type,
+      phase: updateRuleDto.phase,
+      target: updateRuleDto.target,
+      config: updateRuleDto.config as
+        | { [key: string]: string | number | boolean | string[] }
+        | undefined,
+      is_active: updateRuleDto.is_active,
+      priority: updateRuleDto.priority,
+    };
+    const rule = await this.pipelineService.updateRule(ruleId, properDto);
+    return {
+      rule: rule as Record<string, unknown>,
+      message: 'Rule updated successfully',
+    };
   }
 
   @Delete('rules/:ruleId')

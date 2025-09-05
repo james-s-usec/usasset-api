@@ -23,6 +23,7 @@ import {
 import { AssetService } from '../services/asset.service';
 import { AssetQueryService } from '../services/asset-query.service';
 import { AssetBulkService } from '../services/asset-bulk.service';
+import { SimpleCacheService } from '../../common/services/simple-cache.service';
 import { CreateAssetDto } from '../dto/create-asset.dto';
 import { UpdateAssetDto } from '../dto/update-asset.dto';
 import { SafeAssetDto } from '../dto/safe-asset.dto';
@@ -43,6 +44,7 @@ export class AssetController {
     private readonly assetService: AssetService,
     private readonly assetQueryService: AssetQueryService,
     private readonly assetBulkService: AssetBulkService,
+    private readonly cache: SimpleCacheService,
   ) {}
 
   private convertDecimalToNumber(decimal: unknown): number | null {
@@ -141,6 +143,21 @@ export class AssetController {
     totalValue: number;
   }> {
     return this.assetQueryService.getAssetSummary();
+  }
+
+  @Get('cache-stats')
+  @ApiOperation({ summary: 'Get cache statistics (development)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cache statistics retrieved successfully',
+  })
+  public async getCacheStats(): Promise<{
+    hits: number;
+    misses: number;
+    size: number;
+    hitRate: number;
+  }> {
+    return this.cache.getStats();
   }
 
   // Bulk operations endpoints

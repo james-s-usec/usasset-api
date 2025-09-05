@@ -5,8 +5,9 @@ export interface CsvRow {
 }
 
 export interface ProcessedRow extends CsvRow {
-  // Metadata fields are stored separately, not as index properties
-  // to avoid TypeScript index signature conflicts
+  // Metadata fields for processed data
+  _processedAt?: Date;
+  _rowIndex?: number;
 }
 
 export interface ValidationResult {

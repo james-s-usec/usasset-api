@@ -1,5 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+const CACHE_CONSTANTS = {
+  DEFAULT_TTL_SECONDS: 300,
+  MILLISECONDS_PER_SECOND: 1000,
+  MAX_CACHE_SIZE: 1000,
+  EVICTION_BATCH_SIZE: 100,
+};
+
 interface CacheEntry {
   data: unknown;
   expires: number;
@@ -29,13 +36,13 @@ export class SimpleCacheService {
    */
   public get<T>(key: string): T | null {
     const entry = this.cache.get(key);
-    
+
     if (!entry) {
       this.misses++;
       this.logger.debug(`Cache MISS for key: ${key}`);
       return null;
     }
-    
+
     // Check if expired
     if (Date.now() > entry.expires) {
       this.cache.delete(key);
@@ -43,7 +50,7 @@ export class SimpleCacheService {
       this.logger.debug(`Cache EXPIRED for key: ${key}`);
       return null;
     }
-    
+
     this.hits++;
     this.logger.debug(`Cache HIT for key: ${key}`);
     return entry.data as T;
@@ -55,14 +62,19 @@ export class SimpleCacheService {
    * @param data Data to cache
    * @param ttlSeconds Time to live in seconds (default: 300 = 5 minutes)
    */
-  public set(key: string, data: unknown, ttlSeconds = 300): void {
-    const expires = Date.now() + ttlSeconds * 1000;
-    
+  public set(
+    key: string,
+    data: unknown,
+    ttlSeconds = CACHE_CONSTANTS.DEFAULT_TTL_SECONDS,
+  ): void {
+    const expires =
+      Date.now() + ttlSeconds * CACHE_CONSTANTS.MILLISECONDS_PER_SECOND;
+
     this.cache.set(key, { data, expires });
     this.logger.debug(`Cache SET for key: ${key}, TTL: ${ttlSeconds}s`);
-    
+
     // Simple memory protection - if cache gets too large, clear old entries
-    if (this.cache.size > 1000) {
+    if (this.cache.size > CACHE_CONSTANTS.MAX_CACHE_SIZE) {
       this.evictOldest();
     }
   }
@@ -94,18 +106,20 @@ export class SimpleCacheService {
   public clearPattern(pattern: string): number {
     const regex = new RegExp(pattern.replace('*', '.*'));
     let cleared = 0;
-    
+
     for (const key of this.cache.keys()) {
       if (regex.test(key)) {
         this.cache.delete(key);
         cleared++;
       }
     }
-    
+
     if (cleared > 0) {
-      this.logger.debug(`Cache CLEARED ${cleared} keys matching pattern: ${pattern}`);
+      this.logger.debug(
+        `Cache CLEARED ${cleared} keys matching pattern: ${pattern}`,
+      );
     }
-    
+
     return cleared;
   }
 
@@ -128,12 +142,12 @@ export class SimpleCacheService {
   public has(key: string): boolean {
     const entry = this.cache.get(key);
     if (!entry) return false;
-    
+
     if (Date.now() > entry.expires) {
       this.cache.delete(key);
       return false;
     }
-    
+
     return true;
   }
 
@@ -151,17 +165,19 @@ export class SimpleCacheService {
     // Simple strategy: remove first 100 entries (oldest in insertion order)
     const keysToRemove: string[] = [];
     let count = 0;
-    
+
     for (const key of this.cache.keys()) {
       keysToRemove.push(key);
       count++;
-      if (count >= 100) break;
+      if (count >= CACHE_CONSTANTS.EVICTION_BATCH_SIZE) break;
     }
-    
+
     for (const key of keysToRemove) {
       this.cache.delete(key);
     }
-    
-    this.logger.warn(`Cache eviction: removed ${keysToRemove.length} oldest entries`);
+
+    this.logger.warn(
+      `Cache eviction: removed ${keysToRemove.length} oldest entries`,
+    );
   }
 }

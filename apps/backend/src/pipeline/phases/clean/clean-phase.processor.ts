@@ -7,7 +7,8 @@ import {
 } from '../../orchestrator/phase-processor.interface';
 import { RuleEngineService } from '../../services/rule-engine.service';
 import { RuleProcessorFactory } from '../../services/rule-processor.factory';
-import { PipelineRepository } from '../../repositories/pipeline.repository';
+import { PrismaService } from '../../../database/prisma.service';
+import { ProcessingContext } from '../../interfaces/rule-processor.interface';
 
 interface CleanedData extends Record<string, unknown> {
   cleanedRows: Array<Record<string, unknown>>;
@@ -29,11 +30,9 @@ export class CleanPhaseProcessor implements PhaseProcessor {
   private readonly logger = new Logger(CleanPhaseProcessor.name);
   private readonly ruleEngine: RuleEngineService;
 
-  public constructor(private readonly repository: PipelineRepository) {
+  public constructor(private readonly prisma: PrismaService) {
     const factory = new RuleProcessorFactory();
-    // Note: In real implementation, RuleEngineService should be injected via DI
-    // This is a temporary workaround until proper DI is set up
-    this.ruleEngine = new RuleEngineService(repository['prisma'] || repository, factory);
+    this.ruleEngine = new RuleEngineService(prisma, factory);
   }
 
   public async process(
@@ -137,7 +136,7 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     return {
       cleanedRow: ruleResult.data,
       transformations,
-      appliedRules: activeRules.map((r) => r.name),
+      appliedRules: activeRules.map((r: any) => r.name),
     };
   }
 
@@ -145,7 +144,7 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     row: Record<string, unknown>,
     index: number,
     context: PhaseContext,
-  ): Record<string, unknown> {
+  ): ProcessingContext {
     return {
       rowNumber: index + 1,
       jobId: context.jobId,

@@ -128,90 +128,96 @@ interface MainContentProps {
   setShowRuleEditor: (show: boolean) => void;
 }
 
-const MainContent: React.FC<MainContentProps> = ({
-  currentTab,
-  selectedPhase,
-  onPhaseChange,
-  filteredRules,
-  jobs,
-  loading,
-  loadRules,
-  loadJobs,
-  testRules,
-  testOrchestrator,
-  handleEditRule,
-  deleteRule,
-  setShowRuleEditor
-}) => (
+const MainContent: React.FC<MainContentProps> = (props) => (
   <>
-    {currentTab === 0 && (
+    {props.currentTab === 0 && (
       <RulesTab
-        selectedPhase={selectedPhase}
-        onPhaseChange={onPhaseChange}
-        filteredRules={filteredRules}
-        loading={loading}
-        onRefresh={loadRules}
-        onAddRule={() => setShowRuleEditor(true)}
-        onTestRules={testRules}
-        onTestOrchestrator={testOrchestrator}
-        onEditRule={handleEditRule}
-        onDeleteRule={deleteRule}
+        selectedPhase={props.selectedPhase}
+        onPhaseChange={props.onPhaseChange}
+        filteredRules={props.filteredRules}
+        loading={props.loading}
+        onRefresh={props.loadRules}
+        onAddRule={(): void => props.setShowRuleEditor(true)}
+        onTestRules={props.testRules}
+        onTestOrchestrator={props.testOrchestrator}
+        onEditRule={props.handleEditRule}
+        onDeleteRule={props.deleteRule}
       />
     )}
-    {currentTab === 1 && <JobsList jobs={jobs} loading={loading} onRefresh={loadJobs} />}
+    {props.currentTab === 1 && (
+      <JobsList 
+        jobs={props.jobs} 
+        loading={props.loading} 
+        onRefresh={props.loadJobs} 
+      />
+    )}
   </>
 );
 
-export const RulesManagement: React.FC = () => {
+const useTabState = (): {
+  currentTab: number;
+  setCurrentTab: (tab: number) => void;
+  selectedPhase: string;
+  setSelectedPhase: (phase: string) => void;
+} => {
   const [currentTab, setCurrentTab] = useState(0);
   const [selectedPhase, setSelectedPhase] = useState<string>('');
   
-  const { showRuleEditor, editingRule, handleEditRule, handleCloseEditor, setShowRuleEditor, setEditingRule } = useRuleEditor();
-  const { rules, jobs, loading, error, testResult, loadRules, loadJobs, testRules, testOrchestrator, saveRule, deleteRule, clearError } = useRulesManagement();
+  return { currentTab, setCurrentTab, selectedPhase, setSelectedPhase };
+};
+
+export const RulesManagement: React.FC = () => {
+  const { currentTab, setCurrentTab, selectedPhase, setSelectedPhase } = useTabState();
+  const editorState = useRuleEditor();
+  const management = useRulesManagement();
+
+  const filteredRules = selectedPhase ? management.rules.filter(rule => rule.phase === selectedPhase) : management.rules;
 
   useEffect(() => {
-    if (currentTab === 0) loadRules();
-    else if (currentTab === 1) loadJobs();
-  }, [currentTab, loadRules, loadJobs]);
+    if (currentTab === 0) management.loadRules();
+    else if (currentTab === 1) management.loadJobs();
+  }, [currentTab, management.loadRules, management.loadJobs]);
 
   const handleSaveRule = async (ruleData: NewRuleData): Promise<boolean> => {
-    const success = await saveRule(ruleData, editingRule);
+    const success = await management.saveRule(ruleData, editorState.editingRule);
     if (success) {
-      setEditingRule(null);
-      setShowRuleEditor(false);
+      editorState.setEditingRule(null);
+      editorState.setShowRuleEditor(false);
     }
     return success;
   };
 
-  const filteredRules = selectedPhase ? rules.filter(rule => rule.phase === selectedPhase) : rules;
-
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TabHeader currentTab={currentTab} onTabChange={setCurrentTab} />
-      {error && <Alert severity="error" sx={{ m: 2 }} onClose={clearError}>{error}</Alert>}
-      {testResult && <TestResults testResult={testResult} />}
+      {management.error && (
+        <Alert severity="error" sx={{ m: 2 }} onClose={management.clearError}>
+          {management.error}
+        </Alert>
+      )}
+      {management.testResult && <TestResults testResult={management.testResult} />}
       
       <MainContent
         currentTab={currentTab}
         selectedPhase={selectedPhase}
         onPhaseChange={setSelectedPhase}
         filteredRules={filteredRules}
-        jobs={jobs}
-        loading={loading}
-        loadRules={loadRules}
-        loadJobs={loadJobs}
-        testRules={testRules}
-        testOrchestrator={testOrchestrator}
-        handleEditRule={handleEditRule}
-        deleteRule={deleteRule}
-        setShowRuleEditor={setShowRuleEditor}
+        jobs={management.jobs}
+        loading={management.loading}
+        loadRules={management.loadRules}
+        loadJobs={management.loadJobs}
+        testRules={management.testRules}
+        testOrchestrator={management.testOrchestrator}
+        handleEditRule={editorState.handleEditRule}
+        deleteRule={management.deleteRule}
+        setShowRuleEditor={editorState.setShowRuleEditor}
       />
       
       <RuleEditor 
-        open={showRuleEditor} 
-        editingRule={editingRule} 
-        loading={loading} 
-        onClose={handleCloseEditor} 
+        open={editorState.showRuleEditor} 
+        editingRule={editorState.editingRule} 
+        loading={management.loading} 
+        onClose={editorState.handleCloseEditor} 
         onSave={handleSaveRule} 
       />
     </Box>
