@@ -10,19 +10,23 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Button
+  Button,
+  IconButton,
+  Tooltip
 } from '@mui/material';
-import { Refresh as RefreshIcon } from '@mui/icons-material';
+import { Refresh as RefreshIcon, Download as DownloadIcon } from '@mui/icons-material';
 import type { ImportJob } from './types';
 
 interface JobsListProps {
   jobs: ImportJob[];
   loading: boolean;
   onRefresh: () => void;
+  onDownloadPhaseResults?: (jobId: string) => void;
 }
 
 interface JobRowProps {
   job: ImportJob;
+  onDownloadPhaseResults?: (jobId: string) => void;
 }
 
 const JobTableHeader: React.FC = () => (
@@ -35,6 +39,7 @@ const JobTableHeader: React.FC = () => (
       <TableCell>Started</TableCell>
       <TableCell>Completed</TableCell>
       <TableCell>Errors</TableCell>
+      <TableCell>Actions</TableCell>
     </TableRow>
   </TableHead>
 );
@@ -103,7 +108,36 @@ const JobErrorsCell: React.FC<{ errors?: string[] | null }> = ({ errors }) => (
   </TableCell>
 );
 
-const JobRow: React.FC<JobRowProps> = ({ job }) => (
+const JobActionsCell: React.FC<{ 
+  job: ImportJob; 
+  onDownloadPhaseResults?: (jobId: string) => void; 
+}> = ({ job, onDownloadPhaseResults }) => {
+  const handleDownload = () => {
+    if (onDownloadPhaseResults) {
+      onDownloadPhaseResults(job.id);
+    }
+  };
+
+  const canDownload = job.status === 'COMPLETED';
+
+  return (
+    <TableCell>
+      {canDownload && onDownloadPhaseResults && (
+        <Tooltip title="Download Phase Results">
+          <IconButton 
+            size="small" 
+            onClick={handleDownload}
+            disabled={!canDownload}
+          >
+            <DownloadIcon />
+          </IconButton>
+        </Tooltip>
+      )}
+    </TableCell>
+  );
+};
+
+const JobRow: React.FC<JobRowProps> = ({ job, onDownloadPhaseResults }) => (
   <TableRow key={job.id} hover>
     <JobIdCell jobId={job.id} />
     <JobFileIdCell fileId={job.file_id} />
@@ -114,12 +148,13 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => (
     <JobTimestampCell timestamp={job.started_at} />
     <JobTimestampCell timestamp={job.completed_at} />
     <JobErrorsCell errors={job.errors} />
+    <JobActionsCell job={job} onDownloadPhaseResults={onDownloadPhaseResults} />
   </TableRow>
 );
 
 const EmptyJobsState: React.FC = () => (
   <TableRow>
-    <TableCell colSpan={7} align="center">
+    <TableCell colSpan={8} align="center">
       <Typography color="text.secondary">
         No import jobs found
       </Typography>
@@ -167,7 +202,8 @@ const getJobStatusColor = (status: string): "success" | "error" | "primary" | "d
 export const JobsList: React.FC<JobsListProps> = ({
   jobs,
   loading,
-  onRefresh
+  onRefresh,
+  onDownloadPhaseResults
 }) => {
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -182,7 +218,7 @@ export const JobsList: React.FC<JobsListProps> = ({
                 <EmptyJobsState />
               ) : (
                 jobs.map((job) => (
-                  <JobRow key={job.id} job={job} />
+                  <JobRow key={job.id} job={job} onDownloadPhaseResults={onDownloadPhaseResults} />
                 ))
               )}
             </TableBody>

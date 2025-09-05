@@ -454,6 +454,53 @@ az postgres flexible-server firewall-rule delete \
 - Root cause: Seeding failed at folders step due to constraint changes, pipeline rules never created
 - Fix: Created missing pipeline rules via API
 
+**Issue 4: Local Development Database Out of Sync**
+- **Symptom**: API errors like `column 'files.file_type' does not exist` on local development
+- **Root cause**: Local database missing same migrations that production was missing
+- **Fix Process**:
+  ```bash
+  # 1. Check migration status
+  npx prisma migrate status  # Shows pending migrations
+  
+  # 2. Resolve failed migration
+  npx prisma migrate resolve --rolled-back "20250905184800_fix_folders_and_files_schema"
+  
+  # 3. Manually apply missing schema changes
+  PGPASSWORD=localpassword123 psql -h localhost -p 5433 -U dbadmin -d usasset <<EOF
+  -- Add missing columns
+  ALTER TABLE files ADD COLUMN IF NOT EXISTS file_type TEXT NOT NULL DEFAULT 'DOCUMENT';
+  ALTER TABLE files ADD COLUMN IF NOT EXISTS asset_id TEXT;
+  ALTER TABLE folders ADD COLUMN IF NOT EXISTS project_id TEXT NOT NULL DEFAULT 'temp';
+  
+  -- Create FileType enum and fix constraints
+  DO \$\$ BEGIN
+      CREATE TYPE "FileType" AS ENUM ('DOCUMENT', 'IMAGE', 'PDF', 'SPREADSHEET', 'OTHER');
+  EXCEPTION WHEN duplicate_object THEN null; END \$\$;
+  
+  ALTER TABLE files ALTER COLUMN file_type DROP DEFAULT, 
+    ALTER COLUMN file_type TYPE "FileType" USING file_type::"FileType", 
+    ALTER COLUMN file_type SET DEFAULT 'DOCUMENT';
+  
+  ALTER TABLE folders DROP CONSTRAINT IF EXISTS "folders_name_key";
+  DROP INDEX IF EXISTS folders_name_key; DROP INDEX IF EXISTS folders_name_idx;
+  CREATE UNIQUE INDEX IF NOT EXISTS "folders_name_project_id_key" ON "folders"("name", "project_id");
+  CREATE INDEX IF NOT EXISTS "folders_project_id_idx" ON "folders"("project_id");
+  CREATE INDEX IF NOT EXISTS "files_asset_id_idx" ON "files"("asset_id");
+  EOF
+  
+  # 4. Mark migration as applied
+  npx prisma migrate resolve --applied "20250905184800_fix_folders_and_files_schema"
+  
+  # 5. Verify migration status clean
+  npx prisma migrate status  # Should show "Database schema is up to date!"
+  
+  # 6. Clean up conflicting seeding data and re-seed
+  PGPASSWORD=localpassword123 psql -h localhost -p 5433 -U dbadmin -d usasset -c "DELETE FROM folders;"
+  npx prisma db seed
+  ```
+- **Prevention**: Always apply migrations to both local and production when created
+- **Key Learning**: Local and production databases can drift independently, both need migration sync
+
 ### Prevention Strategy
 
 1. **Migration Status Check**: Now mandatory in deployment checklist

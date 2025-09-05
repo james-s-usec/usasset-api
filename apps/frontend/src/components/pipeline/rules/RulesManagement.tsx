@@ -104,13 +104,39 @@ const renderRulesTab = (props: MainContentProps): React.ReactElement => (
   />
 );
 
-const renderJobsTab = (props: MainContentProps): React.ReactElement => (
-  <JobsList 
-    jobs={props.jobs} 
-    loading={props.loading} 
-    onRefresh={props.loadJobs} 
-  />
-);
+const renderJobsTab = (props: MainContentProps): React.ReactElement => {
+  const handleDownloadPhaseResults = async (jobId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/pipeline/jobs/${jobId}/phase-results/download`);
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `etl-phase-results-${jobId}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download phase results:', error);
+      alert('Failed to download phase results. Please try again.');
+    }
+  };
+
+  return (
+    <JobsList 
+      jobs={props.jobs} 
+      loading={props.loading} 
+      onRefresh={props.loadJobs}
+      onDownloadPhaseResults={handleDownloadPhaseResults}
+    />
+  );
+};
 
 const renderMappingsTab = (): React.ReactElement => (
   <Box sx={{ flex: 1, overflow: 'auto' }}>

@@ -11,6 +11,7 @@ import { PipelineImportService } from './services/pipeline-import.service';
 import { PipelineRepository } from './repositories/pipeline.repository';
 import { RuleEngineService } from './services/rule-engine.service';
 import { RuleProcessorFactory } from './services/rule-processor.factory';
+import { PipelineOrchestrator } from './orchestrator/pipeline-orchestrator.service';
 
 @Module({
   imports: [ConfigModule, DatabaseModule, FilesModule],
@@ -24,6 +25,9 @@ import { RuleProcessorFactory } from './services/rule-processor.factory';
     PipelineJobService,
     PipelineValidationService,
     PipelineImportService,
+
+    // Pipeline orchestration
+    PipelineOrchestrator,
 
     // Rule engine services
     RuleEngineService,

@@ -58,12 +58,29 @@ export class PipelineImportService {
   public async processImport(jobId: string, fileId: string): Promise<void> {
     try {
       await this.startImportJob(jobId);
+
+      // EXTRACT phase
       const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+      await this.logPhaseResult(
+        jobId,
+        'EXTRACT',
+        'SUCCESS',
+        parseResult.rows.length,
+      );
 
       if (this.shouldFailImport(parseResult)) {
+        await this.logPhaseResult(jobId, 'VALIDATE', 'FAILED', 0);
         await this.failImportJob(jobId, parseResult.errors);
         return;
       }
+
+      // VALIDATE phase
+      await this.logPhaseResult(
+        jobId,
+        'VALIDATE',
+        'SUCCESS',
+        parseResult.rows.length,
+      );
 
       await this.processAndStageData(jobId, parseResult);
     } catch (error) {
@@ -75,6 +92,34 @@ export class PipelineImportService {
     await this.pipelineRepository.updateImportJob(jobId, {
       status: 'RUNNING',
     });
+  }
+
+  private async logPhaseResult(
+    jobId: string,
+    phase: 'EXTRACT' | 'VALIDATE' | 'CLEAN' | 'TRANSFORM' | 'MAP' | 'LOAD',
+    status: 'SUCCESS' | 'FAILED',
+    rowsProcessed: number,
+  ): Promise<void> {
+    try {
+      await this.pipelineRepository.savePhaseResult({
+        import_job_id: jobId,
+        phase,
+        status,
+        transformations: [`${phase} completed`],
+        applied_rules: [],
+        rows_processed: rowsProcessed,
+        rows_modified: 0,
+        rows_failed: 0,
+        started_at: new Date(),
+        completed_at: new Date(),
+        duration_ms: 0,
+      });
+      this.logger.debug(`Logged ${phase} phase result for job ${jobId}`);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Failed to log phase result: ${errorMessage}`);
+    }
   }
 
   private shouldFailImport(parseResult: {

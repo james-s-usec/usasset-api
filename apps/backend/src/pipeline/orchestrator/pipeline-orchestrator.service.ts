@@ -5,7 +5,6 @@ import {
   PhaseContext,
   PhaseResult,
 } from './phase-processor.interface';
-import { PipelineService } from '../pipeline.service';
 import { PipelineRepository } from '../repositories/pipeline.repository';
 
 export interface OrchestrationResult {
@@ -40,19 +39,19 @@ export class PipelineOrchestrator {
   private readonly logger = new Logger(PipelineOrchestrator.name);
   private readonly processors = new Map<PipelinePhase, PhaseProcessor>();
 
-  public constructor(
-    private readonly legacyPipelineService: PipelineService,
-    private readonly pipelineRepository: PipelineRepository,
-  ) {}
+  public constructor(private readonly pipelineRepository: PipelineRepository) {}
 
   public registerProcessor(processor: PhaseProcessor): void {
     this.processors.set(processor.phase, processor);
     this.logger.debug(`Registered processor for phase: ${processor.phase}`);
   }
 
-  public async orchestrateFile(fileId: string): Promise<OrchestrationResult> {
+  public async orchestrateFile(
+    fileId: string,
+    jobId?: string,
+  ): Promise<OrchestrationResult> {
     const startTime = new Date();
-    const orchestrationContext = this.initializeOrchestration(fileId);
+    const orchestrationContext = this.initializeOrchestration(fileId, jobId);
 
     try {
       const { phases, metrics } = await this.executeAllPhases(
@@ -71,16 +70,19 @@ export class PipelineOrchestrator {
     }
   }
 
-  private initializeOrchestration(fileId: string): {
+  private initializeOrchestration(
+    fileId: string,
+    providedJobId?: string,
+  ): {
     correlationId: string;
     jobId: string;
     fileId: string;
   } {
     const correlationId = `orchestration-${Date.now()}`;
-    const jobId = `job-${Date.now()}`;
+    const jobId = providedJobId || `job-${Date.now()}`;
 
     this.logger.log(
-      `Starting orchestration for file ${fileId} with correlation ${correlationId}`,
+      `Starting orchestration for file ${fileId} with job ${jobId} and correlation ${correlationId}`,
     );
 
     return { correlationId, jobId, fileId };

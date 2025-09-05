@@ -76,7 +76,7 @@ export function useDebugState<T>(
     logOnlyChanged: logOnlyChangedRef,
     compareFunction: compareFunctionRef,
     logStats: logStatsRef
-  }), []);
+  }), [setValueInternal]);
 
   if (!shouldDebug) {
     return [value, setValueInternal];
