@@ -20,6 +20,29 @@ interface StagingTableRowProps {
   columns: string[];
 }
 
+// Cell value formatter - extracts complex logic
+const formatCellValue = (value: unknown): string => {
+  if (value !== undefined && value !== null) {
+    return String(value);
+  }
+  return '-';
+};
+
+// Data columns component
+const DataColumns: React.FC<{
+  columns: string[];
+  mappedData: Record<string, unknown>;
+}> = ({ columns, mappedData }) => (
+  <>
+    {columns.map(col => (
+      <TableCell key={col}>
+        {formatCellValue(mappedData[col])}
+      </TableCell>
+    ))}
+  </>
+);
+
+// Main component - under 30 lines
 export const StagingTableRow: React.FC<StagingTableRowProps> = ({
   row,
   columns,
@@ -44,12 +67,6 @@ export const StagingTableRow: React.FC<StagingTableRowProps> = ({
         errors={row.errors}
       />
     </TableCell>
-    {columns.map(col => (
-      <TableCell key={col}>
-        {row.mappedData?.[col] !== undefined && row.mappedData?.[col] !== null 
-          ? String(row.mappedData[col]) 
-          : '-'}
-      </TableCell>
-    ))}
+    <DataColumns columns={columns} mappedData={row.mappedData} />
   </TableRow>
 );

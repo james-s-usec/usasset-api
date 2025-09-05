@@ -275,7 +275,7 @@ export class AssetQueryService {
     if (cached) {
       this.logger.log('Cache HIT for asset summary');
     }
-    return cached;
+    return cached || undefined;
   }
 
   private async computeAssetSummary(): Promise<{
@@ -310,15 +310,28 @@ export class AssetQueryService {
     return result;
   }
 
-  private getCostStatistics(): Promise<{
+  private async getCostStatistics(): Promise<{
     _avg: { purchaseCost: number | null };
     _sum: { purchaseCost: number | null };
   }> {
-    return this.prisma.asset.aggregate({
+    const result = await this.prisma.asset.aggregate({
       where: { is_deleted: false, purchaseCost: { not: null } },
       _avg: { purchaseCost: true },
       _sum: { purchaseCost: true },
     });
+
+    return {
+      _avg: {
+        purchaseCost: result._avg.purchaseCost
+          ? Number(result._avg.purchaseCost)
+          : null,
+      },
+      _sum: {
+        purchaseCost: result._sum.purchaseCost
+          ? Number(result._sum.purchaseCost)
+          : null,
+      },
+    };
   }
 
   private setCachedSummary(

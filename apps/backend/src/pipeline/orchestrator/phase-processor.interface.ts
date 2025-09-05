@@ -58,25 +58,29 @@ export interface PhaseContext {
   metadata: Record<string, unknown>;
 }
 
+export interface PhaseMetrics {
+  startTime: Date;
+  endTime: Date;
+  durationMs: number;
+  recordsProcessed: number;
+  recordsSuccess: number;
+  recordsFailed: number;
+}
+
+export interface PhaseDebugInfo {
+  rulesApplied?: string[];
+  transformations?: Array<{ field: string; before: unknown; after: unknown }>;
+  validationResults?: unknown;
+}
+
 export interface PhaseResult {
   success: boolean;
   phase: PipelinePhase;
   data?: unknown;
   errors: string[];
   warnings: string[];
-  metrics: {
-    startTime: Date;
-    endTime: Date;
-    durationMs: number;
-    recordsProcessed: number;
-    recordsSuccess: number;
-    recordsFailed: number;
-  };
-  debug?: {
-    rulesApplied?: string[];
-    transformations?: Array<{ field: string; before: unknown; after: unknown }>;
-    validationResults?: unknown;
-  };
+  metrics: PhaseMetrics;
+  debug?: PhaseDebugInfo;
 }
 
 export interface PhaseProcessor {

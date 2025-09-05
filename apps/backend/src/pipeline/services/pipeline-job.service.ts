@@ -1,6 +1,10 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PipelineRepository } from '../repositories/pipeline.repository';
-import { ImportJob, JobStatus as PrismaJobStatus } from '@prisma/client';
+import {
+  ImportJob,
+  JobStatus as PrismaJobStatus,
+  Prisma,
+} from '@prisma/client';
 import { JobStatus } from '../interfaces/pipeline-types';
 
 const CONSTANTS = {
@@ -46,23 +50,53 @@ export class PipelineJobService {
    */
   public async getJobStatus(jobId: string): Promise<JobStatus> {
     const job = await this.pipelineRepository.findImportJobById(jobId);
+    this.validateJobExists(job, jobId);
+    return this.mapJobToStatus(job);
+  }
 
+  private validateJobExists(
+    job: ImportJob | null,
+    jobId: string,
+  ): asserts job is ImportJob {
     if (!job) {
       throw new NotFoundException(`Import job ${jobId} not found`);
     }
+  }
 
+  private mapJobToStatus(job: ImportJob): JobStatus {
+    const rows = this.calculateRowCounts(job);
     return {
       id: job.id,
-      fileName: job.file_id, // This would be enriched with actual filename in real implementation
+      fileName: job.file_id,
       status: job.status,
-      totalRows: job.total_rows || 0,
-      validRows: (job.total_rows || 0) - (job.error_rows || 0),
-      invalidRows: job.error_rows || 0,
-      processedRows: job.processed_rows || 0,
-      errors: Array.isArray(job.errors) ? (job.errors as string[]) : [],
+      totalRows: rows.total,
+      validRows: rows.valid,
+      invalidRows: rows.invalid,
+      processedRows: rows.processed,
+      errors: this.extractErrors(job.errors),
       created_at: job.started_at,
       updated_at: job.completed_at || job.started_at,
     };
+  }
+
+  private calculateRowCounts(job: ImportJob): {
+    total: number;
+    valid: number;
+    invalid: number;
+    processed: number;
+  } {
+    const total = job.total_rows || 0;
+    const invalid = job.error_rows || 0;
+    return {
+      total,
+      valid: total - invalid,
+      invalid,
+      processed: job.processed_rows || 0,
+    };
+  }
+
+  private extractErrors(errors: unknown): string[] {
+    return Array.isArray(errors) ? (errors as string[]) : [];
   }
 
   /**
@@ -80,15 +114,12 @@ export class PipelineJobService {
   ): Promise<void> {
     this.logger.debug(`Updating job ${jobId} status to: ${status}`);
 
-    const updateData: any = {
+    const updateData: Prisma.ImportJobUpdateInput = {
       status,
       errors,
       completed_at: status !== 'RUNNING' ? new Date() : undefined,
+      ...metadata,
     };
-
-    if (metadata) {
-      Object.assign(updateData, metadata);
-    }
 
     await this.pipelineRepository.updateImportJob(jobId, updateData);
   }
@@ -111,48 +142,66 @@ export class PipelineJobService {
     jobsDeleted: number;
     stagingRecordsDeleted: number;
   }> {
-    const cutoffDate = new Date(
-      Date.now() -
-        olderThanHours *
-          CONSTANTS.SECONDS_PER_MINUTE *
-          CONSTANTS.MINUTES_PER_HOUR *
-          CONSTANTS.MILLISECONDS_PER_SECOND,
-    );
-
-    // Find old completed/failed jobs
-    const oldJobs = await this.pipelineRepository.findImportJobs();
-    const jobsToDelete = oldJobs
-      .filter(
-        (job) =>
-          job.completed_at &&
-          job.completed_at < cutoffDate &&
-          ['COMPLETED', 'FAILED'].includes(job.status),
-      )
-      .map((job) => job.id);
+    const cutoffDate = this.calculateCutoffDate(olderThanHours);
+    const jobsToDelete = await this.findOldJobIds(cutoffDate);
 
     if (jobsToDelete.length === 0) {
       return { jobsDeleted: 0, stagingRecordsDeleted: 0 };
     }
 
-    // Delete associated staging records
-    const stagingRecordsDeleted =
-      await this.pipelineRepository.deleteStagingAssets({
-        id: { in: jobsToDelete },
-      });
+    return await this.deleteJobsAndRecords(jobsToDelete);
+  }
 
-    // Delete the jobs
-    const jobsDeleted = await this.pipelineRepository.deleteImportJobs({
-      id: { in: jobsToDelete },
+  private calculateCutoffDate(olderThanHours: number): Date {
+    const milliseconds =
+      olderThanHours *
+      CONSTANTS.SECONDS_PER_MINUTE *
+      CONSTANTS.MINUTES_PER_HOUR *
+      CONSTANTS.MILLISECONDS_PER_SECOND;
+    return new Date(Date.now() - milliseconds);
+  }
+
+  private async findOldJobIds(cutoffDate: Date): Promise<string[]> {
+    const oldJobs = await this.pipelineRepository.findImportJobs();
+    return oldJobs
+      .filter((job) => this.isJobEligibleForDeletion(job, cutoffDate))
+      .map((job) => job.id);
+  }
+
+  private isJobEligibleForDeletion(job: ImportJob, cutoffDate: Date): boolean {
+    return (
+      job.completed_at !== null &&
+      job.completed_at < cutoffDate &&
+      ['COMPLETED', 'FAILED'].includes(job.status)
+    );
+  }
+
+  private async deleteJobsAndRecords(
+    jobIds: string[],
+  ): Promise<{ jobsDeleted: number; stagingRecordsDeleted: number }> {
+    const stagingResult = await this.pipelineRepository.deleteStagingAssets({
+      id: { in: jobIds },
     });
 
-    this.logger.log(
-      `Cleanup completed: ${jobsDeleted.count} jobs, ${stagingRecordsDeleted.count} staging records deleted`,
-    );
+    const jobsResult = await this.pipelineRepository.deleteImportJobs({
+      id: { in: jobIds },
+    });
+
+    this.logCleanupResults(jobsResult.count, stagingResult.count);
 
     return {
-      jobsDeleted: jobsDeleted.count,
-      stagingRecordsDeleted: stagingRecordsDeleted.count,
+      jobsDeleted: jobsResult.count,
+      stagingRecordsDeleted: stagingResult.count,
     };
+  }
+
+  private logCleanupResults(
+    jobsDeleted: number,
+    stagingRecordsDeleted: number,
+  ): void {
+    this.logger.log(
+      `Cleanup completed: ${jobsDeleted} jobs, ${stagingRecordsDeleted} staging records deleted`,
+    );
   }
 
   /**

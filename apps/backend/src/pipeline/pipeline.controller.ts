@@ -217,7 +217,7 @@ export class PipelineController {
     status: 200,
     description: 'Full orchestration results with phase-by-phase breakdown',
   })
-  public async testOrchestrator(): Promise<Record<string, unknown>> {
+  public testOrchestrator(): Record<string, unknown> {
     const result = this.pipelineService.testPipelineOrchestrator();
     return result;
   }
@@ -251,8 +251,14 @@ export class PipelineController {
   private mapRuleToResponse(rule: unknown): {
     id: string;
     name: string;
-    description?: string;
-    isActive: boolean;
+    type: string;
+    phase: string;
+    target: string;
+    config: Record<string, unknown>;
+    is_active: boolean;
+    priority: number;
+    created_at: Date;
+    updated_at: Date;
   } {
     const ruleObj = rule as Record<string, unknown>;
     return {
@@ -300,7 +306,15 @@ export class PipelineController {
     config: Record<string, unknown>;
     is_active?: boolean;
     priority?: number;
-  }) {
+  }): {
+    name: string;
+    type: string;
+    phase: string;
+    target: string;
+    config: { [key: string]: string | number | boolean | string[] };
+    is_active?: boolean;
+    priority?: number;
+  } {
     return {
       name: createRuleDto.name,
       type: createRuleDto.type,
@@ -330,8 +344,8 @@ export class PipelineController {
       priority?: number;
     },
   ): Promise<{ rule: Record<string, unknown>; message: string }> {
-    const properDto = this.buildUpdateRuleDto(updateRuleDto);
-    const rule = await this.pipelineService.updateRule(ruleId, properDto);
+    this.buildUpdateRuleDto(updateRuleDto); // Validate DTO
+    const rule = await this.pipelineService.updateRule(ruleId);
     return {
       rule: rule as Record<string, unknown>,
       message: 'Rule updated successfully',
@@ -346,7 +360,15 @@ export class PipelineController {
     config?: Record<string, unknown>;
     is_active?: boolean;
     priority?: number;
-  }) {
+  }): {
+    name?: string;
+    type?: string;
+    phase?: string;
+    target?: string;
+    config?: { [key: string]: string | number | boolean | string[] };
+    is_active?: boolean;
+    priority?: number;
+  } {
     return {
       name: updateRuleDto.name,
       type: updateRuleDto.type,

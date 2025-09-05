@@ -6,12 +6,32 @@ import {
   PhaseResult,
   PhaseInputData,
   AssetRowData,
+  PhaseMetrics,
   FIELD_NAMES,
 } from '../../orchestrator/phase-processor.interface';
 
 const MAX_ERROR_DISPLAY_LIMIT = 20;
 const MAX_WARNING_DISPLAY_LIMIT = 10;
 const MAX_SAMPLE_SIZE = 5;
+
+// Options interface to reduce parameters
+interface SuccessResultOptions {
+  outputData: PhaseInputData;
+  allErrors: string[];
+  allWarnings: string[];
+  startTime: Date;
+  endTime: Date;
+  inputData: PhaseInputData;
+  validationResults: {
+    validRows: AssetRowData[];
+    invalidRows: AssetRowData[];
+    validationResults: Array<{
+      row: number;
+      errors: string[];
+      warnings: string[];
+    }>;
+  };
+}
 
 const VALID_STATUSES = [
   'ACTIVE',
@@ -50,9 +70,11 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
       const validationResults = this.validateAllRows(rows);
 
       // Build result
-      return this.buildPhaseResult(data, validationResults, startTime, context);
+      return Promise.resolve(
+        this.buildPhaseResult(data, validationResults, startTime, context),
+      );
     } catch (error) {
-      return this.buildErrorResult(error, startTime, context);
+      return Promise.resolve(this.buildErrorResult(error, startTime, context));
     }
   }
 
@@ -217,6 +239,34 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
     context: PhaseContext,
   ): PhaseResult {
     const endTime = new Date();
+    const { allErrors, allWarnings } =
+      this.collectErrorsAndWarnings(validationResults);
+    const outputData = this.buildOutputData(inputData, validationResults);
+
+    this.logValidationCompletion(context, validationResults);
+
+    return this.buildSuccessResult({
+      outputData,
+      allErrors,
+      allWarnings,
+      startTime,
+      endTime,
+      inputData,
+      validationResults,
+    });
+  }
+
+  /**
+   * Collect all errors and warnings from validation results
+   */
+  private collectErrorsAndWarnings(validationResults: {
+    invalidRows: AssetRowData[];
+    validationResults: Array<{
+      row: number;
+      errors: string[];
+      warnings: string[];
+    }>;
+  }): { allErrors: string[]; allWarnings: string[] } {
     const allWarnings: string[] = [];
     const allErrors: string[] = [];
 
@@ -235,39 +285,115 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
       );
     }
 
-    const outputData: PhaseInputData = {
+    return { allErrors, allWarnings };
+  }
+
+  /**
+   * Build output data structure
+   */
+  private buildOutputData(
+    inputData: PhaseInputData,
+    validationResults: {
+      validRows: AssetRowData[];
+      invalidRows: AssetRowData[];
+      validationResults: Array<{
+        row: number;
+        errors: string[];
+        warnings: string[];
+      }>;
+    },
+  ): PhaseInputData {
+    return {
       ...inputData,
       validRows: validationResults.validRows,
       invalidRows: validationResults.invalidRows,
       validationResults: validationResults.validationResults,
     };
+  }
 
+  /**
+   * Log validation completion
+   */
+  private logValidationCompletion(
+    context: PhaseContext,
+    validationResults: {
+      validRows: AssetRowData[];
+      invalidRows: AssetRowData[];
+    },
+  ): void {
     this.logger.debug(
       `[${context.correlationId}] VALIDATE phase completed: ` +
         `${validationResults.validRows.length} valid, ` +
         `${validationResults.invalidRows.length} invalid`,
     );
+  }
+
+  /**
+   * Build successful result object - refactored with options object
+   */
+  private buildSuccessResult(options: SuccessResultOptions): PhaseResult {
+    const metrics = this.buildMetrics(
+      options.startTime,
+      options.endTime,
+      options.inputData,
+      options.validationResults,
+    );
+    const debug = this.buildDebugInfo(options.validationResults);
+    const limitedErrors = this.limitArray(
+      options.allErrors,
+      MAX_ERROR_DISPLAY_LIMIT,
+    );
+    const limitedWarnings = this.limitArray(
+      options.allWarnings,
+      MAX_WARNING_DISPLAY_LIMIT,
+    );
 
     return {
       success: true,
       phase: this.phase,
-      data: outputData,
-      errors: allErrors.slice(0, MAX_ERROR_DISPLAY_LIMIT), // Limit errors for readability
-      warnings: allWarnings.slice(0, MAX_WARNING_DISPLAY_LIMIT),
-      metrics: {
-        startTime,
-        endTime,
-        durationMs: endTime.getTime() - startTime.getTime(),
-        recordsProcessed: inputData.rows?.length || 0,
-        recordsSuccess: validationResults.validRows.length,
-        recordsFailed: validationResults.invalidRows.length,
-      },
-      debug: {
-        validationResults: validationResults.validationResults.slice(
-          0,
-          MAX_SAMPLE_SIZE,
-        ),
-      },
+      data: options.outputData,
+      errors: limitedErrors,
+      warnings: limitedWarnings,
+      metrics,
+      debug,
+    };
+  }
+
+  private limitArray<T>(arr: T[], limit: number): T[] {
+    return arr.slice(0, limit);
+  }
+
+  private buildMetrics(
+    startTime: Date,
+    endTime: Date,
+    inputData: PhaseInputData,
+    validationResults: {
+      validRows: AssetRowData[];
+      invalidRows: AssetRowData[];
+    },
+  ): PhaseMetrics {
+    return {
+      startTime,
+      endTime,
+      durationMs: endTime.getTime() - startTime.getTime(),
+      recordsProcessed: inputData.rows?.length || 0,
+      recordsSuccess: validationResults.validRows.length,
+      recordsFailed: validationResults.invalidRows.length,
+    };
+  }
+
+  private buildDebugInfo(validationResults: {
+    validationResults: Array<{
+      row: number;
+      errors: string[];
+      warnings: string[];
+    }>;
+  }): Record<string, unknown> {
+    return {
+      validationResults: validationResults.validationResults.slice(
+        0,
+        MAX_SAMPLE_SIZE,
+      ),
     };
   }
 

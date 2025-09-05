@@ -9,7 +9,6 @@ import { RuleEngineService } from '../../services/rule-engine.service';
 import { RuleProcessorFactory } from '../../services/rule-processor.factory';
 import { PrismaService } from '../../../database/prisma.service';
 import { ProcessingContext } from '../../interfaces/rule-processor.interface';
-import { ProcessingRule } from '../../interfaces/pipeline-types';
 
 interface CleanedData extends Record<string, unknown> {
   cleanedRows: Array<Record<string, unknown>>;
@@ -187,7 +186,7 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     const activeRules = await this.ruleEngine.getRulesForPhase(
       PipelinePhase.CLEAN,
     );
-    return activeRules.map((r: ProcessingRule) => r.name);
+    return activeRules.map((r) => r.name);
   }
 
   private createRuleContext(

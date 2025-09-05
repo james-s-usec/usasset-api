@@ -12,7 +12,7 @@ import { TestResults } from './TestResults';
 import { RulesList } from './RulesList';
 import { JobsList } from './JobsList';
 import { RuleEditor } from './RuleEditor';
-import type { PipelineRule, NewRuleData, ImportJob } from './types';
+import type { PipelineRule, NewRuleData, ImportJob, RulesTestResult } from './types';
 
 interface TabHeaderProps {
   currentTab: number;
@@ -166,18 +166,11 @@ const useTabState = (): {
   return { currentTab, setCurrentTab, selectedPhase, setSelectedPhase };
 };
 
-export const RulesManagement: React.FC = () => {
-  const { currentTab, setCurrentTab, selectedPhase, setSelectedPhase } = useTabState();
-  const editorState = useRuleEditor();
-  const management = useRulesManagement();
-
-  const filteredRules = selectedPhase ? management.rules.filter(rule => rule.phase === selectedPhase) : management.rules;
-
-  useEffect(() => {
-    if (currentTab === 0) management.loadRules();
-    else if (currentTab === 1) management.loadJobs();
-  }, [currentTab, management.loadRules, management.loadJobs]);
-
+// Hook to handle save logic
+const useSaveHandler = (
+  management: ReturnType<typeof useRulesManagement>,
+  editorState: ReturnType<typeof useRuleEditor>
+): ((ruleData: NewRuleData) => Promise<boolean>) => {
   const handleSaveRule = async (ruleData: NewRuleData): Promise<boolean> => {
     const success = await management.saveRule(ruleData, editorState.editingRule);
     if (success) {
@@ -186,40 +179,102 @@ export const RulesManagement: React.FC = () => {
     }
     return success;
   };
+  
+  return handleSaveRule;
+};
+
+// Layout container component
+const LayoutContainer: React.FC<{
+  children: React.ReactNode;
+  currentTab: number;
+  onTabChange: (tab: number) => void;
+  error: string | null;
+  testResult: RulesTestResult | null;
+  clearError: () => void;
+}> = ({ children, currentTab, onTabChange, error, testResult, clearError }) => (
+  <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <TabHeader currentTab={currentTab} onTabChange={onTabChange} />
+    {error && (
+      <Alert severity="error" sx={{ m: 2 }} onClose={clearError}>
+        {error}
+      </Alert>
+    )}
+    {testResult && <TestResults testResult={testResult} />}
+    {children}
+  </Box>
+);
+
+// Data loading effect
+const useDataLoader = (currentTab: number, management: ReturnType<typeof useRulesManagement>): void => {
+  useEffect(() => {
+    if (currentTab === 0) management.loadRules();
+    else if (currentTab === 1) management.loadJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTab]);
+};
+
+// Main component content
+const ManagementContent: React.FC<{
+  tabState: ReturnType<typeof useTabState>;
+  editorState: ReturnType<typeof useRuleEditor>;
+  management: ReturnType<typeof useRulesManagement>;
+  handleSaveRule: (ruleData: NewRuleData) => Promise<boolean>;
+  filteredRules: PipelineRule[];
+}> = ({ tabState, editorState, management, handleSaveRule, filteredRules }) => (
+  <>
+    <MainContent
+      currentTab={tabState.currentTab}
+      selectedPhase={tabState.selectedPhase}
+      onPhaseChange={tabState.setSelectedPhase}
+      filteredRules={filteredRules}
+      jobs={management.jobs}
+      loading={management.loading}
+      loadRules={management.loadRules}
+      loadJobs={management.loadJobs}
+      testRules={management.testRules}
+      testOrchestrator={management.testOrchestrator}
+      handleEditRule={editorState.handleEditRule}
+      deleteRule={management.deleteRule}
+      setShowRuleEditor={editorState.setShowRuleEditor}
+    />
+    
+    <RuleEditor 
+      open={editorState.showRuleEditor} 
+      editingRule={editorState.editingRule} 
+      loading={management.loading} 
+      onClose={editorState.handleCloseEditor} 
+      onSave={handleSaveRule} 
+    />
+  </>
+);
+
+export const RulesManagement: React.FC = () => {
+  const tabState = useTabState();
+  const editorState = useRuleEditor();
+  const management = useRulesManagement();
+  const handleSaveRule = useSaveHandler(management, editorState);
+
+  const filteredRules = tabState.selectedPhase 
+    ? management.rules.filter(rule => rule.phase === tabState.selectedPhase) 
+    : management.rules;
+
+  useDataLoader(tabState.currentTab, management);
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <TabHeader currentTab={currentTab} onTabChange={setCurrentTab} />
-      {management.error && (
-        <Alert severity="error" sx={{ m: 2 }} onClose={management.clearError}>
-          {management.error}
-        </Alert>
-      )}
-      {management.testResult && <TestResults testResult={management.testResult} />}
-      
-      <MainContent
-        currentTab={currentTab}
-        selectedPhase={selectedPhase}
-        onPhaseChange={setSelectedPhase}
+    <LayoutContainer
+      currentTab={tabState.currentTab}
+      onTabChange={tabState.setCurrentTab}
+      error={management.error}
+      testResult={management.testResult}
+      clearError={management.clearError}
+    >
+      <ManagementContent
+        tabState={tabState}
+        editorState={editorState}
+        management={management}
+        handleSaveRule={handleSaveRule}
         filteredRules={filteredRules}
-        jobs={management.jobs}
-        loading={management.loading}
-        loadRules={management.loadRules}
-        loadJobs={management.loadJobs}
-        testRules={management.testRules}
-        testOrchestrator={management.testOrchestrator}
-        handleEditRule={editorState.handleEditRule}
-        deleteRule={management.deleteRule}
-        setShowRuleEditor={editorState.setShowRuleEditor}
       />
-      
-      <RuleEditor 
-        open={editorState.showRuleEditor} 
-        editingRule={editorState.editingRule} 
-        loading={management.loading} 
-        onClose={editorState.handleCloseEditor} 
-        onSave={handleSaveRule} 
-      />
-    </Box>
+    </LayoutContainer>
   );
 };

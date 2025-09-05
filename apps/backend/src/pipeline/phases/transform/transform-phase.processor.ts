@@ -6,6 +6,7 @@ import {
   PhaseResult,
   PhaseInputData,
   AssetRowData,
+  PhaseMetrics,
   FIELD_NAMES,
 } from '../../orchestrator/phase-processor.interface';
 
@@ -49,9 +50,11 @@ export class TransformPhaseProcessor implements PhaseProcessor {
       const transformResult = this.transformAllRows(inputRows);
 
       // Build result
-      return this.buildPhaseResult(data, transformResult, startTime, context);
+      return Promise.resolve(
+        this.buildPhaseResult(data, transformResult, startTime, context),
+      );
     } catch (error) {
-      return this.buildErrorResult(error, startTime, context);
+      return Promise.resolve(this.buildErrorResult(error, startTime, context));
     }
   }
 
@@ -119,7 +122,18 @@ export class TransformPhaseProcessor implements PhaseProcessor {
     row: TransformedRowData,
     transformations: TransformationRecord[],
   ): void {
-    // Normalize status field
+    this.normalizeStatusField(row, transformations);
+    this.normalizeConditionField(row, transformations);
+    this.trimAllStringFields(row, transformations);
+  }
+
+  /**
+   * Normalize status field to uppercase
+   */
+  private normalizeStatusField(
+    row: TransformedRowData,
+    transformations: TransformationRecord[],
+  ): void {
     const status = row[FIELD_NAMES.STATUS];
     if (status && typeof status === 'string') {
       const normalized = status.trim().toUpperCase();
@@ -132,8 +146,15 @@ export class TransformPhaseProcessor implements PhaseProcessor {
         row[FIELD_NAMES.STATUS] = normalized;
       }
     }
+  }
 
-    // Normalize condition field
+  /**
+   * Normalize condition field to uppercase
+   */
+  private normalizeConditionField(
+    row: TransformedRowData,
+    transformations: TransformationRecord[],
+  ): void {
     const condition = row[FIELD_NAMES.CONDITION];
     if (condition && typeof condition === 'string') {
       const normalized = condition.trim().toUpperCase();
@@ -146,8 +167,15 @@ export class TransformPhaseProcessor implements PhaseProcessor {
         row[FIELD_NAMES.CONDITION] = normalized;
       }
     }
+  }
 
-    // Trim all string fields
+  /**
+   * Trim all string fields in row
+   */
+  private trimAllStringFields(
+    row: TransformedRowData,
+    transformations: TransformationRecord[],
+  ): void {
     for (const field of Object.keys(row)) {
       const value = row[field];
       if (typeof value === 'string' && value.trim() !== value) {
@@ -168,7 +196,17 @@ export class TransformPhaseProcessor implements PhaseProcessor {
     row: TransformedRowData,
     transformations: TransformationRecord[],
   ): void {
-    // Convert purchase cost to number if needed
+    this.transformPurchaseCost(row, transformations);
+    this.transformPurchaseDate(row, transformations);
+  }
+
+  /**
+   * Transform purchase cost to number format
+   */
+  private transformPurchaseCost(
+    row: TransformedRowData,
+    transformations: TransformationRecord[],
+  ): void {
     const purchaseCost = row[FIELD_NAMES.PURCHASE_COST];
     if (purchaseCost && typeof purchaseCost === 'string') {
       const numValue = parseFloat(purchaseCost);
@@ -181,8 +219,15 @@ export class TransformPhaseProcessor implements PhaseProcessor {
         row[FIELD_NAMES.PURCHASE_COST] = numValue.toString();
       }
     }
+  }
 
-    // Standardize date format
+  /**
+   * Transform purchase date to ISO format
+   */
+  private transformPurchaseDate(
+    row: TransformedRowData,
+    transformations: TransformationRecord[],
+  ): void {
     const purchaseDate = row[FIELD_NAMES.PURCHASE_DATE];
     if (purchaseDate && typeof purchaseDate === 'string') {
       const date = new Date(purchaseDate);
@@ -221,44 +266,95 @@ export class TransformPhaseProcessor implements PhaseProcessor {
     context: PhaseContext,
   ): PhaseResult {
     const endTime = new Date();
+    const outputData = this.buildOutputData(inputData, transformResult);
+    const warnings = this.buildWarnings(transformResult);
+    const metrics = this.buildMetrics(startTime, endTime, transformResult);
+    const debug = this.buildDebugInfo(transformResult);
 
-    const outputData: PhaseInputData = {
-      ...inputData,
-      transformedRows: transformResult.transformedRows,
-    };
-
-    this.logger.debug(
-      `[${context.correlationId}] TRANSFORM phase completed: ` +
-        `${transformResult.transformedRows.length} rows, ` +
-        `${transformResult.transformations.length} transformations`,
-    );
+    this.logPhaseCompletion(context, transformResult);
 
     return {
       success: true,
       phase: this.phase,
       data: outputData,
       errors: [],
-      warnings:
-        transformResult.transformations.length > 0
-          ? [
-              `Applied ${transformResult.transformations.length} transformations`,
-            ]
-          : [],
-      metrics: {
-        startTime,
-        endTime,
-        durationMs: endTime.getTime() - startTime.getTime(),
-        recordsProcessed: transformResult.transformedRows.length,
-        recordsSuccess: transformResult.transformedRows.length,
-        recordsFailed: 0,
-      },
-      debug: {
-        transformations: transformResult.transformations.slice(
-          0,
-          MAX_DEBUG_TRANSFORMATIONS,
-        ),
-      },
+      warnings,
+      metrics,
+      debug,
     };
+  }
+
+  /**
+   * Build output data for phase result
+   */
+  private buildOutputData(
+    inputData: PhaseInputData,
+    transformResult: { transformedRows: TransformedRowData[] },
+  ): PhaseInputData {
+    return {
+      ...inputData,
+      transformedRows: transformResult.transformedRows,
+    };
+  }
+
+  /**
+   * Build warnings array for phase result
+   */
+  private buildWarnings(transformResult: {
+    transformations: TransformationRecord[];
+  }): string[] {
+    return transformResult.transformations.length > 0
+      ? [`Applied ${transformResult.transformations.length} transformations`]
+      : [];
+  }
+
+  /**
+   * Build metrics for phase result
+   */
+  private buildMetrics(
+    startTime: Date,
+    endTime: Date,
+    transformResult: { transformedRows: TransformedRowData[] },
+  ): PhaseMetrics {
+    return {
+      startTime,
+      endTime,
+      durationMs: endTime.getTime() - startTime.getTime(),
+      recordsProcessed: transformResult.transformedRows.length,
+      recordsSuccess: transformResult.transformedRows.length,
+      recordsFailed: 0,
+    };
+  }
+
+  /**
+   * Build debug info for phase result
+   */
+  private buildDebugInfo(transformResult: {
+    transformations: TransformationRecord[];
+  }): Record<string, unknown> {
+    return {
+      transformations: transformResult.transformations.slice(
+        0,
+        MAX_DEBUG_TRANSFORMATIONS,
+      ),
+    };
+  }
+
+  /**
+   * Log phase completion
+   */
+  private logPhaseCompletion(
+    context: PhaseContext,
+    transformResult: {
+      transformedRows: TransformedRowData[];
+      transformations: TransformationRecord[];
+    },
+  ): void {
+    this.logger.debug(
+      `[${context.correlationId}] TRANSFORM phase completed: ` +
+        `${transformResult.transformedRows.length} rows, ` +
+        `${transformResult.transformations.length} transformations`,
+    );
   }
 
   /**

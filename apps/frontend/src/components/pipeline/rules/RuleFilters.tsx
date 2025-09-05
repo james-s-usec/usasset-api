@@ -46,13 +46,11 @@ const PhaseSelector: React.FC<{
   </FormControl>
 );
 
-const ActionButtons: React.FC<{
+const UtilityButtons: React.FC<{
   onRefresh: () => void;
   onAddRule: () => void;
-  onTestRules: () => void;
-  onTestOrchestrator: () => void;
   loading: boolean;
-}> = ({ onRefresh, onAddRule, onTestRules, onTestOrchestrator, loading }) => (
+}> = ({ onRefresh, onAddRule, loading }) => (
   <>
     <Button 
       variant="outlined" 
@@ -71,7 +69,15 @@ const ActionButtons: React.FC<{
     >
       Add Rule
     </Button>
-    <Divider orientation="vertical" flexItem />
+  </>
+);
+
+const TestButtons: React.FC<{
+  onTestRules: () => void;
+  onTestOrchestrator: () => void;
+  loading: boolean;
+}> = ({ onTestRules, onTestOrchestrator, loading }) => (
+  <>
     <Button 
       variant="contained" 
       size="small" 
@@ -92,6 +98,28 @@ const ActionButtons: React.FC<{
     >
       Test Orchestrator
     </Button>
+  </>
+);
+
+const ActionButtons: React.FC<{
+  onRefresh: () => void;
+  onAddRule: () => void;
+  onTestRules: () => void;
+  onTestOrchestrator: () => void;
+  loading: boolean;
+}> = ({ onRefresh, onAddRule, onTestRules, onTestOrchestrator, loading }) => (
+  <>
+    <UtilityButtons 
+      onRefresh={onRefresh} 
+      onAddRule={onAddRule} 
+      loading={loading} 
+    />
+    <Divider orientation="vertical" flexItem />
+    <TestButtons 
+      onTestRules={onTestRules} 
+      onTestOrchestrator={onTestOrchestrator} 
+      loading={loading} 
+    />
   </>
 );
 

@@ -4,6 +4,8 @@ import {
   PhaseProcessor,
   PhaseContext,
   PhaseResult,
+  PhaseMetrics,
+  PhaseDebugInfo,
 } from '../../orchestrator/phase-processor.interface';
 
 const CONSTANTS = {

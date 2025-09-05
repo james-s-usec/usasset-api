@@ -6,59 +6,32 @@ interface ActionResult {
   message: string;
 }
 
-export const usePipelineActions = (jobId: string | null, onReset?: () => void) => {
+interface PipelineActionsReturn {
+  handleApprove: () => Promise<void>;
+  handleReject: () => Promise<void>;
+  handleStartNewImport: () => void;
+  isProcessing: boolean;
+  actionResult: ActionResult | null;
+}
+
+export const usePipelineActions = (
+  jobId: string | null, 
+  onReset?: () => void
+): PipelineActionsReturn => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionResult, setActionResult] = useState<ActionResult | null>(null);
 
-  const handleApprove = useCallback(async () => {
+  const handleApprove = useCallback(async (): Promise<void> => {
     if (!jobId) return;
-    
-    setIsProcessing(true);
-    setActionResult(null);
-    
-    try {
-      const result = await pipelineApi.approveImport(jobId);
-      setActionResult({ 
-        success: true, 
-        message: `${result.message} (${result.importedCount} assets imported)`
-      });
-      // Don't reload - let user see the result and start new import
-    } catch (error) {
-      console.error('Failed to approve import:', error);
-      setActionResult({ 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Failed to approve import' 
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    await performApproveAction(jobId, setIsProcessing, setActionResult);
   }, [jobId]);
 
-  const handleReject = useCallback(async () => {
+  const handleReject = useCallback(async (): Promise<void> => {
     if (!jobId) return;
-    
-    setIsProcessing(true);
-    setActionResult(null);
-    
-    try {
-      const result = await pipelineApi.rejectImport(jobId);
-      setActionResult({ 
-        success: true, 
-        message: `${result.message} (${result.clearedCount} records cleared)`
-      });
-      // Don't reload - let user see the result and start new import
-    } catch (error) {
-      console.error('Failed to reject import:', error);
-      setActionResult({ 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Failed to reject import' 
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    await performRejectAction(jobId, setIsProcessing, setActionResult);
   }, [jobId]);
 
-  const handleStartNewImport = useCallback(() => {
+  const handleStartNewImport = useCallback((): void => {
     setActionResult(null);
     onReset?.();
   }, [onReset]);
@@ -71,3 +44,55 @@ export const usePipelineActions = (jobId: string | null, onReset?: () => void) =
     actionResult 
   };
 };
+
+// Helper function for approve action
+const performApproveAction = async (
+  jobId: string,
+  setIsProcessing: (processing: boolean) => void,
+  setActionResult: (result: ActionResult) => void
+): Promise<void> => {
+  setIsProcessing(true);
+  setActionResult({ success: true, message: '' });
+  
+  try {
+    const result = await pipelineApi.approveImport(jobId);
+    setActionResult({ 
+      success: true, 
+      message: `${result.message} (${result.importedCount} assets imported)`
+    });
+  } catch (error) {
+    console.error('Failed to approve import:', error);
+    setActionResult(createErrorResult(error, 'Failed to approve import'));
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+// Helper function for reject action
+const performRejectAction = async (
+  jobId: string,
+  setIsProcessing: (processing: boolean) => void,
+  setActionResult: (result: ActionResult) => void
+): Promise<void> => {
+  setIsProcessing(true);
+  setActionResult({ success: true, message: '' });
+  
+  try {
+    const result = await pipelineApi.rejectImport(jobId);
+    setActionResult({ 
+      success: true, 
+      message: `${result.message} (${result.clearedCount} records cleared)`
+    });
+  } catch (error) {
+    console.error('Failed to reject import:', error);
+    setActionResult(createErrorResult(error, 'Failed to reject import'));
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+// Helper function to create error result
+const createErrorResult = (error: unknown, fallbackMessage: string): ActionResult => ({
+  success: false,
+  message: error instanceof Error ? error.message : fallbackMessage
+});

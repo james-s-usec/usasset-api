@@ -12,6 +12,22 @@ interface StagingAsset {
   validation_errors: string[] | null;
 }
 
+interface SampleResult {
+  validData: Array<{
+    rowNumber: number;
+    rawData: Record<string, string>;
+    mappedData: Record<string, string>;
+  }>;
+  invalidData: Array<{
+    rowNumber: number;
+    rawData: Record<string, string>;
+    errors: string[];
+  }>;
+  validRows: ProcessedRow[];
+  invalidRows: ProcessedRow[];
+  allErrors: string[];
+}
+
 const CONSTANTS = {
   VALIDATION_SAMPLE_SIZE: 50,
   MIN_REQUIRED_COLUMNS: 2,
@@ -149,84 +165,70 @@ export class PipelineValidationService {
     return result;
   }
 
-  private initializeSampleResult(
-    parseErrors: string[],
-  ): ValidationSampleResult {
+  private initializeSampleResult(parseErrors: string[]): SampleResult {
     return {
-      validData: [] as Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        mappedData: Record<string, string>;
-      }>,
-      invalidData: [] as Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        errors: string[];
-      }>,
-      validRows: [] as ProcessedRow[],
-      invalidRows: [] as ProcessedRow[],
+      validData: [],
+      invalidData: [],
+      validRows: [],
+      invalidRows: [],
       allErrors: [...parseErrors],
     };
   }
 
   /**
-   * Process a single row
+   * Process a single row - split into smaller functions
    */
   private processRow(
     row: Record<string, string>,
     rowNumber: number,
-    result: {
-      validData: Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        mappedData: Record<string, string>;
-      }>;
-      invalidData: Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        errors: string[];
-      }>;
-      validRows: ProcessedRow[];
-      invalidRows: ProcessedRow[];
-      allErrors: string[];
-    },
+    result: SampleResult,
   ): void {
     try {
       const assetData = this.mapRowToAsset(row);
       const validationErrors = this.validateAssetData(assetData);
       const processedRow: ProcessedRow = { ...assetData };
-
-      if (validationErrors.length === 0) {
-        this.handleValidRow(processedRow, row, rowNumber, assetData, result);
-      } else {
-        this.handleInvalidRow(
-          processedRow,
-          row,
-          rowNumber,
-          validationErrors,
-          result,
-        );
-      }
+      const context = { processedRow, row, rowNumber, assetData };
+      this.categorizeRow(context, validationErrors, result);
     } catch (error) {
       this.handleRowError(error, row, rowNumber, result);
     }
   }
 
+  private categorizeRow(
+    context: {
+      processedRow: ProcessedRow;
+      row: Record<string, string>;
+      rowNumber: number;
+      assetData: Record<string, string>;
+    },
+    validationErrors: string[],
+    result: SampleResult,
+  ): void {
+    if (validationErrors.length === 0) {
+      this.handleValidRow(
+        context.row,
+        context.rowNumber,
+        context.assetData,
+        result,
+      );
+      result.validRows.push(context.processedRow);
+    } else {
+      this.handleInvalidRow(
+        context.row,
+        context.rowNumber,
+        validationErrors,
+        result,
+      );
+      result.invalidRows.push(context.processedRow);
+    }
+  }
+
   private handleValidRow(
-    processedRow: ProcessedRow,
     row: Record<string, string>,
     rowNumber: number,
     assetData: Record<string, string>,
-    result: {
-      validData: Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        mappedData: Record<string, string>;
-      }>;
-      validRows: ProcessedRow[];
-    },
+    result: Pick<SampleResult, 'validData'>,
   ): void {
-    result.validRows.push(processedRow);
     if (result.validData.length < CONSTANTS.MAX_SAMPLE_ERRORS) {
       result.validData.push({
         rowNumber,
@@ -237,21 +239,11 @@ export class PipelineValidationService {
   }
 
   private handleInvalidRow(
-    processedRow: ProcessedRow,
     row: Record<string, string>,
     rowNumber: number,
     validationErrors: string[],
-    result: {
-      invalidData: Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        errors: string[];
-      }>;
-      invalidRows: ProcessedRow[];
-      allErrors: string[];
-    },
+    result: Pick<SampleResult, 'invalidData' | 'allErrors'>,
   ): void {
-    result.invalidRows.push(processedRow);
     if (result.invalidData.length < CONSTANTS.MAX_SAMPLE_WARNINGS) {
       result.invalidData.push({
         rowNumber,
@@ -269,15 +261,7 @@ export class PipelineValidationService {
     error: unknown,
     row: Record<string, string>,
     rowNumber: number,
-    result: {
-      invalidData: Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        errors: string[];
-      }>;
-      invalidRows: ProcessedRow[];
-      allErrors: string[];
-    },
+    result: SampleResult,
   ): void {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
@@ -323,25 +307,28 @@ export class PipelineValidationService {
   }
 
   /**
-   * Build validation result
+   * Build validation result - simplified
    */
   private buildValidationResult(
-    sampleResult: {
-      validData: Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        mappedData: Record<string, string>;
-      }>;
-      invalidData: Array<{
-        rowNumber: number;
-        rawData: Record<string, string>;
-        errors: string[];
-      }>;
-      validRows: ProcessedRow[];
-      invalidRows: ProcessedRow[];
-      allErrors: string[];
-    },
+    sampleResult: SampleResult,
     totalRows: number,
+  ): ValidationResult & {
+    totalRows: number;
+    sampleValidData: typeof sampleResult.validData;
+    sampleInvalidData: typeof sampleResult.invalidData;
+  } {
+    const errors = this.limitErrors(sampleResult.allErrors);
+    return this.createResult(sampleResult, totalRows, errors);
+  }
+
+  private limitErrors(errors: string[]): string[] {
+    return errors.slice(0, CONSTANTS.MAX_DISPLAY_ERRORS);
+  }
+
+  private createResult(
+    sampleResult: SampleResult,
+    totalRows: number,
+    errors: string[],
   ): ValidationResult & {
     totalRows: number;
     sampleValidData: typeof sampleResult.validData;
@@ -349,7 +336,7 @@ export class PipelineValidationService {
   } {
     return {
       isValid: sampleResult.allErrors.length === 0,
-      errors: sampleResult.allErrors.slice(0, CONSTANTS.MAX_DISPLAY_ERRORS),
+      errors,
       warnings: [],
       validRows: sampleResult.validRows,
       invalidRows: sampleResult.invalidRows,

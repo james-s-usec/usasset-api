@@ -29,6 +29,34 @@ interface StagedRow {
   errors: string[] | null;
 }
 
+// State setters interface to reduce params
+interface StateSetters {
+  setData: (data: StagedRow[]) => void;
+  setValidCount: (count: number) => void;
+  setInvalidCount: (count: number) => void;
+  setError: (error: string | null) => void;
+  setLoading: (loading: boolean) => void;
+}
+
+// Fetch logic with reduced params
+const fetchStagedData = async (
+  jobId: string,
+  setters: StateSetters
+): Promise<void> => {
+  setters.setLoading(true);
+  try {
+    const result = await pipelineApi.getStagedData(jobId);
+    setters.setData(result.data);
+    setters.setValidCount(result.validCount);
+    setters.setInvalidCount(result.invalidCount);
+  } catch (err) {
+    setters.setError(err instanceof Error ? err.message : 'Failed to load staged data');
+  } finally {
+    setters.setLoading(false);
+  }
+};
+
+// Hook to fetch staged data - now under 30 lines
 const useStagedData = (jobId: string): {
   loading: boolean;
   data: StagedRow[];
@@ -43,31 +71,20 @@ const useStagedData = (jobId: string): {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchStagedData = async (): Promise<void> => {
-      setLoading(true);
-      try {
-        const result = await pipelineApi.getStagedData(jobId);
-        setData(result.data);
-        setValidCount(result.validCount);
-        setInvalidCount(result.invalidCount);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load staged data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (jobId) {
-      fetchStagedData();
-    }
+    if (!jobId) return;
+    const setters: StateSetters = { setData, setValidCount, setInvalidCount, setError, setLoading };
+    fetchStagedData(jobId, setters);
   }, [jobId]);
 
   return { loading, data, validCount, invalidCount, error };
 };
 
-export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId }) => {
-  const { loading, data, validCount, invalidCount, error } = useStagedData(jobId);
-
+// Loading states component - extracted for clarity
+const LoadingStates: React.FC<{
+  loading: boolean;
+  error: string | null;
+  hasData: boolean;
+}> = ({ loading, error, hasData }) => {
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -80,12 +97,69 @@ export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId })
     return <Alert severity="error">{error}</Alert>;
   }
 
-  if (data.length === 0) {
+  if (!hasData) {
     return <Alert severity="info">No staged data found</Alert>;
   }
 
-  // Get column headers from mapped data
-  const columns = data.length > 0 && data[0].mappedData 
+  return null;
+};
+
+// Table header component - extracted to reduce JSX depth
+const StagingTableHeader: React.FC<{ columns: string[] }> = ({ columns }) => (
+  <TableHead>
+    <TableRow>
+      <TableCell padding="checkbox">Import</TableCell>
+      <TableCell>Row</TableCell>
+      <TableCell>Status</TableCell>
+      {columns.map(col => (
+        <TableCell key={col}>
+          {col.replace(/([A-Z])/g, ' $1').trim()}
+        </TableCell>
+      ))}
+    </TableRow>
+  </TableHead>
+);
+
+// Data table component - extracted for size limit
+const DataTable: React.FC<{
+  columns: string[];
+  data: StagedRow[];
+}> = ({ columns, data }) => (
+  <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+    <Table stickyHeader size="small">
+      <StagingTableHeader columns={columns} />
+      <TableBody>
+        {data.map((row) => (
+          <StagingTableRow 
+            key={row.rowNumber}
+            row={row}
+            columns={columns}
+          />
+        ))}
+      </TableBody>
+    </Table>
+  </TableContainer>
+);
+
+// Performance note component
+const PerformanceNote: React.FC<{ dataLength: number }> = ({ dataLength }) => {
+  if (dataLength !== 100) return null;
+  return (
+    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+      * Preview limited to first 100 rows for performance
+    </Typography>
+  );
+};
+
+// Main component - under 30 lines
+export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId }) => {
+  const { loading, data, validCount, invalidCount, error } = useStagedData(jobId);
+  const hasData = data.length > 0;
+  
+  const loadingState = LoadingStates({ loading, error, hasData });
+  if (loadingState) return loadingState;
+
+  const columns = data[0]?.mappedData 
     ? Object.keys(data[0].mappedData).filter(key => key !== 'undefined')
     : [];
 
@@ -96,38 +170,8 @@ export const StagingDataPreview: React.FC<StagingDataPreviewProps> = ({ jobId })
         invalidCount={invalidCount}
         dataLength={data.length}
       />
-
-      <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-        <Table stickyHeader size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell padding="checkbox">Import</TableCell>
-              <TableCell>Row</TableCell>
-              <TableCell>Status</TableCell>
-              {columns.map(col => (
-                <TableCell key={col}>
-                  {col.replace(/([A-Z])/g, ' $1').trim()}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {data.map((row) => (
-              <StagingTableRow 
-                key={row.rowNumber}
-                row={row}
-                columns={columns}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      
-      {data.length === 100 && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          * Preview limited to first 100 rows for performance
-        </Typography>
-      )}
+      <DataTable columns={columns} data={data} />
+      <PerformanceNote dataLength={data.length} />
     </Box>
   );
 };

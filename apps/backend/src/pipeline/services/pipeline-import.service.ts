@@ -44,56 +44,90 @@ export class PipelineImportService {
    */
   public async processImport(jobId: string, fileId: string): Promise<void> {
     try {
-      // Update job to running status
-      await this.pipelineRepository.updateImportJob(jobId, {
-        status: 'RUNNING',
-      });
-
-      // Parse the CSV file
+      await this.startImportJob(jobId);
       const parseResult = await this.csvParser.parseFileFromBlob(fileId);
 
-      if (parseResult.errors.length > 0 && parseResult.rows.length === 0) {
-        await this.pipelineRepository.updateImportJob(jobId, {
-          status: 'FAILED',
-          errors: parseResult.errors,
-          completed_at: new Date(),
-        });
+      if (this.shouldFailImport(parseResult)) {
+        await this.failImportJob(jobId, parseResult.errors);
         return;
       }
 
-      // Process and validate rows
-      const { stagingAssets, errors, processedCount } = this.processCsvRows(
-        jobId,
-        parseResult.rows,
-      );
-      const allErrors = [...parseResult.errors, ...errors];
-
-      // Create staging records
-      if (stagingAssets.length > 0) {
-        await this.pipelineRepository.createStagingAssets(stagingAssets);
-      }
-
-      // Update job with results
-      await this.pipelineRepository.updateImportJob(jobId, {
-        status: 'STAGED',
-        total_rows: parseResult.rows.length,
-        processed_rows: processedCount,
-        error_rows: parseResult.rows.length - processedCount,
-        errors: allErrors,
-        completed_at: new Date(),
-      });
-
-      this.logger.log(
-        `Import job ${jobId} processed: ${processedCount} valid rows staged`,
-      );
+      await this.processAndStageData(jobId, parseResult);
     } catch (error) {
-      this.logger.error(`Import job ${jobId} failed:`, error);
-      await this.pipelineRepository.updateImportJob(jobId, {
-        status: 'FAILED',
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
-        completed_at: new Date(),
-      });
+      await this.handleImportError(jobId, error);
     }
+  }
+
+  private async startImportJob(jobId: string): Promise<void> {
+    await this.pipelineRepository.updateImportJob(jobId, {
+      status: 'RUNNING',
+    });
+  }
+
+  private shouldFailImport(parseResult: {
+    errors: string[];
+    rows: Record<string, string>[];
+  }): boolean {
+    return parseResult.errors.length > 0 && parseResult.rows.length === 0;
+  }
+
+  private async failImportJob(jobId: string, errors: string[]): Promise<void> {
+    await this.pipelineRepository.updateImportJob(jobId, {
+      status: 'FAILED',
+      errors: errors,
+      completed_at: new Date(),
+    });
+  }
+
+  private async processAndStageData(
+    jobId: string,
+    parseResult: { errors: string[]; rows: Record<string, string>[] },
+  ): Promise<void> {
+    const { stagingAssets, errors, processedCount } = this.processCsvRows(
+      jobId,
+      parseResult.rows,
+    );
+
+    if (stagingAssets.length > 0) {
+      await this.pipelineRepository.createStagingAssets(stagingAssets);
+    }
+
+    await this.completeImportJob(jobId, parseResult, processedCount, [
+      ...parseResult.errors,
+      ...errors,
+    ]);
+  }
+
+  private async completeImportJob(
+    jobId: string,
+    parseResult: { rows: Record<string, string>[] },
+    processedCount: number,
+    allErrors: string[],
+  ): Promise<void> {
+    await this.pipelineRepository.updateImportJob(jobId, {
+      status: 'STAGED',
+      total_rows: parseResult.rows.length,
+      processed_rows: processedCount,
+      error_rows: parseResult.rows.length - processedCount,
+      errors: allErrors,
+      completed_at: new Date(),
+    });
+
+    this.logger.log(
+      `Import job ${jobId} processed: ${processedCount} valid rows staged`,
+    );
+  }
+
+  private async handleImportError(
+    jobId: string,
+    error: unknown,
+  ): Promise<void> {
+    this.logger.error(`Import job ${jobId} failed:`, error);
+    await this.pipelineRepository.updateImportJob(jobId, {
+      status: 'FAILED',
+      errors: [error instanceof Error ? error.message : 'Unknown error'],
+      completed_at: new Date(),
+    });
   }
 
   /**
@@ -102,87 +136,223 @@ export class PipelineImportService {
   public async approveImport(jobId: string): Promise<ImportJobResult> {
     this.logger.debug(`Approving import for job: ${jobId}`);
 
-    // Get all staged assets and filter for valid ones
-    const allStagedAssets =
-      await this.pipelineRepository.findStagingAssets(jobId);
-    const stagedAssets = allStagedAssets.filter(
-      (asset) => asset.is_valid && asset.will_import,
-    );
-
-    if (stagedAssets.length === 0) {
-      return {
-        jobId,
-        status: 'completed',
-        stats: { total: 0, successful: 0, failed: 0, skipped: 0 },
-        errors: ['No valid assets to import'],
-      };
+    const validAssets = await this.getValidStagedAssets(jobId);
+    if (validAssets.length === 0) {
+      return this.createEmptyResult(jobId);
     }
 
-    // Convert staged data to asset records
-    const assets = stagedAssets.map((staged) => {
-      const data = staged.mapped_data as unknown as MappedAssetData;
-      return {
-        assetTag: data.assetTag || `IMPORT-${staged.row_number}`,
-        name: data.name || 'Unnamed Asset',
-        description: data.description || null,
-        buildingName: data.buildingName || null,
-        floor: data.floor || null,
-        roomNumber: data.room || null,
-        status: (data.status as AssetStatus) || AssetStatus.ACTIVE,
-        condition:
-          (data.conditionAssessment as AssetCondition) || AssetCondition.GOOD,
-        manufacturer: data.manufacturer || null,
-        modelNumber: data.modelNumber || null,
-        serialNumber: data.serialNumber || null,
-      };
-    });
+    const assets = this.convertToAssetRecords(validAssets);
+    const importResult = await this.importAssets(assets);
 
-    let successCount = 0;
-    const errors: string[] = [];
+    await this.finalizeImport(jobId, assets.length, importResult);
 
-    // Try bulk insert first
+    return this.createImportResult(
+      jobId,
+      assets.length,
+      importResult.successCount,
+      importResult.errors,
+    );
+  }
+
+  private async getValidStagedAssets(jobId: string): Promise<
+    Array<{
+      is_valid: boolean;
+      will_import: boolean;
+      row_number: number;
+      mapped_data: unknown;
+    }>
+  > {
+    const allAssets = await this.pipelineRepository.findStagingAssets(jobId);
+    return allAssets.filter((asset) => asset.is_valid && asset.will_import);
+  }
+
+  private createEmptyResult(jobId: string): ImportJobResult {
+    return {
+      jobId,
+      status: 'completed',
+      stats: { total: 0, successful: 0, failed: 0, skipped: 0 },
+      errors: ['No valid assets to import'],
+    };
+  }
+
+  private convertToAssetRecords(
+    stagedAssets: Array<{ row_number: number; mapped_data: unknown }>,
+  ): Array<Record<string, unknown>> {
+    return stagedAssets.map((staged) => this.createAssetRecord(staged));
+  }
+
+  // Reduced complexity by extracting defaults
+  private createAssetRecord(staged: {
+    row_number: number;
+    mapped_data: unknown;
+  }): Record<string, unknown> {
+    const data = staged.mapped_data as MappedAssetData;
+    const defaults = this.getAssetDefaults(staged.row_number);
+    return this.buildAssetRecord(data, defaults);
+  }
+
+  private getAssetDefaults(rowNumber: number): {
+    assetTag: string;
+    name: string;
+    status: AssetStatus;
+    condition: AssetCondition;
+  } {
+    return {
+      assetTag: `IMPORT-${rowNumber}`,
+      name: 'Unnamed Asset',
+      status: AssetStatus.ACTIVE,
+      condition: AssetCondition.GOOD,
+    };
+  }
+
+  private buildAssetRecord(
+    data: MappedAssetData,
+    defaults: {
+      assetTag: string;
+      name: string;
+      status: AssetStatus;
+      condition: AssetCondition;
+    },
+  ): Record<string, unknown> {
+    const basicInfo = this.getBasicInfo(data, defaults);
+    const locationInfo = this.getLocationInfo(data);
+    const techSpecs = this.getTechSpecs(data);
+    const statusInfo = this.getStatusInfo(data, defaults);
+
+    return {
+      ...basicInfo,
+      ...locationInfo,
+      ...techSpecs,
+      ...statusInfo,
+    };
+  }
+
+  private getBasicInfo(
+    data: MappedAssetData,
+    defaults: { assetTag: string; name: string },
+  ): Record<string, unknown> {
+    return {
+      assetTag: data.assetTag || defaults.assetTag,
+      name: data.name || defaults.name,
+      description: data.description || null,
+    };
+  }
+
+  private getLocationInfo(data: MappedAssetData): Record<string, unknown> {
+    return {
+      buildingName: data.buildingName || null,
+      floor: data.floor || null,
+      roomNumber: data.room || null,
+    };
+  }
+
+  private getTechSpecs(data: MappedAssetData): Record<string, unknown> {
+    return {
+      manufacturer: data.manufacturer || null,
+      modelNumber: data.modelNumber || null,
+      serialNumber: data.serialNumber || null,
+    };
+  }
+
+  private getStatusInfo(
+    data: MappedAssetData,
+    defaults: { status: AssetStatus; condition: AssetCondition },
+  ): Record<string, unknown> {
+    return {
+      status: (data.status as AssetStatus) || defaults.status,
+      condition:
+        (data.conditionAssessment as AssetCondition) || defaults.condition,
+    };
+  }
+
+  private async importAssets(
+    assets: Array<Record<string, unknown>>,
+  ): Promise<{ successCount: number; errors: string[] }> {
+    const bulkResult = await this.tryBulkInsert(assets);
+    if (bulkResult.success) {
+      return bulkResult;
+    }
+
+    return await this.insertIndividually(assets);
+  }
+
+  private async tryBulkInsert(
+    assets: Array<Record<string, unknown>>,
+  ): Promise<{ success: boolean; successCount: number; errors: string[] }> {
     try {
-      const result = await this.pipelineRepository.createAssets(assets);
-      successCount = result.count;
-      this.logger.log(`Bulk insert successful: ${successCount} assets created`);
+      const typedAssets = assets as Prisma.AssetCreateManyInput[];
+      const result = await this.pipelineRepository.createAssets(typedAssets);
+      this.logger.log(`Bulk insert successful: ${result.count} assets created`);
+      return { success: true, successCount: result.count, errors: [] };
     } catch {
-      // Fallback to individual inserts
       this.logger.warn(
         'Bulk insert failed, falling back to individual inserts',
       );
-      const prisma = this.pipelineRepository.getPrismaClient();
-      for (const asset of assets) {
-        try {
-          await prisma.asset.create({ data: asset });
-          successCount++;
-        } catch (individualError) {
-          const errorMsg = `Failed to insert ${asset.assetTag}: ${individualError instanceof Error ? individualError.message : 'Unknown error'}`;
-          errors.push(errorMsg);
-          this.logger.error(errorMsg);
-        }
+      return { success: false, successCount: 0, errors: [] };
+    }
+  }
+
+  private async insertIndividually(
+    assets: Array<Record<string, unknown>>,
+  ): Promise<{ successCount: number; errors: string[] }> {
+    let successCount = 0;
+    const errors: string[] = [];
+    const prisma = this.pipelineRepository.getPrismaClient();
+
+    for (const asset of assets) {
+      try {
+        const assetData = asset as Prisma.AssetCreateInput;
+        await prisma.asset.create({ data: assetData });
+        successCount++;
+      } catch (error) {
+        const msg = this.formatInsertError(asset, error);
+        errors.push(msg);
+        this.logger.error(msg);
       }
     }
 
-    // Update job status to completed
+    return { successCount, errors };
+  }
+
+  private formatInsertError(
+    asset: Record<string, unknown>,
+    error: unknown,
+  ): string {
+    const assetTag = asset.assetTag as string;
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    return `Failed to insert ${assetTag}: ${errorMsg}`;
+  }
+
+  private async finalizeImport(
+    jobId: string,
+    totalAssets: number,
+    importResult: { successCount: number },
+  ): Promise<void> {
     await this.pipelineRepository.updateImportJob(jobId, {
       status: 'COMPLETED',
       completed_at: new Date(),
     });
 
-    // Clear staging data after successful import
     await this.pipelineRepository.deleteStagingAssetsByJob(jobId);
 
     this.logger.log(
-      `Import approved for job ${jobId}: ${successCount} assets imported`,
+      `Import approved for job ${jobId}: ${importResult.successCount} assets imported`,
     );
+  }
 
+  private createImportResult(
+    jobId: string,
+    total: number,
+    successful: number,
+    errors: string[],
+  ): ImportJobResult {
     return {
       jobId,
       status: 'completed',
       stats: {
-        total: assets.length,
-        successful: successCount,
-        failed: assets.length - successCount,
+        total,
+        successful,
+        failed: total - successful,
         skipped: 0,
       },
       errors,
@@ -259,57 +429,99 @@ export class PipelineImportService {
     errors: string[];
     processedCount: number;
   } {
-    const errors: string[] = [];
-    const stagingAssets: Prisma.StagingAssetCreateManyInput[] = [];
-    let processedCount = 0;
+    const result = {
+      stagingAssets: [] as Prisma.StagingAssetCreateManyInput[],
+      errors: [] as string[],
+      processedCount: 0,
+    };
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+    rows.forEach((row, index) => {
+      this.processRow(jobId, row, index, result);
+    });
 
-      try {
-        const assetData = this.mapRowToAsset(row);
-        const validationErrors = this.validateAssetData(assetData);
+    return result;
+  }
 
-        const isValid = validationErrors.length === 0;
+  private processRow(
+    jobId: string,
+    row: Record<string, string>,
+    index: number,
+    result: {
+      stagingAssets: Prisma.StagingAssetCreateManyInput[];
+      errors: string[];
+      processedCount: number;
+    },
+  ): void {
+    const HEADER_ROW_OFFSET = 2;
+    const rowNumber = index + HEADER_ROW_OFFSET;
 
-        // Truncate large raw data values
-        const truncatedRow: Record<string, string> = {};
-        for (const [key, value] of Object.entries(row)) {
-          truncatedRow[key] =
-            typeof value === 'string' &&
-            value.length > CONSTANTS.MAX_STRING_LENGTH
-              ? value.substring(0, CONSTANTS.MAX_STRING_LENGTH) + '...'
-              : value;
-        }
+    try {
+      const stagingRecord = this.createStagingRecord(
+        jobId,
+        row,
+        rowNumber,
+        result,
+      );
+      result.stagingAssets.push(stagingRecord);
+    } catch (error) {
+      result.errors.push(this.formatRowError(rowNumber, error));
+    }
+  }
 
-        const stagingRecord: Prisma.StagingAssetCreateManyInput = {
-          import_job_id: jobId,
-          row_number: i + 2, // Account for header row
-          raw_data: truncatedRow as Prisma.InputJsonValue,
-          mapped_data: assetData as unknown as Prisma.InputJsonValue,
-          validation_errors:
-            validationErrors.length > 0
-              ? (validationErrors as Prisma.InputJsonValue)
-              : undefined,
-          is_valid: isValid,
-          will_import: isValid,
-        };
+  private createStagingRecord(
+    jobId: string,
+    row: Record<string, string>,
+    rowNumber: number,
+    result: { processedCount: number; errors: string[] },
+  ): Prisma.StagingAssetCreateManyInput {
+    const assetData = this.mapRowToAsset(row);
+    const validationErrors = this.validateAssetData(assetData);
+    const isValid = validationErrors.length === 0;
 
-        stagingAssets.push(stagingRecord);
-
-        if (isValid) {
-          processedCount++;
-        } else {
-          errors.push(`Row ${i + 2}: ${validationErrors.join(', ')}`);
-        }
-      } catch (error) {
-        errors.push(
-          `Row ${i + 2}: Failed to process - ${error instanceof Error ? error.message : 'Unknown error'}`,
-        );
-      }
+    if (isValid) {
+      result.processedCount++;
+    } else {
+      result.errors.push(`Row ${rowNumber}: ${validationErrors.join(', ')}`);
     }
 
-    return { stagingAssets, errors, processedCount };
+    return {
+      import_job_id: jobId,
+      row_number: rowNumber,
+      raw_data: this.truncateRowData(row) as Prisma.InputJsonValue,
+      mapped_data: assetData as unknown as Prisma.InputJsonValue,
+      validation_errors: this.formatValidationErrors(validationErrors),
+      is_valid: isValid,
+      will_import: isValid,
+    };
+  }
+
+  private truncateRowData(row: Record<string, string>): Record<string, string> {
+    const truncated: Record<string, string> = {};
+    for (const [key, value] of Object.entries(row)) {
+      truncated[key] = this.truncateString(value);
+    }
+    return truncated;
+  }
+
+  private truncateString(value: string): string {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    if (value.length > CONSTANTS.MAX_STRING_LENGTH) {
+      return value.substring(0, CONSTANTS.MAX_STRING_LENGTH) + '...';
+    }
+    return value;
+  }
+
+  private formatValidationErrors(
+    errors: string[],
+  ): Prisma.InputJsonValue | undefined {
+    return errors.length > 0 ? (errors as Prisma.InputJsonValue) : undefined;
+  }
+
+  private formatRowError(rowNumber: number, error: unknown): string {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return `Row ${rowNumber}: Failed to process - ${message}`;
   }
 
   /**
@@ -317,8 +529,8 @@ export class PipelineImportService {
    */
   private mapRowToAsset(row: Record<string, string>): MappedAssetData {
     return {
-      assetTag: row['Asset ID'] || row['Asset Tag'] || row['ID'] || '',
-      name: row['Name'] || row['Asset Name'] || '',
+      assetTag: this.extractAssetTag(row),
+      name: this.extractName(row),
       description: row['Description'],
       buildingName: row['Building'],
       floor: row['Floor'],
@@ -326,9 +538,25 @@ export class PipelineImportService {
       status: row['Status'] || 'ACTIVE',
       conditionAssessment: row['Condition'] || 'GOOD',
       manufacturer: row['Manufacturer'],
-      modelNumber: row['Model'] || row['Model Number'],
-      serialNumber: row['Serial Number'] || row['Serial'],
+      modelNumber: this.extractModelNumber(row),
+      serialNumber: this.extractSerialNumber(row),
     };
+  }
+
+  private extractAssetTag(row: Record<string, string>): string {
+    return row['Asset ID'] || row['Asset Tag'] || row['ID'] || '';
+  }
+
+  private extractName(row: Record<string, string>): string {
+    return row['Name'] || row['Asset Name'] || '';
+  }
+
+  private extractModelNumber(row: Record<string, string>): string | undefined {
+    return row['Model'] || row['Model Number'];
+  }
+
+  private extractSerialNumber(row: Record<string, string>): string | undefined {
+    return row['Serial Number'] || row['Serial'];
   }
 
   /**

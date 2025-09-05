@@ -7,6 +7,8 @@ import {
   PhaseInputData,
   AssetRowData,
   FIELD_NAMES,
+  PhaseMetrics,
+  PhaseDebugInfo,
 } from '../../orchestrator/phase-processor.interface';
 
 // Database field mapping

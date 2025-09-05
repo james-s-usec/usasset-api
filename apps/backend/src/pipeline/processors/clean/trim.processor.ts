@@ -17,106 +17,173 @@ export class TrimProcessor implements RuleProcessor<TrimConfig> {
   public readonly type = RuleType.TRIM;
   public readonly phase = PipelinePhase.CLEAN;
 
-  public async validateConfig(
+  public validateConfig(
     config: unknown,
   ): Promise<ValidationResult<TrimConfig>> {
+    return Promise.resolve(this.performValidation(config));
+  }
+
+  private performValidation(config: unknown): ValidationResult<TrimConfig> {
     try {
-      // Basic validation - in production would use a schema validator like Joi
-      if (typeof config !== 'object' || config === null) {
-        return {
-          success: false,
-          errors: ['Config must be an object'],
-        };
+      const objectValidation = this.validateIsObject(config);
+      if (!objectValidation.success) {
+        return objectValidation;
       }
 
-      const typedConfig = config as any;
+      const trimConfig = this.extractConfig(config);
+      const validationResult = this.validateTrimConfig(trimConfig);
 
-      // Set defaults
-      const trimConfig: TrimConfig = {
-        sides: typedConfig.sides || 'both',
-        customChars: typedConfig.customChars || ' \t\n\r',
-      };
-
-      // Validate sides
-      if (!['both', 'left', 'right'].includes(trimConfig.sides)) {
-        return {
-          success: false,
-          errors: ['sides must be "both", "left", or "right"'],
-        };
+      if (!validationResult.success) {
+        return validationResult;
       }
 
-      // Validate customChars
-      if (typeof trimConfig.customChars !== 'string') {
-        return {
-          success: false,
-          errors: ['customChars must be a string'],
-        };
-      }
-
-      return {
-        success: true,
-        data: trimConfig,
-      };
+      return { success: true, data: trimConfig };
     } catch (error) {
-      return {
-        success: false,
-        errors: [
-          `Config validation failed: ${error instanceof Error ? error.message : String(error)}`,
-        ],
-      };
+      return this.createErrorResult(error);
     }
   }
 
-  public async process(
-    data: any,
+  private validateIsObject(config: unknown): ValidationResult<TrimConfig> {
+    if (typeof config !== 'object' || config === null) {
+      return {
+        success: false,
+        errors: ['Config must be an object'],
+      };
+    }
+    return { success: true, data: {} as TrimConfig };
+  }
+
+  private extractConfig(config: unknown): TrimConfig {
+    const configObj = config as Record<string, unknown>;
+    return {
+      sides: this.extractSides(configObj),
+      customChars: this.extractCustomChars(configObj),
+    };
+  }
+
+  private extractSides(
+    configObj: Record<string, unknown>,
+  ): 'both' | 'left' | 'right' {
+    const sides = configObj.sides as string;
+    if (sides === 'left' || sides === 'right') {
+      return sides;
+    }
+    return 'both';
+  }
+
+  private extractCustomChars(configObj: Record<string, unknown>): string {
+    const chars = configObj.customChars;
+    if (typeof chars === 'string') {
+      return chars;
+    }
+    return ' \t\n\r';
+  }
+
+  private validateTrimConfig(
+    trimConfig: TrimConfig,
+  ): ValidationResult<TrimConfig> {
+    if (!['both', 'left', 'right'].includes(trimConfig.sides)) {
+      return {
+        success: false,
+        errors: ['sides must be "both", "left", or "right"'],
+      };
+    }
+
+    if (typeof trimConfig.customChars !== 'string') {
+      return {
+        success: false,
+        errors: ['customChars must be a string'],
+      };
+    }
+
+    return { success: true, data: trimConfig };
+  }
+
+  private createErrorResult(error: unknown): ValidationResult<TrimConfig> {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      errors: [`Config validation failed: ${message}`],
+    };
+  }
+
+  public process(
+    data: unknown,
     config: TrimConfig,
     context: ProcessingContext,
   ): Promise<ProcessingResult> {
+    return Promise.resolve(this.performProcessing(data, config, context));
+  }
+
+  private performProcessing(
+    data: unknown,
+    config: TrimConfig,
+    context: ProcessingContext,
+  ): ProcessingResult {
     try {
       if (typeof data !== 'string') {
-        return {
-          success: true,
-          data: data, // Return unchanged for non-string data
-          warnings: [
-            `Row ${context.rowNumber}: Trim processor received non-string data, skipping`,
-          ],
-        };
+        return this.handleNonStringData(data, context);
       }
 
-      let result = data;
-
-      switch (config.sides) {
-        case 'left':
-          result = this.trimLeft(data, config.customChars);
-          break;
-        case 'right':
-          result = this.trimRight(data, config.customChars);
-          break;
-        case 'both':
-        default:
-          result = this.trimBoth(data, config.customChars);
-          break;
-      }
-
-      return {
-        success: true,
-        data: result,
-        metadata: {
-          originalLength: data.length,
-          trimmedLength: result.length,
-          charactersRemoved: data.length - result.length,
-          operation: `trim-${config.sides}`,
-        },
-      };
+      const result = this.performTrim(data, config);
+      return this.createSuccessResult(data, result, config);
     } catch (error) {
-      return {
-        success: false,
-        data: data,
-        errors: [
-          `Trim processing failed: ${error instanceof Error ? error.message : String(error)}`,
-        ],
-      };
+      return this.createProcessingError(data, error);
     }
+  }
+
+  private handleNonStringData(
+    data: unknown,
+    context: ProcessingContext,
+  ): ProcessingResult {
+    return {
+      success: true,
+      data: data,
+      warnings: [
+        `Row ${context.rowNumber}: Trim processor received non-string data, skipping`,
+      ],
+    };
+  }
+
+  private performTrim(data: string, config: TrimConfig): string {
+    switch (config.sides) {
+      case 'left':
+        return this.trimLeft(data, config.customChars);
+      case 'right':
+        return this.trimRight(data, config.customChars);
+      case 'both':
+      default:
+        return this.trimBoth(data, config.customChars);
+    }
+  }
+
+  private createSuccessResult(
+    original: string,
+    result: string,
+    config: TrimConfig,
+  ): ProcessingResult {
+    return {
+      success: true,
+      data: result,
+      metadata: {
+        originalLength: original.length,
+        trimmedLength: result.length,
+        charactersRemoved: original.length - result.length,
+        operation: `trim-${config.sides}`,
+      },
+    };
+  }
+
+  private createProcessingError(
+    data: unknown,
+    error: unknown,
+  ): ProcessingResult {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      data: data,
+      errors: [`Trim processing failed: ${message}`],
+    };
   }
 
   private trimLeft(str: string, chars: string): string {

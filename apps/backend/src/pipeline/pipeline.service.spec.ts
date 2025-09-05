@@ -11,43 +11,31 @@ import { RuleEngineService } from './services/rule-engine.service';
 describe('PipelineService', () => {
   let service: PipelineService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PipelineService,
-        {
-          provide: AzureBlobStorageService,
-          useValue: {},
-        },
-        {
-          provide: CsvParserService,
-          useValue: {},
-        },
-        {
-          provide: PipelineRepository,
-          useValue: {
-            getPrismaClient: jest.fn(),
-          },
-        },
-        {
-          provide: PipelineJobService,
-          useValue: {},
-        },
-        {
-          provide: PipelineValidationService,
-          useValue: {},
-        },
-        {
-          provide: PipelineImportService,
-          useValue: {},
-        },
-        {
-          provide: RuleEngineService,
-          useValue: {},
-        },
-      ],
-    }).compile();
+  // Split beforeEach into smaller setup functions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const createMockProviders = (): any[] => [
+    PipelineService,
+    { provide: AzureBlobStorageService, useValue: {} },
+    { provide: CsvParserService, useValue: {} },
+    {
+      provide: PipelineRepository,
+      useValue: { getPrismaClient: jest.fn() },
+    },
+    { provide: PipelineJobService, useValue: {} },
+    { provide: PipelineValidationService, useValue: {} },
+    { provide: PipelineImportService, useValue: {} },
+    { provide: RuleEngineService, useValue: {} },
+  ];
 
+  const setupTestModule = async (): Promise<TestingModule> => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: createMockProviders(),
+    }).compile();
+    return module;
+  };
+
+  beforeEach(async () => {
+    const module = await setupTestModule();
     service = module.get<PipelineService>(PipelineService);
   });
 
