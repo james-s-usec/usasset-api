@@ -11,7 +11,7 @@
     "test": "rm -f .logs/*test.log && (npm run test --workspace=backend > .logs/backend-test.log 2>&1 & npm run test --workspace=frontend > .logs/frontend-test.log 2>&1 & npm run test --workspace=cli > .logs/cli-test.log 2>&1; wait) && echo 'Tests complete - see .logs/ for details' || echo 'Test failures found - see .logs/ for details'",
     "typecheck": "rm -f .logs/*typecheck.log && (npm run typecheck --workspace=backend > .logs/backend-typecheck.log 2>&1 & npm run typecheck --workspace=frontend > .logs/frontend-typecheck.log 2>&1 & npm run typecheck --workspace=cli > .logs/cli-typecheck.log 2>&1; wait) && echo 'Typecheck complete - see .logs/ for details' || echo 'Type errors found - see .logs/ for details'",
     "test:e2e": "npm run test:e2e --workspace=backend",
-    "ci": "cd /home/swansonj/projects/USAsset3/ && rm -rf .logs/*.log && echo '🔍 Running lint...' && npm run lint && echo '🔧 Running typecheck...' && npm run typecheck && echo '🧪 Running tests...' && npm run test && echo '🏗️  Running build...' && npm run build && npm run ci:summary",
+    "ci": "rm -rf .logs/*.log && echo '🔍 Running lint...' && npm run lint && echo '🔧 Running typecheck...' && npm run typecheck && echo '🧪 Running tests...' && npm run test && echo '🏗️  Running build...' && npm run build && npm run ci:summary",
     "ci:summary": "node check-ci.js",
     "sync": "npm run ci && git add . && node .claude/sync.js && git push",
     "db:migrate": "npm run db:migrate --workspace=backend",

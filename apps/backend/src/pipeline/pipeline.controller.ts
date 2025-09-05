@@ -183,8 +183,8 @@ export class PipelineController {
   public async testRules(): Promise<{
     success: boolean;
     testData: {
-      before: any;
-      after: any;
+      before: Record<string, unknown>;
+      after: Record<string, unknown>;
     };
     rulesApplied: Array<{
       name: string;
@@ -209,7 +209,7 @@ export class PipelineController {
     status: 200,
     description: 'Full orchestration results with phase-by-phase breakdown',
   })
-  public async testOrchestrator(): Promise<any> {
+  public async testOrchestrator(): Promise<Record<string, unknown>> {
     const result = await this.pipelineService.testPipelineOrchestrator();
     return result;
   }
@@ -227,7 +227,7 @@ export class PipelineController {
       type: string;
       phase: string;
       target: string;
-      config: any;
+      config: Record<string, unknown>;
       is_active: boolean;
       priority: number;
       created_at: Date;
@@ -248,11 +248,11 @@ export class PipelineController {
       type: string;
       phase: string;
       target: string;
-      config: any;
+      config: Record<string, unknown>;
       is_active?: boolean;
       priority?: number;
     },
-  ): Promise<{ rule: any; message: string }> {
+  ): Promise<{ rule: Record<string, unknown>; message: string }> {
     const rule = await this.pipelineService.createRule(createRuleDto);
     return { rule, message: 'Rule created successfully' };
   }
@@ -268,11 +268,11 @@ export class PipelineController {
       type?: string;
       phase?: string;
       target?: string;
-      config?: any;
+      config?: Record<string, unknown>;
       is_active?: boolean;
       priority?: number;
     },
-  ): Promise<{ rule: any; message: string }> {
+  ): Promise<{ rule: Record<string, unknown>; message: string }> {
     const rule = await this.pipelineService.updateRule(ruleId, updateRuleDto);
     return { rule, message: 'Rule updated successfully' };
   }

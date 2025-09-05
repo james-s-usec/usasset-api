@@ -1003,33 +1003,35 @@ export class PipelineService {
     });
   }
 
-  public async listJobs(): Promise<Array<{
-    id: string;
-    file_id: string;
-    status: string;
-    total_rows: number | null;
-    processed_rows: number | null;
-    error_rows: number | null;
-    errors: string[] | null;
-    started_at: Date;
-    completed_at: Date | null;
-    created_by: string | null;
-  }>> {
+  public async listJobs(): Promise<
+    Array<{
+      id: string;
+      file_id: string;
+      status: string;
+      total_rows: number | null;
+      processed_rows: number | null;
+      error_rows: number | null;
+      errors: string[] | null;
+      started_at: Date;
+      completed_at: Date | null;
+      created_by: string | null;
+    }>
+  > {
     this.logger.debug('Getting recent import jobs');
     const jobs = await this.prisma.importJob.findMany({
       orderBy: { started_at: 'desc' },
       take: 50, // Limit to recent 50 jobs
     });
-    
+
     // Map Prisma response to expected interface
-    return jobs.map(job => ({
+    return jobs.map((job) => ({
       id: job.id,
       file_id: job.file_id,
       status: job.status.toString(),
       total_rows: job.total_rows,
       processed_rows: job.processed_rows,
       error_rows: job.error_rows,
-      errors: Array.isArray(job.errors) ? job.errors as string[] : null,
+      errors: Array.isArray(job.errors) ? (job.errors as string[]) : null,
       started_at: job.started_at,
       completed_at: job.completed_at,
       created_by: job.created_by,
