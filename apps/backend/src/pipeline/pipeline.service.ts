@@ -12,6 +12,10 @@ import {
   ProcessedRow,
 } from './interfaces/pipeline-types';
 import { CreateRuleDto, UpdateRuleDto } from './dto/pipeline-dto';
+import {
+  GetPhaseResultsResponseDto,
+  PhaseResultRecordDto,
+} from './dto/phase-results.dto';
 
 // Constants to replace magic numbers
 const CONSTANTS = {
@@ -618,5 +622,138 @@ export class PipelineService {
   public async deleteAlias(aliasId: string): Promise<void> {
     this.logger.debug(`Deleting alias: ${aliasId}`);
     await this.pipelineRepository.deleteAssetColumnAlias(aliasId);
+  }
+
+  public async getPhaseResults(
+    jobId: string,
+  ): Promise<GetPhaseResultsResponseDto> {
+    const results = await this.pipelineRepository.getPhaseResultsByJobId(jobId);
+    const phaseResults = this.mapPhaseResults(results);
+    const summary = this.buildPhaseResultsSummary(results);
+    return { jobId, phaseResults, summary };
+  }
+
+  private mapPhaseResults(results: PhaseResultRecordDto[]): Array<{
+    phase: string;
+    status: string;
+    transformations: unknown;
+    appliedRules: string[];
+    inputSample: unknown;
+    outputSample: unknown;
+    metrics: {
+      rowsProcessed: number;
+      rowsModified: number;
+      rowsFailed: number;
+    };
+    timing: {
+      startedAt: Date;
+      completedAt: Date | null;
+      durationMs: number | null;
+    };
+    metadata: unknown;
+    errors: unknown;
+    warnings: unknown;
+  }> {
+    return results.map((result) => this.mapSinglePhaseResult(result));
+  }
+
+  private mapSinglePhaseResult(result: PhaseResultRecordDto): {
+    phase: string;
+    status: string;
+    transformations: unknown;
+    appliedRules: string[];
+    inputSample: unknown;
+    outputSample: unknown;
+    metrics: {
+      rowsProcessed: number;
+      rowsModified: number;
+      rowsFailed: number;
+    };
+    timing: {
+      startedAt: Date;
+      completedAt: Date | null;
+      durationMs: number | null;
+    };
+    metadata: unknown;
+    errors: unknown;
+    warnings: unknown;
+  } {
+    return {
+      ...this.mapBasicResultFields(result),
+      metrics: this.buildMetrics(result),
+      timing: this.buildTiming(result),
+    };
+  }
+
+  private mapBasicResultFields(result: PhaseResultRecordDto): {
+    phase: string;
+    status: string;
+    transformations: unknown;
+    appliedRules: string[];
+    inputSample: unknown;
+    outputSample: unknown;
+    metadata: unknown;
+    errors: unknown;
+    warnings: unknown;
+  } {
+    return {
+      phase: result.phase,
+      status: result.status,
+      transformations: result.transformations,
+      appliedRules: result.applied_rules,
+      inputSample: result.input_sample,
+      outputSample: result.output_sample,
+      metadata: result.metadata,
+      errors: result.errors,
+      warnings: result.warnings,
+    };
+  }
+
+  private buildMetrics(result: PhaseResultRecordDto): {
+    rowsProcessed: number;
+    rowsModified: number;
+    rowsFailed: number;
+  } {
+    return {
+      rowsProcessed: result.rows_processed,
+      rowsModified: result.rows_modified,
+      rowsFailed: result.rows_failed,
+    };
+  }
+
+  private buildTiming(result: PhaseResultRecordDto): {
+    startedAt: Date;
+    completedAt: Date | null;
+    durationMs: number | null;
+  } {
+    return {
+      startedAt: result.started_at,
+      completedAt: result.completed_at,
+      durationMs: result.duration_ms,
+    };
+  }
+
+  private buildPhaseResultsSummary(
+    results: Array<{
+      duration_ms: number | null;
+      status: string;
+    }>,
+  ): {
+    totalPhases: number;
+    successfulPhases: number;
+    failedPhases: number;
+    totalDuration: number | null;
+  } {
+    const totalDuration = results.reduce(
+      (sum, result) => sum + (result.duration_ms || 0),
+      0,
+    );
+
+    return {
+      totalPhases: results.length,
+      successfulPhases: results.filter((r) => r.status === 'SUCCESS').length,
+      failedPhases: results.filter((r) => r.status === 'FAILED').length,
+      totalDuration: totalDuration > 0 ? totalDuration : null,
+    };
   }
 }

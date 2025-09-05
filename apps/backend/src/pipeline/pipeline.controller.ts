@@ -6,10 +6,14 @@ import {
   Delete,
   Param,
   Body,
+  Res,
+  Header,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PipelineService } from './pipeline.service';
 import { UpdateRuleDto } from './dto/pipeline-dto';
+import { GetPhaseResultsResponseDto } from './dto/phase-results.dto';
 
 @ApiTags('pipeline')
 // CODE_SMELL: [Rule #4] COMPLEXITY - Controller has 18 endpoints, violates complexity budget
@@ -484,5 +488,60 @@ export class PipelineController {
   }> {
     await this.pipelineService.deleteAlias(aliasId);
     return { message: 'Alias deleted successfully' };
+  }
+
+  @Get('jobs/:jobId/phase-results')
+  @ApiOperation({ summary: 'Get detailed phase results for ETL job' })
+  @ApiResponse({
+    status: 200,
+    description: 'Phase results retrieved successfully',
+  })
+  public async getPhaseResults(
+    @Param('jobId') jobId: string,
+  ): Promise<GetPhaseResultsResponseDto> {
+    return await this.pipelineService.getPhaseResults(jobId);
+  }
+
+  @Get('jobs/:jobId/phase-results/download')
+  @ApiOperation({ summary: 'Download ETL phase results as JSON file' })
+  @ApiResponse({ status: 200, description: 'Phase results file downloaded' })
+  @Header('Content-Type', 'application/json')
+  public async downloadPhaseResults(
+    @Param('jobId') jobId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const phaseResults = await this.pipelineService.getPhaseResults(jobId);
+    const fileName = this.generateFileName(jobId);
+
+    this.setDownloadHeaders(res, fileName);
+
+    const downloadData = this.buildDownloadData(jobId, fileName, phaseResults);
+    res.json(downloadData);
+  }
+
+  private generateFileName(jobId: string): string {
+    const DATE_LENGTH = 10;
+    const dateStr = new Date().toISOString().slice(0, DATE_LENGTH);
+    return `etl-phase-results-${jobId}-${dateStr}.json`;
+  }
+
+  private setDownloadHeaders(res: Response, fileName: string): void {
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'application/json');
+  }
+
+  private buildDownloadData(
+    jobId: string,
+    fileName: string,
+    phaseResults: unknown,
+  ): Record<string, unknown> {
+    return {
+      downloadInfo: {
+        jobId,
+        downloadedAt: new Date(),
+        fileName,
+      },
+      ...(phaseResults as Record<string, unknown>),
+    };
   }
 }

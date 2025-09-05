@@ -585,4 +585,110 @@ export class PipelineRepository {
       where: { id: aliasId },
     });
   }
+
+  public async getPhaseResultsByJobId(jobId: string): Promise<
+    Array<{
+      id: string;
+      phase: string;
+      status: string;
+      transformations: unknown;
+      applied_rules: string[];
+      input_sample: unknown;
+      output_sample: unknown;
+      rows_processed: number;
+      rows_modified: number;
+      rows_failed: number;
+      metadata: unknown;
+      errors: unknown;
+      warnings: unknown;
+      started_at: Date;
+      completed_at: Date | null;
+      duration_ms: number | null;
+    }>
+  > {
+    this.logger.debug(`Retrieving phase results for job: ${jobId}`);
+
+    const results = await this.prisma.phaseResult.findMany({
+      where: { import_job_id: jobId },
+      orderBy: { started_at: 'asc' },
+    });
+
+    return results.map((result) => this.mapPhaseResultRecord(result));
+  }
+
+  private mapPhaseResultRecord(result: unknown): {
+    id: string;
+    phase: string;
+    status: string;
+    transformations: unknown;
+    applied_rules: string[];
+    input_sample: unknown;
+    output_sample: unknown;
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    metadata: unknown;
+    errors: unknown;
+    warnings: unknown;
+    started_at: Date;
+    completed_at: Date | null;
+    duration_ms: number | null;
+  } {
+    const r = result as Record<string, unknown>;
+    return {
+      ...this.mapBasicFields(r),
+      ...this.mapMetricFields(r),
+      ...this.mapDateFields(r),
+    };
+  }
+
+  private mapBasicFields(r: Record<string, unknown>): {
+    id: string;
+    phase: string;
+    status: string;
+    transformations: unknown;
+    applied_rules: string[];
+    input_sample: unknown;
+    output_sample: unknown;
+    metadata: unknown;
+    errors: unknown;
+    warnings: unknown;
+  } {
+    return {
+      id: r.id as string,
+      phase: r.phase as string,
+      status: r.status as string,
+      transformations: r.transformations,
+      applied_rules: r.applied_rules as string[],
+      input_sample: r.input_sample,
+      output_sample: r.output_sample,
+      metadata: r.metadata,
+      errors: r.errors,
+      warnings: r.warnings,
+    };
+  }
+
+  private mapMetricFields(r: Record<string, unknown>): {
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+  } {
+    return {
+      rows_processed: r.rows_processed as number,
+      rows_modified: r.rows_modified as number,
+      rows_failed: r.rows_failed as number,
+    };
+  }
+
+  private mapDateFields(r: Record<string, unknown>): {
+    started_at: Date;
+    completed_at: Date | null;
+    duration_ms: number | null;
+  } {
+    return {
+      started_at: r.started_at as Date,
+      completed_at: r.completed_at as Date | null,
+      duration_ms: r.duration_ms as number | null,
+    };
+  }
 }
