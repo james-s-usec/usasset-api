@@ -11,6 +11,8 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PipelineService } from './pipeline.service';
 
 @ApiTags('pipeline')
+// CODE_SMELL: [Rule #4] COMPLEXITY - Controller has 18 endpoints, violates complexity budget
+// TODO: Split into PipelineImportController, PipelineRulesController, PipelineJobsController
 @Controller('api/pipeline')
 export class PipelineController {
   public constructor(private readonly pipelineService: PipelineService) {}
@@ -18,6 +20,8 @@ export class PipelineController {
   @Get('files')
   @ApiOperation({ summary: 'List CSV files available for import' })
   @ApiResponse({ status: 200, description: 'Files retrieved successfully' })
+  // CODE_SMELL: [Rule #1] ARCHITECTURE - Controller defines response types inline
+  // TODO: Create FileListResponse interface in dto/
   public async listFiles(): Promise<{
     files: Array<{ id: string; name: string; size: number; created_at: Date }>;
   }> {
@@ -63,6 +67,8 @@ export class PipelineController {
   @Get('staging/:jobId')
   @ApiOperation({ summary: 'Get staged data for preview' })
   @ApiResponse({ status: 200, description: 'Staged data retrieved' })
+  // CODE_SMELL: [Rule #1] ARCHITECTURE - Complex inline response type should be in DTO
+  // TODO: Create StagedDataResponse interface
   public async getStagedData(@Param('jobId') jobId: string): Promise<{
     data: Array<{
       rowNumber: number;
@@ -154,6 +160,8 @@ export class PipelineController {
     summary: 'Validate CSV data without importing (development)',
   })
   @ApiResponse({ status: 200, description: 'Validation results returned' })
+  // CODE_SMELL: [Rule #1] ARCHITECTURE - Complex nested response type should be extracted
+  // TODO: Create ValidationResultResponse and ValidationSampleData DTOs
   public async validateCsvFile(@Param('fileId') fileId: string): Promise<{
     totalRows: number;
     validRows: number;

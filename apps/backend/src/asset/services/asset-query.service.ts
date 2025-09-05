@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Asset, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AssetSearchDto } from '../dto/asset-search.dto';
+import { SimpleCacheService } from '../../common/services/simple-cache.service';
 
 @Injectable()
 export class AssetQueryService {
-  public constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AssetQueryService.name);
+
+  public constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: SimpleCacheService,
+  ) {}
 
   public async findManyWithSearch(
     searchParams: AssetSearchDto,
@@ -245,6 +251,24 @@ export class AssetQueryService {
     averageCost: number;
     totalValue: number;
   }> {
+    // Check cache first
+    const cacheKey = 'asset:summary:v1';
+    const cached = this.cache.get<{
+      total: number;
+      byStatus: Record<string, number>;
+      byCondition: Record<string, number>;
+      averageCost: number;
+      totalValue: number;
+    }>(cacheKey);
+    
+    if (cached) {
+      this.logger.log('Cache HIT for asset summary');
+      return cached;
+    }
+    
+    this.logger.log('Cache MISS for asset summary - performing expensive queries');
+    const startTime = Date.now();
+    
     const [total, byStatus, byCondition, costStats] = await Promise.all([
       this.prisma.asset.count({ where: { is_deleted: false } }),
       this.countByStatus(),
@@ -256,12 +280,20 @@ export class AssetQueryService {
       }),
     ]);
 
-    return {
+    const result = {
       total,
       byStatus,
       byCondition,
       averageCost: Number(costStats._avg.purchaseCost) || 0,
       totalValue: Number(costStats._sum.purchaseCost) || 0,
     };
+    
+    const queryTime = Date.now() - startTime;
+    this.logger.log(`Asset summary query took ${queryTime}ms`);
+    
+    // Cache for 5 minutes
+    this.cache.set(cacheKey, result, 300);
+    
+    return result;
   }
 }

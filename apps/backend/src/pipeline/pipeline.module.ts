@@ -8,17 +8,24 @@ import { CsvParserService } from './services/csv-parser.service';
 import { PipelineJobService } from './services/pipeline-job.service';
 import { PipelineValidationService } from './services/pipeline-validation.service';
 import { PipelineImportService } from './services/pipeline-import.service';
+import { PipelineRepository } from './repositories/pipeline.repository';
 
 @Module({
   imports: [ConfigModule, DatabaseModule, FilesModule],
   controllers: [PipelineController],
   providers: [
+    // Repository layer - handles all database access
+    PipelineRepository,
+
+    // Service layer - business logic only
     PipelineService,
-    CsvParserService,
     PipelineJobService,
     PipelineValidationService,
     PipelineImportService,
+
+    // Utility services
+    CsvParserService,
   ],
-  exports: [PipelineService],
+  exports: [PipelineService, PipelineRepository],
 })
 export class PipelineModule {}

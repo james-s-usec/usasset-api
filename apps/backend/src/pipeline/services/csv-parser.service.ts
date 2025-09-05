@@ -39,6 +39,8 @@ export class CsvParserService {
     }
   }
 
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 31 lines, exceeds 30-line limit
+  // TODO: Split into parseHeaders, parseDataRows, validateRowStructure methods
   private parseCSV(content: string): ParseResult {
     const lines = content.split(/\r?\n/).filter((line) => line.trim());
     const errors: string[] = [];

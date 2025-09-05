@@ -7,6 +7,8 @@ import {
 } from '../../orchestrator/phase-processor.interface';
 import { PipelineService } from '../../pipeline.service';
 
+// CODE_SMELL: [Rule #2] ARCHITECTURE - Phase processor depends on PipelineService, circular dependency risk
+// TODO: Extract shared CSV parsing service to avoid circular dependencies
 @Injectable()
 export class ExtractPhaseProcessor implements PhaseProcessor {
   public readonly phase = PipelinePhase.EXTRACT;
@@ -18,6 +20,11 @@ export class ExtractPhaseProcessor implements PhaseProcessor {
 
   public constructor(private readonly legacyService: PipelineService) {}
 
+  // CODE_SMELL: [Rule #5] TYPE-SAFETY - Using 'any' for data parameter
+  // TODO: Define ExtractPhaseInput interface
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 85 lines, exceeds 30-line limit
+  // TODO: Split into extractRealFile, generateTestData, buildResult methods
+  // CODE_SMELL: [Rule #5] CLEVER-CODE - Hard-coded test data should be in configuration
   public async process(data: any, context: PhaseContext): Promise<PhaseResult> {
     const startTime = new Date();
     this.logger.debug(`[${context.correlationId}] Starting EXTRACT phase`);

@@ -1,13 +1,19 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { Asset } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateAssetDto } from '../dto/create-asset.dto';
 import { UpdateAssetDto } from '../dto/update-asset.dto';
 import { AssetNotFoundException } from '../exceptions/asset.exceptions';
+import { SimpleCacheService } from '../../common/services/simple-cache.service';
 
 @Injectable()
 export class AssetService {
-  public constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AssetService.name);
+
+  public constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: SimpleCacheService,
+  ) {}
 
   public async findAll(): Promise<{ assets: Asset[]; total: number }> {
     const [assets, total] = await Promise.all([
@@ -48,9 +54,15 @@ export class AssetService {
 
   public async create(createAssetDto: CreateAssetDto): Promise<Asset> {
     try {
-      return await this.prisma.asset.create({
+      const asset = await this.prisma.asset.create({
         data: createAssetDto,
       });
+      
+      // Clear cache after creating new asset
+      this.cache.clearPattern('asset:*');
+      this.logger.log('Cache cleared after asset creation');
+      
+      return asset;
     } catch (error: unknown) {
       if (this.isPrismaUniqueConstraintError(error)) {
         throw new ConflictException(
@@ -71,10 +83,16 @@ export class AssetService {
     }
 
     try {
-      return await this.prisma.asset.update({
+      const updatedAsset = await this.prisma.asset.update({
         where: { id },
         data: updateAssetDto,
       });
+      
+      // Clear cache after updating asset
+      this.cache.clearPattern('asset:*');
+      this.logger.log('Cache cleared after asset update');
+      
+      return updatedAsset;
     } catch (error: unknown) {
       if (this.isPrismaUniqueConstraintError(error)) {
         throw new ConflictException(

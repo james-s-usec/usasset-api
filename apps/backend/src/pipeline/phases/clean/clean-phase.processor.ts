@@ -7,7 +7,17 @@ import {
 } from '../../orchestrator/phase-processor.interface';
 import { RuleEngineService } from '../../services/rule-engine.service';
 import { RuleProcessorFactory } from '../../services/rule-processor.factory';
-import { PrismaService } from '../../../database/prisma.service';
+import { PipelineRepository } from '../../repositories/pipeline.repository';
+
+interface CleanedData extends Record<string, unknown> {
+  cleanedRows: Array<Record<string, unknown>>;
+}
+
+interface Transformation {
+  field: string;
+  before: unknown;
+  after: unknown;
+}
 
 @Injectable()
 export class CleanPhaseProcessor implements PhaseProcessor {
@@ -19,177 +29,269 @@ export class CleanPhaseProcessor implements PhaseProcessor {
   private readonly logger = new Logger(CleanPhaseProcessor.name);
   private readonly ruleEngine: RuleEngineService;
 
-  public constructor(private readonly prisma: PrismaService) {
-    // Initialize rule engine for CLEAN phase
+  public constructor(private readonly repository: PipelineRepository) {
     const factory = new RuleProcessorFactory();
-    this.ruleEngine = new RuleEngineService(this.prisma, factory);
+    // Note: In real implementation, RuleEngineService should be injected via DI
+    // This is a temporary workaround until proper DI is set up
+    this.ruleEngine = new RuleEngineService(repository['prisma'] || repository, factory);
   }
 
-  public async process(data: any, context: PhaseContext): Promise<PhaseResult> {
+  public async process(
+    data: Record<string, unknown>,
+    context: PhaseContext,
+  ): Promise<PhaseResult> {
     const startTime = new Date();
     this.logger.debug(`[${context.correlationId}] Starting CLEAN phase`);
 
     try {
-      if (!data.validRows || !Array.isArray(data.validRows)) {
-        throw new Error(
-          'Invalid input: expected validRows array from VALIDATE phase',
-        );
-      }
-
-      const cleanedData = {
-        ...data,
-        cleanedRows: [],
-      };
-
-      const transformations: Array<{ field: string; before: any; after: any }> =
-        [];
-      const rulesApplied: string[] = [];
-
-      // Ensure we have demo TRIM rule in database
+      this.validateInput(data);
       await this.ensureDemoRules();
 
-      // Process each valid row through REAL rules engine
-      for (let i = 0; i < data.validRows.length; i++) {
-        const row = data.validRows[i];
+      const result = await this.processRows(data, context);
 
-        this.logger.debug(
-          `[${context.correlationId}] Processing row ${i + 1} through CLEAN rules`,
-        );
-
-        // Use actual rules engine to process the row
-        const ruleContext = {
-          rowNumber: i + 1,
-          jobId: context.jobId,
-          correlationId: context.correlationId,
-          metadata: { ...context.metadata, originalRow: row },
-        };
-
-        const ruleResult = await this.ruleEngine.processDataWithRules(
-          row,
-          PipelinePhase.CLEAN,
-          ruleContext,
-        );
-
-        if (ruleResult.success) {
-          cleanedData.cleanedRows.push(ruleResult.data);
-
-          // Track what rules were actually applied
-          const activeRules = await this.ruleEngine.getRulesForPhase(
-            PipelinePhase.CLEAN,
-          );
-          for (const rule of activeRules) {
-            if (!rulesApplied.includes(rule.name)) {
-              rulesApplied.push(rule.name);
-            }
-          }
-
-          // Record transformations for each field that changed
-          Object.keys(row).forEach((key) => {
-            if (row[key] !== ruleResult.data[key]) {
-              transformations.push({
-                field: `${key}_row_${i + 1}`,
-                before: row[key],
-                after: ruleResult.data[key],
-              });
-            }
-          });
-        } else {
-          // Rule processing failed, use original row
-          this.logger.warn(
-            `[${context.correlationId}] Rule processing failed for row ${i + 1}: ${ruleResult.errors.join(', ')}`,
-          );
-          cleanedData.cleanedRows.push(row);
-        }
-      }
-
-      const endTime = new Date();
-      const durationMs = endTime.getTime() - startTime.getTime();
-      const recordsProcessed = data.validRows.length;
-
-      this.logger.debug(
-        `[${context.correlationId}] CLEAN phase completed: ${recordsProcessed} records cleaned in ${durationMs}ms`,
+      return this.createSuccessResult(
+        startTime,
+        result.cleanedData,
+        result.transformations,
+        result.rulesApplied,
       );
-
-      return {
-        success: true,
-        phase: this.phase,
-        data: cleanedData,
-        errors: [],
-        warnings: [],
-        metrics: {
-          startTime,
-          endTime,
-          durationMs,
-          recordsProcessed,
-          recordsSuccess: recordsProcessed,
-          recordsFailed: 0,
-        },
-        debug: {
-          rulesApplied,
-          transformations,
-        },
-      };
     } catch (error) {
-      const endTime = new Date();
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      this.logger.error(
-        `[${context.correlationId}] CLEAN phase failed: ${errorMessage}`,
-      );
-
-      return {
-        success: false,
-        phase: this.phase,
-        data: data,
-        errors: [`CLEAN failed: ${errorMessage}`],
-        warnings: [],
-        metrics: {
-          startTime,
-          endTime,
-          durationMs: endTime.getTime() - startTime.getTime(),
-          recordsProcessed: 0,
-          recordsSuccess: 0,
-          recordsFailed: 1,
-        },
-      };
+      return this.createErrorResult(startTime, data, error);
     }
   }
 
+  private validateInput(data: Record<string, unknown>): void {
+    if (!data.validRows || !Array.isArray(data.validRows)) {
+      throw new Error(
+        'Invalid input: expected validRows array from VALIDATE phase',
+      );
+    }
+  }
+
+  private async processRows(
+    data: Record<string, unknown>,
+    context: PhaseContext,
+  ): Promise<{
+    cleanedData: CleanedData;
+    transformations: Transformation[];
+    rulesApplied: string[];
+  }> {
+    const cleanedData: CleanedData = {
+      ...data,
+      cleanedRows: [],
+    };
+
+    const transformations: Transformation[] = [];
+    const rulesApplied: string[] = [];
+    const validRows = data.validRows as Array<Record<string, unknown>>;
+
+    for (let i = 0; i < validRows.length; i++) {
+      const rowResult = await this.processSingleRow(validRows[i], i, context);
+
+      cleanedData.cleanedRows.push(rowResult.cleanedRow);
+      transformations.push(...rowResult.transformations);
+      this.addUniqueRules(rulesApplied, rowResult.appliedRules);
+    }
+
+    return { cleanedData, transformations, rulesApplied };
+  }
+
+  private async processSingleRow(
+    row: Record<string, unknown>,
+    index: number,
+    context: PhaseContext,
+  ): Promise<{
+    cleanedRow: Record<string, unknown>;
+    transformations: Transformation[];
+    appliedRules: string[];
+  }> {
+    this.logger.debug(
+      `[${context.correlationId}] Processing row ${index + 1} through CLEAN rules`,
+    );
+
+    const ruleContext = this.createRuleContext(row, index, context);
+    const ruleResult = await this.ruleEngine.processDataWithRules(
+      row,
+      PipelinePhase.CLEAN,
+      ruleContext,
+    );
+
+    if (!ruleResult.success) {
+      this.handleRuleFailure(context, index, ruleResult);
+      return {
+        cleanedRow: row,
+        transformations: [],
+        appliedRules: [],
+      };
+    }
+
+    const transformations = this.detectTransformations(
+      row,
+      ruleResult.data,
+      index,
+    );
+    const activeRules = await this.ruleEngine.getRulesForPhase(
+      PipelinePhase.CLEAN,
+    );
+
+    return {
+      cleanedRow: ruleResult.data,
+      transformations,
+      appliedRules: activeRules.map((r) => r.name),
+    };
+  }
+
+  private createRuleContext(
+    row: Record<string, unknown>,
+    index: number,
+    context: PhaseContext,
+  ): Record<string, unknown> {
+    return {
+      rowNumber: index + 1,
+      jobId: context.jobId,
+      correlationId: context.correlationId,
+      metadata: { ...context.metadata, originalRow: row },
+    };
+  }
+
+  private detectTransformations(
+    originalRow: Record<string, unknown>,
+    cleanedRow: Record<string, unknown>,
+    index: number,
+  ): Transformation[] {
+    const transformations: Transformation[] = [];
+
+    Object.keys(originalRow).forEach((key) => {
+      if (originalRow[key] !== cleanedRow[key]) {
+        transformations.push({
+          field: `${key}_row_${index + 1}`,
+          before: originalRow[key],
+          after: cleanedRow[key],
+        });
+      }
+    });
+
+    return transformations;
+  }
+
+  private handleRuleFailure(
+    context: PhaseContext,
+    index: number,
+    ruleResult: { errors: string[] },
+  ): void {
+    this.logger.warn(
+      `[${context.correlationId}] Rule processing failed for row ${index + 1}: ${ruleResult.errors.join(', ')}`,
+    );
+  }
+
+  private addUniqueRules(target: string[], newRules: string[]): void {
+    newRules.forEach((rule) => {
+      if (!target.includes(rule)) {
+        target.push(rule);
+      }
+    });
+  }
+
+  private createSuccessResult(
+    startTime: Date,
+    cleanedData: CleanedData,
+    transformations: Transformation[],
+    rulesApplied: string[],
+  ): PhaseResult {
+    const endTime = new Date();
+    const durationMs = endTime.getTime() - startTime.getTime();
+    const validRows = cleanedData.validRows as unknown[];
+    const recordsProcessed = validRows ? validRows.length : 0;
+
+    this.logger.debug(
+      `CLEAN phase completed: ${recordsProcessed} records cleaned in ${durationMs}ms`,
+    );
+
+    return {
+      success: true,
+      phase: this.phase,
+      data: cleanedData,
+      errors: [],
+      warnings: [],
+      metrics: {
+        startTime,
+        endTime,
+        durationMs,
+        recordsProcessed,
+        recordsSuccess: recordsProcessed,
+        recordsFailed: 0,
+      },
+      debug: {
+        rulesApplied,
+        transformations,
+      },
+    };
+  }
+
+  private createErrorResult(
+    startTime: Date,
+    data: Record<string, unknown>,
+    error: unknown,
+  ): PhaseResult {
+    const endTime = new Date();
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    this.logger.error(`CLEAN phase failed: ${errorMessage}`);
+
+    return {
+      success: false,
+      phase: this.phase,
+      data,
+      errors: [`CLEAN failed: ${errorMessage}`],
+      warnings: [],
+      metrics: {
+        startTime,
+        endTime,
+        durationMs: endTime.getTime() - startTime.getTime(),
+        recordsProcessed: 0,
+        recordsSuccess: 0,
+        recordsFailed: 1,
+      },
+    };
+  }
+
   private async ensureDemoRules(): Promise<void> {
-    // Check if we have any CLEAN rules, if not create demo TRIM rule
     const existingRules = await this.ruleEngine.getRulesForPhase(
       PipelinePhase.CLEAN,
     );
 
     if (existingRules.length === 0) {
-      this.logger.debug('No CLEAN rules found, creating demo TRIM rule');
+      await this.createDemoRules();
+    }
+  }
 
-      await this.ruleEngine.createRule({
+  private async createDemoRules(): Promise<void> {
+    this.logger.debug('No CLEAN rules found, creating demo TRIM rules');
+
+    const trimConfig = {
+      sides: 'both',
+      customChars: ' \t\n\r',
+    };
+
+    await Promise.all([
+      this.ruleEngine.createRule({
         name: 'Asset Name TRIM Rule',
         description: 'Remove whitespace from Asset Name field',
         phase: PipelinePhase.CLEAN,
         type: 'TRIM',
         target: 'Asset Name',
-        config: {
-          sides: 'both',
-          customChars: ' \t\n\r',
-        },
+        config: trimConfig,
         priority: 1,
-      });
-
-      await this.ruleEngine.createRule({
+      }),
+      this.ruleEngine.createRule({
         name: 'Asset Tag TRIM Rule',
         description: 'Remove whitespace from Asset Tag field',
         phase: PipelinePhase.CLEAN,
         type: 'TRIM',
         target: 'Asset Tag',
-        config: {
-          sides: 'both',
-          customChars: ' \t\n\r',
-        },
+        config: trimConfig,
         priority: 2,
-      });
-    }
+      }),
+    ]);
   }
 }

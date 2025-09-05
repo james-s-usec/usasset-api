@@ -1,0 +1,1198 @@
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { AzureBlobStorageService } from '../files/services/azure-blob-storage.service';
+import { CsvParserService } from './services/csv-parser.service';
+import { PrismaService } from '../database/prisma.service';
+import { RuleEngineService } from './services/rule-engine.service';
+import { RuleProcessorFactory } from './services/rule-processor.factory';
+import { PipelineOrchestrator } from './orchestrator/pipeline-orchestrator.service';
+import { ExtractPhaseProcessor } from './phases/extract/extract-phase.processor';
+import { ValidatePhaseProcessor } from './phases/validate/validate-phase.processor';
+import { CleanPhaseProcessor } from './phases/clean/clean-phase.processor';
+import { TransformPhaseProcessor } from './phases/transform/transform-phase.processor';
+import { MapPhaseProcessor } from './phases/map/map-phase.processor';
+import { LoadPhaseProcessor } from './phases/load/load-phase.processor';
+import { PipelineRepository } from './repositories/pipeline.repository';
+import {
+  JobStatus as PrismaJobStatus,
+  AssetStatus,
+  AssetCondition,
+  Prisma,
+} from '@prisma/client';
+
+// Constants to eliminate magic numbers
+const CONSTANTS = {
+  HEADER_ROW_OFFSET: 2,
+  MAX_STRING_LENGTH: 200,
+  MAX_PREVIEW_STRING_LENGTH: 100,
+  PREVIEW_ROWS_LIMIT: 10,
+  VALIDATION_SAMPLE_SIZE: 50,
+  MAX_SAMPLE_ITEMS: 5,
+  MAX_ERROR_DISPLAY: 20,
+  DEFAULT_CLEANUP_HOURS: 24,
+  SECONDS_PER_MINUTE: 60,
+  MINUTES_PER_HOUR: 60,
+  MILLISECONDS_PER_SECOND: 1000,
+} as const;
+
+// Computed constants
+const MILLISECONDS_PER_HOUR =
+  CONSTANTS.SECONDS_PER_MINUTE *
+  CONSTANTS.MINUTES_PER_HOUR *
+  CONSTANTS.MILLISECONDS_PER_SECOND;
+
+interface FileInfo {
+  id: string;
+  name: string;
+  size: number;
+  created_at: Date;
+}
+
+interface JobStatus {
+  id: string;
+  status: string;
+  progress?: {
+    total: number;
+    processed: number;
+  };
+  errors?: string[];
+}
+
+interface MappedAssetData {
+  assetTag: string;
+  name: string;
+  description?: string;
+  buildingName?: string;
+  floor?: string;
+  room?: string;
+  status?: string;
+  conditionAssessment?: string;
+  manufacturer?: string;
+  modelNumber?: string;
+  serialNumber?: string;
+}
+
+interface StagedDataRowResponse {
+  rowNumber: number;
+  isValid: boolean;
+  willImport: boolean;
+  rawData: Record<string, unknown>;
+  mappedData: Record<string, unknown>;
+  errors: string[] | null;
+}
+
+// CODE_SMELL: [Rule #4] COMPLEXITY - Service has >15 public methods, violates complexity budget
+// TODO: Split into PipelineImportService, PipelineRulesService, PipelineJobsService
+@Injectable()
+export class PipelineService {
+  private readonly logger = new Logger(PipelineService.name);
+  private readonly ruleEngine: RuleEngineService;
+  private readonly repository: PipelineRepository;
+
+  public constructor(
+    private readonly blobStorageService: AzureBlobStorageService,
+    private readonly csvParser: CsvParserService,
+    private readonly prisma: PrismaService,
+    repository: PipelineRepository,
+  ) {
+    this.repository = repository;
+    const ruleProcessorFactory = new RuleProcessorFactory();
+    this.ruleEngine = new RuleEngineService(this.prisma, ruleProcessorFactory);
+  }
+
+  public async listCsvFiles(): Promise<FileInfo[]> {
+    // Use the same approach as the files page - get all files and filter
+    const MAX_FILES = 100;
+    const result = await this.blobStorageService.findMany(1, MAX_FILES);
+
+    // Filter for CSV files - check file extension in original_name (most reliable)
+    const csvFiles = result.files.filter((file) =>
+      file.original_name?.toLowerCase().endsWith('.csv'),
+    );
+
+    return csvFiles.map((file) => ({
+      id: file.id,
+      name: file.original_name,
+      size: file.size,
+      created_at: file.created_at,
+    }));
+  }
+
+  public async startImport(fileId: string): Promise<string> {
+    const job = await this.repository.createImportJob(fileId);
+    
+    // Start async processing (simple for now, no queue)
+    this.processImport(job.id, fileId).catch((error) => {
+      this.logger.error(`Failed to process import job ${job.id}:`, error);
+    });
+
+    return job.id;
+  }
+
+  private async updateJobStatus(
+    jobId: string,
+    status: PrismaJobStatus,
+    errors?: string[],
+  ): Promise<void> {
+    await this.repository.updateImportJob(jobId, {
+      status,
+      errors,
+      completed_at: status !== 'RUNNING' ? new Date() : undefined,
+    });
+  }
+
+  private validateAssetData(assetData: MappedAssetData): string[] {
+    const validationErrors: string[] = [];
+
+    if (!assetData.assetTag) {
+      validationErrors.push('Missing required field: Asset Tag');
+    }
+    if (!assetData.name) {
+      validationErrors.push('Missing required field: Name');
+    }
+
+    return validationErrors;
+  }
+
+  private addValidSample(
+    validData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }>,
+    item: {
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: MappedAssetData;
+    },
+  ): void {
+    if (validData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
+      validData.push({
+        rowNumber: item.rowNumber,
+        rawData: item.rawData,
+        mappedData: item.mappedData as unknown as Record<string, string>,
+      });
+    }
+  }
+
+  private addInvalidSample(
+    invalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }>,
+    item: {
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    },
+  ): void {
+    if (invalidData.length < CONSTANTS.MAX_SAMPLE_ITEMS) {
+      invalidData.push(item);
+    }
+  }
+
+  private createStagingRecord(params: {
+    jobId: string;
+    rowIndex: number;
+    row: Record<string, string>;
+    assetData: MappedAssetData;
+    validationErrors: string[];
+  }): Prisma.StagingAssetCreateManyInput {
+    const { jobId, rowIndex, row, assetData, validationErrors } = params;
+    const isValid = validationErrors.length === 0;
+    // Truncate large raw data values to prevent memory issues
+    const truncatedRow: Record<string, string> = {};
+    for (const [key, value] of Object.entries(row)) {
+      truncatedRow[key] =
+        typeof value === 'string' && value.length > CONSTANTS.MAX_STRING_LENGTH
+          ? value.substring(0, CONSTANTS.MAX_STRING_LENGTH) + '...'
+          : value;
+    }
+
+    return {
+      import_job_id: jobId,
+      row_number: rowIndex + CONSTANTS.HEADER_ROW_OFFSET,
+      raw_data: truncatedRow as unknown as Prisma.InputJsonValue,
+      mapped_data: assetData as unknown as Prisma.InputJsonValue,
+      validation_errors:
+        validationErrors.length > 0
+          ? (validationErrors as Prisma.InputJsonValue)
+          : undefined,
+      is_valid: isValid,
+      will_import: isValid,
+    };
+  }
+
+  private processCsvRows(
+    jobId: string,
+    rows: Record<string, string>[],
+  ): {
+    stagingAssets: Prisma.StagingAssetCreateManyInput[];
+    errors: string[];
+    processedCount: number;
+  } {
+    const errors: string[] = [];
+    const stagingAssets: Prisma.StagingAssetCreateManyInput[] = [];
+    let processedCount = 0;
+
+    rows.forEach((row, i) => {
+      const result = this.processSingleRow(jobId, row, i);
+      stagingAssets.push(result.stagingRecord);
+      
+      if (result.errors.length === 0) {
+        processedCount++;
+      } else {
+        errors.push(...result.errors);
+      }
+    });
+
+    return { stagingAssets, errors, processedCount };
+  }
+
+  private processSingleRow(
+    jobId: string,
+    row: Record<string, string>,
+    rowIndex: number,
+  ): {
+    stagingRecord: Prisma.StagingAssetCreateManyInput;
+    errors: string[];
+  } {
+    try {
+      const assetData = this.mapRowToAsset(row);
+      const validationErrors = this.validateAssetData(assetData);
+      const stagingRecord = this.createStagingRecord({
+        jobId,
+        rowIndex,
+        row,
+        assetData,
+        validationErrors,
+      });
+
+      const errors = validationErrors.length > 0
+        ? [`Row ${rowIndex + CONSTANTS.HEADER_ROW_OFFSET}: ${validationErrors.join(', ')}`]
+        : [];
+
+      return { stagingRecord, errors };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const stagingRecord = this.createErrorStagingRecord(jobId, rowIndex, row, errorMessage);
+      return {
+        stagingRecord,
+        errors: [`Row ${rowIndex + CONSTANTS.HEADER_ROW_OFFSET}: Failed to process - ${errorMessage}`],
+      };
+    }
+  }
+
+  private createErrorStagingRecord(
+    jobId: string,
+    rowIndex: number,
+    row: Record<string, string>,
+    errorMessage: string,
+  ): Prisma.StagingAssetCreateManyInput {
+    return {
+      import_job_id: jobId,
+      row_number: rowIndex + CONSTANTS.HEADER_ROW_OFFSET,
+      raw_data: row as unknown as Prisma.InputJsonValue,
+      mapped_data: {} as Prisma.InputJsonValue,
+      validation_errors: [errorMessage] as Prisma.InputJsonValue,
+      is_valid: false,
+      will_import: false,
+    };
+  }
+
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 44 lines, exceeds 30-line limit
+  // TODO: Break down into smaller methods: parseFile, stageData, updateJobProgress
+  // CODE_SMELL: [Rule #1] ARCHITECTURE - Service directly uses PrismaService, should use Repository
+  private async processImport(jobId: string, fileId: string): Promise<void> {
+    try {
+      await this.updateJobStatus(jobId, PrismaJobStatus.RUNNING);
+      
+      const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+      
+      if (this.shouldFailImport(parseResult)) {
+        await this.updateJobStatus(jobId, PrismaJobStatus.FAILED, parseResult.errors);
+        return;
+      }
+
+      await this.processParsedData(jobId, parseResult);
+    } catch (error) {
+      await this.handleImportError(jobId, error);
+    }
+  }
+
+  private shouldFailImport(parseResult: { errors: string[]; rows: unknown[] }): boolean {
+    return parseResult.errors.length > 0 && parseResult.rows.length === 0;
+  }
+
+  private async processParsedData(
+    jobId: string,
+    parseResult: { rows: Record<string, string>[]; errors: string[] },
+  ): Promise<void> {
+    const { stagingAssets, errors, processedCount } = this.processCsvRows(
+      jobId,
+      parseResult.rows,
+    );
+    
+    const allErrors = [...parseResult.errors, ...errors];
+
+    if (stagingAssets.length > 0) {
+      await this.repository.createStagingAssets(stagingAssets);
+    }
+
+    await this.repository.updateImportJob(jobId, {
+      status: PrismaJobStatus.STAGED,
+      total_rows: parseResult.rows.length,
+      processed_rows: processedCount,
+      error_rows: parseResult.rows.length - processedCount,
+      errors: allErrors,
+      completed_at: new Date(),
+    });
+  }
+
+  private async handleImportError(jobId: string, error: unknown): Promise<void> {
+    this.logger.error(`Import job ${jobId} failed:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    await this.updateJobStatus(jobId, PrismaJobStatus.FAILED, [errorMessage]);
+  }
+
+  private mapRowToAsset(row: Record<string, string>): MappedAssetData {
+    // Simple mapping - will be enhanced with configurable rules in future phases
+    return {
+      assetTag: row['Asset ID'] || row['Asset Tag'] || row['ID'] || '',
+      name: row['Name'] || row['Asset Name'] || '',
+      description: row['Description'],
+      buildingName: row['Building'],
+      floor: row['Floor'],
+      room: row['Room'],
+      status: row['Status'] || 'ACTIVE',
+      conditionAssessment: row['Condition'] || 'GOOD',
+      manufacturer: row['Manufacturer'],
+      modelNumber: row['Model'] || row['Model Number'],
+      serialNumber: row['Serial Number'] || row['Serial'],
+    };
+  }
+
+  public async getJobStatus(jobId: string): Promise<JobStatus> {
+    const job = await this.repository.findImportJob(jobId);
+
+    if (!job) {
+      throw new NotFoundException(`Import job ${jobId} not found`);
+    }
+
+    return this.mapJobToStatus(job);
+  }
+
+  private mapJobToStatus(job: {
+    id: string;
+    status: string;
+    total_rows: number | null;
+    processed_rows: number;
+    errors: unknown;
+  }): JobStatus {
+    return {
+      id: job.id,
+      status: job.status,
+      progress: job.total_rows
+        ? {
+            total: job.total_rows,
+            processed: job.processed_rows,
+          }
+        : undefined,
+      errors: job.errors as string[],
+    };
+  }
+
+  public async previewCsvFile(fileId: string): Promise<{
+    data: Record<string, string>[];
+    columns: string[];
+    totalRows: number;
+  }> {
+    // Parse CSV to get preview - limit to first 100 rows to prevent memory issues
+    const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+
+    // Limit preview to first few rows and truncate long values
+    const previewData = parseResult.rows
+      .slice(0, CONSTANTS.PREVIEW_ROWS_LIMIT)
+      .map((row) => {
+        const truncatedRow: Record<string, string> = {};
+        for (const [key, value] of Object.entries(row)) {
+          // Truncate long values to prevent memory issues
+          truncatedRow[key] =
+            typeof value === 'string' &&
+            value.length > CONSTANTS.MAX_PREVIEW_STRING_LENGTH
+              ? value.substring(0, CONSTANTS.MAX_PREVIEW_STRING_LENGTH) + '...'
+              : value;
+        }
+        return truncatedRow;
+      });
+
+    const columns = previewData.length > 0 ? Object.keys(previewData[0]) : [];
+
+    return {
+      data: previewData,
+      columns,
+      totalRows: parseResult.rows.length,
+    };
+  }
+
+  public async getStagedData(jobId: string): Promise<{
+    data: StagedDataRowResponse[];
+    validCount: number;
+    invalidCount: number;
+  }> {
+    const [stagingAssets, validCount, invalidCount] = await Promise.all([
+      this.repository.findStagingAssets(jobId, 100),
+      this.repository.countValidStagingAssets(jobId),
+      this.repository.countInvalidStagingAssets(jobId),
+    ]);
+
+    return {
+      data: stagingAssets.map(this.mapStagingAssetToResponse),
+      validCount,
+      invalidCount,
+    };
+  }
+
+  private mapStagingAssetToResponse(asset: {
+    row_number: number;
+    is_valid: boolean;
+    will_import: boolean;
+    raw_data: unknown;
+    mapped_data: unknown;
+    validation_errors: unknown;
+  }): StagedDataRowResponse {
+    return {
+      rowNumber: asset.row_number,
+      isValid: asset.is_valid,
+      willImport: asset.will_import,
+      rawData: asset.raw_data as Record<string, unknown>,
+      mappedData: asset.mapped_data as Record<string, unknown>,
+      errors: asset.validation_errors as string[] | null,
+    };
+  }
+
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 115 lines, violates 30-line limit
+  // TODO: Split into getStagedAssets, mapStagedToAssets, bulkInsertAssets, updateJobComplete
+  // CODE_SMELL: [Rule #1] ARCHITECTURE - Service directly using PrismaService, move to Repository
+  public async approveImport(jobId: string): Promise<{
+    message: string;
+    importedCount: number;
+  }> {
+    const stagedAssets = await this.repository.findValidStagingAssets(jobId);
+
+    if (stagedAssets.length === 0) {
+      return {
+        message: 'No valid assets to import',
+        importedCount: 0,
+      };
+    }
+
+    const assets = this.mapStagedAssetsToCreateInput(stagedAssets);
+    const successCount = await this.bulkCreateAssets(assets);
+    
+    await this.finalizeImport(jobId, assets.length, successCount);
+
+    return {
+      message: `Successfully imported ${successCount} assets`,
+      importedCount: successCount,
+    };
+  }
+
+  private mapStagedAssetsToCreateInput(
+    stagedAssets: Array<{
+      row_number: number;
+      mapped_data: unknown;
+    }>,
+  ): Prisma.AssetCreateManyInput[] {
+    return stagedAssets.map((staged) => {
+      const data = staged.mapped_data as unknown as MappedAssetData;
+      return {
+        assetTag: data.assetTag || `IMPORT-${staged.row_number}`,
+        name: data.name || 'Unnamed Asset',
+        description: data.description || null,
+        buildingName: data.buildingName || null,
+        floor: data.floor || null,
+        roomNumber: data.room || null,
+        status: (data.status as AssetStatus) || AssetStatus.ACTIVE,
+        condition:
+          (data.conditionAssessment as AssetCondition) || AssetCondition.GOOD,
+        manufacturer: data.manufacturer || null,
+        modelNumber: data.modelNumber || null,
+        serialNumber: data.serialNumber || null,
+      };
+    });
+  }
+
+  private async bulkCreateAssets(
+    assets: Prisma.AssetCreateManyInput[],
+  ): Promise<number> {
+    this.logger.log(
+      `Attempting to insert ${assets.length} assets. Sample tags: ${assets
+        .map((a) => a.assetTag)
+        .slice(0, 3)
+        .join(', ')}`,
+    );
+
+    try {
+      const result = await this.repository.createAssets(assets);
+      this.logger.log(`Bulk insert successful: ${result.count} assets inserted`);
+      return result.count;
+    } catch (error) {
+      this.logger.warn('Bulk insert failed, falling back to individual inserts');
+      return this.individualCreateAssets(assets);
+    }
+  }
+
+  private async individualCreateAssets(
+    assets: Prisma.AssetCreateManyInput[],
+  ): Promise<number> {
+    let successCount = 0;
+    const errors: string[] = [];
+
+    for (const asset of assets) {
+      try {
+        await this.repository.createAsset(asset as Prisma.AssetCreateInput);
+        successCount++;
+      } catch (individualError) {
+        const errorMsg = this.formatAssetError(asset.assetTag, individualError);
+        errors.push(errorMsg);
+        this.logger.error(errorMsg);
+      }
+    }
+
+    this.logInsertResults(successCount, errors.length, assets.length);
+    return successCount;
+  }
+
+  private formatAssetError(assetTag: string, error: unknown): string {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return `Failed to insert ${assetTag}: ${message}`;
+  }
+
+  private logInsertResults(
+    successCount: number,
+    errorCount: number,
+    totalCount: number,
+  ): void {
+    this.logger.log(
+      `Individual insert result: ${successCount} inserted, ${errorCount} failed out of ${totalCount} attempted`,
+    );
+  }
+
+  private async finalizeImport(
+    jobId: string,
+    attemptedCount: number,
+    successCount: number,
+  ): Promise<void> {
+    await this.repository.updateImportJob(jobId, {
+      status: 'COMPLETED',
+      completed_at: new Date(),
+    });
+
+    this.logger.log(
+      `[METADATA] Import completed - Attempted: ${attemptedCount}, Success: ${successCount}`,
+    );
+
+    await this.repository.deleteStagingAssets(jobId);
+    this.logger.log(`Approved import job ${jobId}: ${successCount} assets imported`);
+  }
+
+  public async rejectImport(jobId: string): Promise<{
+    message: string;
+    clearedCount: number;
+  }> {
+    const deleted = await this.repository.deleteStagingAssets(jobId);
+
+    await this.repository.updateImportJob(jobId, {
+      status: 'FAILED',
+      errors: ['Import rejected by user'],
+      completed_at: new Date(),
+    });
+
+    this.logger.log(
+      `Rejected import job ${jobId}: ${deleted.count} staging records cleared`,
+    );
+
+    return {
+      message: `Import rejected. ${deleted.count} staging records cleared`,
+      clearedCount: deleted.count,
+    };
+  }
+
+  public async cleanupOldJobs(
+    olderThanHours: number = CONSTANTS.DEFAULT_CLEANUP_HOURS,
+  ): Promise<{
+    message: string;
+    jobsDeleted: number;
+    stagingRecordsDeleted: number;
+  }> {
+    const cutoffDate = new Date(
+      Date.now() - olderThanHours * MILLISECONDS_PER_HOUR,
+    );
+
+    const result = await this.repository.deleteOldImportJobs(cutoffDate);
+    
+    if (result.count === 0) {
+      return {
+        message: 'No old jobs to cleanup',
+        jobsDeleted: 0,
+        stagingRecordsDeleted: 0,
+      };
+    }
+
+    this.logger.log(`Cleanup completed: ${result.count} jobs deleted`);
+
+    return {
+      message: `Cleaned up ${result.count} old jobs and related staging records`,
+      jobsDeleted: result.count,
+      stagingRecordsDeleted: result.count, // Approximate count
+    };
+  }
+
+  public async clearAllJobs(): Promise<{
+    message: string;
+    jobsDeleted: number;
+    stagingRecordsDeleted: number;
+    logsDeleted: number;
+  }> {
+    const result = await this.repository.deleteAllImportJobs();
+
+    this.logger.log(
+      `Emergency cleanup: ${result.jobsDeleted.count} jobs, ${result.stagingDeleted.count} staging records, ${result.logsDeleted.count} logs`,
+    );
+
+    return {
+      message: `Cleared ALL data: ${result.jobsDeleted.count} jobs, ${result.stagingDeleted.count} staging records, ${result.logsDeleted.count} logs`,
+      jobsDeleted: result.jobsDeleted.count,
+      stagingRecordsDeleted: result.stagingDeleted.count,
+      logsDeleted: result.logsDeleted.count,
+    };
+  }
+
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 98 lines, exceeds 30-line limit
+  // TODO: Split into parseForValidation, processValidationSample, estimateValidationTotals
+  public async validateCsvFile(fileId: string): Promise<{
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    errors: string[];
+    sampleValidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }>;
+    sampleInvalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }>;
+  }> {
+    const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+
+    if (this.shouldFailValidation(parseResult)) {
+      return this.createEmptyValidationResult(parseResult.errors);
+    }
+
+    const validationSamples = this.validateSampleRows(parseResult.rows);
+    const estimates = this.estimateValidationTotals(
+      parseResult.rows.length,
+      validationSamples,
+    );
+
+    return {
+      totalRows: parseResult.rows.length,
+      validRows: estimates.validRows,
+      invalidRows: estimates.invalidRows,
+      errors: validationSamples.allErrors.slice(0, CONSTANTS.MAX_ERROR_DISPLAY),
+      sampleValidData: validationSamples.validData,
+      sampleInvalidData: validationSamples.invalidData,
+    };
+  }
+
+  private shouldFailValidation(parseResult: {
+    errors: string[];
+    rows: unknown[];
+  }): boolean {
+    return parseResult.errors.length > 0 && parseResult.rows.length === 0;
+  }
+
+  private createEmptyValidationResult(errors: string[]): {
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    errors: string[];
+    sampleValidData: unknown[];
+    sampleInvalidData: unknown[];
+  } {
+    return {
+      totalRows: 0,
+      validRows: 0,
+      invalidRows: 0,
+      errors,
+      sampleValidData: [],
+      sampleInvalidData: [],
+    };
+  }
+
+  private validateSampleRows(rows: Record<string, string>[]): {
+    validData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }>;
+    invalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }>;
+    allErrors: string[];
+    validCount: number;
+  } {
+    const validData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: Record<string, string>;
+    }> = [];
+    const invalidData: Array<{
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    }> = [];
+    const allErrors: string[] = [];
+    let validCount = 0;
+
+    const sampleSize = Math.min(rows.length, CONSTANTS.VALIDATION_SAMPLE_SIZE);
+
+    for (let i = 0; i < sampleSize; i++) {
+      const result = this.validateSingleSampleRow(rows[i], i);
+      
+      if (result.isValid) {
+        validCount++;
+        this.addValidSample(validData, result.validSample!);
+      } else {
+        this.addInvalidSample(invalidData, result.invalidSample!);
+        allErrors.push(...result.errors);
+      }
+    }
+
+    return { validData, invalidData, allErrors, validCount };
+  }
+
+  private validateSingleSampleRow(
+    row: Record<string, string>,
+    index: number,
+  ): {
+    isValid: boolean;
+    errors: string[];
+    validSample?: {
+      rowNumber: number;
+      rawData: Record<string, string>;
+      mappedData: MappedAssetData;
+    };
+    invalidSample?: {
+      rowNumber: number;
+      rawData: Record<string, string>;
+      errors: string[];
+    };
+  } {
+    const rowNumber = index + CONSTANTS.HEADER_ROW_OFFSET;
+
+    try {
+      const assetData = this.mapRowToAsset(row);
+      const validationErrors = this.validateAssetData(assetData);
+
+      if (validationErrors.length === 0) {
+        return {
+          isValid: true,
+          errors: [],
+          validSample: { rowNumber, rawData: row, mappedData: assetData },
+        };
+      } else {
+        return {
+          isValid: false,
+          errors: [`Row ${rowNumber}: ${validationErrors.join(', ')}`],
+          invalidSample: { rowNumber, rawData: row, errors: validationErrors },
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        isValid: false,
+        errors: [`Row ${rowNumber}: ${errorMessage}`],
+        invalidSample: { rowNumber, rawData: row, errors: [errorMessage] },
+      };
+    }
+  }
+
+  private estimateValidationTotals(
+    totalRows: number,
+    samples: { validCount: number; validData: unknown[] },
+  ): { validRows: number; invalidRows: number } {
+    const sampleSize = samples.validData.length + samples.validCount;
+    const validPercentage = sampleSize > 0 ? samples.validCount / sampleSize : 0;
+    const validRows = Math.round(totalRows * validPercentage);
+    const invalidRows = totalRows - validRows;
+    return { validRows, invalidRows };
+  }
+
+  // CODE_SMELL: [Rule #5] TYPE-SAFETY - Using 'any' for test data types
+  // TODO: Define proper interfaces for TestData and RuleApplied
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 123 lines, violates 30-line limit
+  // TODO: Split into createTestData, processPhases, collectRuleResults
+  public async testETLRules(): Promise<{
+    success: boolean;
+    testData: {
+      before: Record<string, string>;
+      after: Record<string, unknown>;
+    };
+    rulesApplied: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>;
+    processing: {
+      errors: string[];
+      warnings: string[];
+    };
+  }> {
+    this.logger.debug('Testing ETL rules with sample data');
+
+    const testData = this.createTestData();
+    const context = this.createTestContext();
+
+    try {
+      const allActiveRules = await this.repository.findPipelineRules();
+      
+      if (allActiveRules.length === 0) {
+        await this.createDemoRule();
+      }
+
+      const result = await this.processTestDataThroughPhases(
+        testData,
+        allActiveRules,
+        context,
+      );
+
+      this.logger.debug(
+        `ETL rules test completed. Applied ${result.rulesApplied.length} rules`,
+      );
+
+      return {
+        success: true,
+        testData: {
+          before: testData,
+          after: result.data,
+        },
+        rulesApplied: result.rulesApplied,
+        processing: {
+          errors: [],
+          warnings: [],
+        },
+      };
+    } catch (error) {
+      return this.handleTestError(testData, error);
+    }
+  }
+
+  private createTestData(): Record<string, string> {
+    return {
+      name: '   HVAC Unit 001   \t\n',
+      assetTag: 'TEST-001',
+      manufacturer: '  TestCorp  ',
+      description: '\tTest Description\n',
+    };
+  }
+
+  private createTestContext(): {
+    rowNumber: number;
+    jobId: string;
+    correlationId: string;
+    metadata: Record<string, unknown>;
+  } {
+    return {
+      rowNumber: 1,
+      jobId: 'test-rules-job',
+      correlationId: 'test-correlation-' + Date.now(),
+      metadata: { source: 'api-test' },
+    };
+  }
+
+  private async createDemoRule(): Promise<void> {
+    this.logger.debug('No active CLEAN rules found, creating demo TRIM rule');
+    await this.ruleEngine.createRule({
+      name: 'Demo TRIM Rule',
+      description: 'Automatically created for testing',
+      phase: 'CLEAN',
+      type: 'TRIM',
+      target: 'name',
+      config: {
+        sides: 'both',
+        customChars: ' \t\n\r',
+      },
+      priority: 1,
+    });
+  }
+
+  private async processTestDataThroughPhases(
+    testData: Record<string, string>,
+    allActiveRules: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>,
+    context: Record<string, unknown>,
+  ): Promise<{
+    data: Record<string, unknown>;
+    rulesApplied: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }>;
+  }> {
+    const phases = ['CLEAN', 'TRANSFORM', 'VALIDATE', 'MAP'] as const;
+    let currentData: Record<string, unknown> = testData;
+    const allRulesApplied: Array<{
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+    }> = [];
+
+    for (const phase of phases) {
+      const phaseRules = allActiveRules.filter((rule) => rule.phase === phase);
+      
+      if (phaseRules.length > 0) {
+        const result = await this.ruleEngine.processDataWithRules(
+          currentData,
+          phase,
+          context,
+        );
+        currentData = result.data;
+        allRulesApplied.push(...phaseRules);
+      }
+    }
+
+    return { data: currentData, rulesApplied: allRulesApplied };
+  }
+
+  private handleTestError(
+    testData: Record<string, string>,
+    error: unknown,
+  ): {
+    success: boolean;
+    testData: {
+      before: Record<string, string>;
+      after: Record<string, string>;
+    };
+    rulesApplied: unknown[];
+    processing: {
+      errors: string[];
+      warnings: string[];
+    };
+  } {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logger.error(`ETL rules test failed: ${errorMessage}`);
+
+    return {
+      success: false,
+      testData: {
+        before: testData,
+        after: testData,
+      },
+      rulesApplied: [],
+      processing: {
+        errors: [`Test failed: ${errorMessage}`],
+        warnings: [],
+      },
+    };
+  }
+
+  public async testPipelineOrchestrator(): Promise<any> {
+    this.logger.debug('Testing pipeline orchestrator with all phases');
+
+    try {
+      // Create orchestrator and register all phase processors
+      const orchestrator = new PipelineOrchestrator(this);
+
+      // Register all phase processors
+      orchestrator.registerProcessor(new ExtractPhaseProcessor(this));
+      orchestrator.registerProcessor(new ValidatePhaseProcessor());
+      orchestrator.registerProcessor(new CleanPhaseProcessor(this.prisma)); // This has the REAL rules engine!
+      orchestrator.registerProcessor(new TransformPhaseProcessor());
+      orchestrator.registerProcessor(new MapPhaseProcessor());
+      orchestrator.registerProcessor(new LoadPhaseProcessor());
+
+      // Run the full orchestration with test data
+      const result = await orchestrator.testAllPhases();
+
+      this.logger.debug(
+        `Pipeline orchestrator test completed. Success: ${result.success}`,
+      );
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Pipeline orchestrator test failed: ${errorMessage}`);
+
+      return {
+        success: false,
+        error: errorMessage,
+        data: null,
+      };
+    }
+  }
+
+  public async getRules(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      type: string;
+      phase: string;
+      target: string;
+      config: unknown;
+      is_active: boolean;
+      priority: number;
+      created_at: Date;
+      updated_at: Date;
+    }>
+  > {
+    this.logger.debug('Getting all pipeline rules');
+    return this.repository.findPipelineRules();
+  }
+
+  // CODE_SMELL: [Rule #5] TYPE-SAFETY - Using 'any' types instead of proper interfaces
+  // TODO: Create CreateRuleDto interface and PipelineRule return type
+  public async createRule(createRuleDto: {
+    name: string;
+    type: string;
+    phase: string;
+    target: string;
+    config: unknown;
+    is_active?: boolean;
+    priority?: number;
+  }): Promise<unknown> {
+    this.logger.debug(`Creating pipeline rule: ${createRuleDto.name}`);
+    return this.repository.createPipelineRule({
+      name: createRuleDto.name,
+      type: createRuleDto.type as Prisma.RuleType,
+      phase: createRuleDto.phase as Prisma.PipelinePhase,
+      target: createRuleDto.target,
+      config: createRuleDto.config,
+      is_active: createRuleDto.is_active ?? true,
+      priority: createRuleDto.priority ?? 1,
+    });
+  }
+
+  public async updateRule(
+    ruleId: string,
+    updateRuleDto: {
+      name?: string;
+      type?: string;
+      phase?: string;
+      target?: string;
+      config?: unknown;
+      is_active?: boolean;
+      priority?: number;
+    },
+  ): Promise<unknown> {
+    this.logger.debug(`Updating pipeline rule: ${ruleId}`);
+    const updateData = this.buildRuleUpdateData(updateRuleDto);
+    return this.repository.updatePipelineRule(ruleId, updateData);
+  }
+
+  private buildRuleUpdateData(updateRuleDto: {
+    name?: string;
+    type?: string;
+    phase?: string;
+    target?: string;
+    config?: unknown;
+    is_active?: boolean;
+    priority?: number;
+  }): Prisma.PipelineRuleUpdateInput {
+    const updateData: Prisma.PipelineRuleUpdateInput = {};
+    
+    if (updateRuleDto.name !== undefined) updateData.name = updateRuleDto.name;
+    if (updateRuleDto.type !== undefined)
+      updateData.type = updateRuleDto.type as Prisma.RuleType;
+    if (updateRuleDto.phase !== undefined)
+      updateData.phase = updateRuleDto.phase as Prisma.PipelinePhase;
+    if (updateRuleDto.target !== undefined)
+      updateData.target = updateRuleDto.target;
+    if (updateRuleDto.config !== undefined)
+      updateData.config = updateRuleDto.config;
+    if (updateRuleDto.is_active !== undefined)
+      updateData.is_active = updateRuleDto.is_active;
+    if (updateRuleDto.priority !== undefined)
+      updateData.priority = updateRuleDto.priority;
+
+    return updateData;
+  }
+
+  public async deleteRule(ruleId: string): Promise<void> {
+    this.logger.debug(`Deleting pipeline rule: ${ruleId}`);
+    await this.repository.deletePipelineRule(ruleId);
+  }
+
+  public async listJobs(): Promise<
+    Array<{
+      id: string;
+      file_id: string;
+      status: string;
+      total_rows: number | null;
+      processed_rows: number | null;
+      error_rows: number | null;
+      errors: string[] | null;
+      started_at: Date;
+      completed_at: Date | null;
+      created_by: string | null;
+    }>
+  > {
+    this.logger.debug('Getting recent import jobs');
+    const jobs = await this.repository.findImportJobs(50);
+    return jobs.map(this.mapJobToListItem);
+  }
+
+  private mapJobToListItem(job: {
+    id: string;
+    file_id: string;
+    status: string;
+    total_rows: number | null;
+    processed_rows: number;
+    error_rows: number;
+    errors: unknown;
+    started_at: Date;
+    completed_at: Date | null;
+    created_by: string | null;
+  }): {
+    id: string;
+    file_id: string;
+    status: string;
+    total_rows: number | null;
+    processed_rows: number | null;
+    error_rows: number | null;
+    errors: string[] | null;
+    started_at: Date;
+    completed_at: Date | null;
+    created_by: string | null;
+  } {
+    return {
+      id: job.id,
+      file_id: job.file_id,
+      status: job.status.toString(),
+      total_rows: job.total_rows,
+      processed_rows: job.processed_rows,
+      error_rows: job.error_rows,
+      errors: Array.isArray(job.errors) ? (job.errors as string[]) : null,
+      started_at: job.started_at,
+      completed_at: job.completed_at,
+      created_by: job.created_by,
+    };
+  }
+}

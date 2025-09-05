@@ -1,37 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PipelineRepository } from '../repositories/pipeline.repository';
+import { PrismaService } from '../../database/prisma.service';
 import { RuleProcessorFactory } from './rule-processor.factory';
-import { PipelinePhase, RuleType, PipelineRule } from '@prisma/client';
+import { PipelinePhase, RuleType } from '@prisma/client';
 import {
   ProcessingContext,
   ProcessingResult,
 } from '../interfaces/rule-processor.interface';
-import { ProcessedRow, RuleConfig } from '../interfaces/pipeline-types';
 
-/**
- * Rule Engine Service for processing data through pipeline rules
- * Following Rule #1: Services only contain business rules - no data access
- * Following Rule #2: Uses repository pattern for database operations
- */
+// CODE_SMELL: [Rule #1] ARCHITECTURE - Service using PrismaService directly, should use Repository
+// TODO: Create RuleRepository to handle pipeline rule database operations
 @Injectable()
 export class RuleEngineService {
   private readonly logger = new Logger(RuleEngineService.name);
 
   public constructor(
-    private readonly pipelineRepository: PipelineRepository,
+    private readonly prisma: PrismaService,
     private readonly processorFactory: RuleProcessorFactory,
   ) {}
 
-  /**
-   * Process data through all active rules for a given phase
-   */
+  // CODE_SMELL: [Rule #5] TYPE-SAFETY - Using 'any' for data parameters and return types
+  // TODO: Define proper interfaces for ProcessedData and ProcessingResult
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 95 lines, exceeds 30-line limit
+  // TODO: Split into loadRules, applyRules, handleRuleErrors
   public async processDataWithRules(
-    data: ProcessedRow | ProcessedRow[],
+    data: any,
     phase: PipelinePhase,
     context: ProcessingContext,
   ): Promise<{
     success: boolean;
-    data: ProcessedRow | ProcessedRow[];
+    data: any;
     errors: string[];
     warnings: string[];
   }> {
@@ -41,16 +38,15 @@ export class RuleEngineService {
 
     try {
       // Load active rules for this phase, ordered by priority
-      const rules = await this.pipelineRepository.findPipelineRules(
-        {
+      const rules = await this.prisma.pipelineRule.findMany({
+        where: {
           phase,
           is_active: true,
         },
-        [
-          { priority: 'asc' }, // Lower number = higher priority
-          { name: 'asc' },
-        ],
-      );
+        orderBy: {
+          priority: 'asc', // Lower number = higher priority
+        },
+      });
 
       this.logger.debug(
         `Found ${rules.length} active rules for phase ${phase}`,

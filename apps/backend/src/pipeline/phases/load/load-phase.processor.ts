@@ -6,6 +6,23 @@ import {
   PhaseResult,
 } from '../../orchestrator/phase-processor.interface';
 
+interface LoadResult {
+  action: string;
+  data: Record<string, unknown>;
+  success: boolean;
+  error?: string;
+}
+
+interface LoadData extends Record<string, unknown> {
+  loadResults: LoadResult[];
+}
+
+interface Transformation {
+  field: string;
+  before: string;
+  after: string;
+}
+
 @Injectable()
 export class LoadPhaseProcessor implements PhaseProcessor {
   public readonly phase = PipelinePhase.LOAD;
@@ -15,166 +32,284 @@ export class LoadPhaseProcessor implements PhaseProcessor {
 
   private readonly logger = new Logger(LoadPhaseProcessor.name);
 
-  public async process(data: any, context: PhaseContext): Promise<PhaseResult> {
+  // Configuration constants
+  private readonly BATCH_SIZE = 10;
+  private readonly RULES = {
+    BATCH_SIZE: 'BATCH_SIZE (10)',
+    CONFLICT_RESOLUTION: 'CONFLICT_RESOLUTION (upsert)',
+    TRANSACTION_BOUNDARY: 'TRANSACTION_BOUNDARY (per batch)',
+  };
+
+  public async process(
+    data: Record<string, unknown>,
+    context: PhaseContext,
+  ): Promise<PhaseResult> {
     const startTime = new Date();
     this.logger.debug(`[${context.correlationId}] Starting LOAD phase`);
 
     try {
-      const sourceRows =
-        data.mappedRows ||
-        data.transformedRows ||
-        data.cleanedRows ||
-        data.validRows ||
-        data.rows;
-      if (!sourceRows || !Array.isArray(sourceRows)) {
-        throw new Error(
-          'Invalid input: expected rows array from previous phase',
-        );
-      }
+      const sourceRows = this.extractSourceRows(data);
+      const result = await this.loadDataInBatches(sourceRows);
 
-      const loadedData = {
-        ...data,
-        loadResults: [],
-      };
+      return this.createSuccessResult(
+        startTime,
+        data,
+        result,
+        sourceRows.length,
+      );
+    } catch (error) {
+      return this.createErrorResult(startTime, data, error);
+    }
+  }
 
-      const transformations = [];
-      let successCount = 0;
-      let failureCount = 0;
+  private extractSourceRows(
+    data: Record<string, unknown>,
+  ): Array<Record<string, unknown>> {
+    const sourceRows =
+      data.mappedRows ||
+      data.transformedRows ||
+      data.cleanedRows ||
+      data.validRows ||
+      data.rows;
 
-      // PLACEHOLDER: Simulate database insertion
-      const batchSize = 10; // BATCH_SIZE rule
-      const batches = [];
+    if (!sourceRows || !Array.isArray(sourceRows)) {
+      throw new Error('Invalid input: expected rows array from previous phase');
+    }
 
-      // Split into batches
-      for (let i = 0; i < sourceRows.length; i += batchSize) {
-        batches.push(sourceRows.slice(i, i + batchSize));
-      }
+    return sourceRows as Array<Record<string, unknown>>;
+  }
 
-      this.logger.debug(
-        `Processing ${sourceRows.length} records in ${batches.length} batches of ${batchSize}`,
+  private async loadDataInBatches(
+    sourceRows: Array<Record<string, unknown>>,
+  ): Promise<{
+    loadResults: LoadResult[];
+    transformations: Transformation[];
+    successCount: number;
+    failureCount: number;
+  }> {
+    const loadResults: LoadResult[] = [];
+    const transformations: Transformation[] = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    const batches = this.createBatches(sourceRows);
+
+    this.logger.debug(
+      `Processing ${sourceRows.length} records in ${batches.length} batches of ${this.BATCH_SIZE}`,
+    );
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batchResult = await this.processBatch(
+        batches[batchIndex],
+        batchIndex,
       );
 
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-        const batch = batches[batchIndex];
+      loadResults.push(...batchResult.loadResults);
+      transformations.push(...batchResult.transformations);
+      successCount += batchResult.successCount;
+      failureCount += batchResult.failureCount;
+    }
 
-        // PLACEHOLDER: Simulate transaction boundary
-        try {
-          // In real implementation, would start database transaction here
+    return { loadResults, transformations, successCount, failureCount };
+  }
 
-          for (const row of batch) {
-            // PLACEHOLDER: Simulate conflict resolution
-            const existingRecord = null; // Would check database
+  private createBatches(
+    sourceRows: Array<Record<string, unknown>>,
+  ): Array<Array<Record<string, unknown>>> {
+    const batches: Array<Array<Record<string, unknown>>> = [];
 
-            if (existingRecord) {
-              // CONFLICT_RESOLUTION rule - update existing
-              loadedData.loadResults.push({
-                action: 'UPDATE',
-                data: row,
-                success: true,
-              });
+    for (let i = 0; i < sourceRows.length; i += this.BATCH_SIZE) {
+      batches.push(sourceRows.slice(i, i + this.BATCH_SIZE));
+    }
 
-              transformations.push({
-                field: `record_${row.assetTag || 'unknown'}`,
-                before: 'existing record',
-                after: 'updated record',
-              });
-            } else {
-              // Insert new record
-              loadedData.loadResults.push({
-                action: 'INSERT',
-                data: row,
-                success: true,
-              });
+    return batches;
+  }
 
-              transformations.push({
-                field: `record_${row.assetTag || 'unknown'}`,
-                before: 'no record',
-                after: 'new record inserted',
-              });
-            }
+  private async processBatch(
+    batch: Array<Record<string, unknown>>,
+    batchIndex: number,
+  ): Promise<{
+    loadResults: LoadResult[];
+    transformations: Transformation[];
+    successCount: number;
+    failureCount: number;
+  }> {
+    const loadResults: LoadResult[] = [];
+    const transformations: Transformation[] = [];
 
-            successCount++;
-          }
+    try {
+      // Simulate transaction start
+      for (const row of batch) {
+        const result = await this.processRow(row);
+        loadResults.push(result.loadResult);
 
-          // Simulate transaction commit
-          this.logger.debug(
-            `Batch ${batchIndex + 1} committed successfully (${batch.length} records)`,
-          );
-        } catch (batchError) {
-          // Simulate transaction rollback
-          this.logger.error(`Batch ${batchIndex + 1} failed, rolling back`);
-          failureCount += batch.length;
-
-          for (const row of batch) {
-            loadedData.loadResults.push({
-              action: 'FAILED',
-              data: row,
-              success: false,
-              error:
-                batchError instanceof Error
-                  ? batchError.message
-                  : String(batchError),
-            });
-          }
+        if (result.transformation) {
+          transformations.push(result.transformation);
         }
       }
 
-      const endTime = new Date();
-      const durationMs = endTime.getTime() - startTime.getTime();
-      const recordsProcessed = sourceRows.length;
-
+      // Simulate transaction commit
       this.logger.debug(
-        `[${context.correlationId}] LOAD phase completed: ${successCount} success, ${failureCount} failed in ${durationMs}ms`,
+        `Batch ${batchIndex + 1} committed successfully (${batch.length} records)`,
       );
 
       return {
-        success: failureCount === 0,
-        phase: this.phase,
-        data: loadedData,
-        errors:
-          failureCount > 0 ? [`${failureCount} records failed to load`] : [],
-        warnings: [],
-        metrics: {
-          startTime,
-          endTime,
-          durationMs,
-          recordsProcessed,
-          recordsSuccess: successCount,
-          recordsFailed: failureCount,
+        loadResults,
+        transformations,
+        successCount: batch.length,
+        failureCount: 0,
+      };
+    } catch (batchError) {
+      return this.handleBatchError(batch, batchIndex, batchError);
+    }
+  }
+
+  private async processRow(row: Record<string, unknown>): Promise<{
+    loadResult: LoadResult;
+    transformation?: Transformation;
+  }> {
+    // PLACEHOLDER: Simulate conflict resolution
+    const existingRecord = await this.checkExistingRecord(row);
+    const assetTag = (row.assetTag as string) || 'unknown';
+
+    if (existingRecord) {
+      // CONFLICT_RESOLUTION rule - update existing
+      return {
+        loadResult: {
+          action: 'UPDATE',
+          data: row,
+          success: true,
         },
-        debug: {
-          rulesApplied: [
-            `BATCH_SIZE (${batchSize})`,
-            'CONFLICT_RESOLUTION (upsert)',
-            'TRANSACTION_BOUNDARY (per batch)',
-          ],
-          transformations,
+        transformation: {
+          field: `record_${assetTag}`,
+          before: 'existing record',
+          after: 'updated record',
         },
       };
-    } catch (error) {
-      const endTime = new Date();
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      this.logger.error(
-        `[${context.correlationId}] LOAD phase failed: ${errorMessage}`,
-      );
-
+    } else {
+      // Insert new record
       return {
-        success: false,
-        phase: this.phase,
-        data: data,
-        errors: [`LOAD failed: ${errorMessage}`],
-        warnings: [],
-        metrics: {
-          startTime,
-          endTime,
-          durationMs: endTime.getTime() - startTime.getTime(),
-          recordsProcessed: 0,
-          recordsSuccess: 0,
-          recordsFailed: 1,
+        loadResult: {
+          action: 'INSERT',
+          data: row,
+          success: true,
+        },
+        transformation: {
+          field: `record_${assetTag}`,
+          before: 'no record',
+          after: 'new record inserted',
         },
       };
     }
+  }
+
+  private async checkExistingRecord(
+    row: Record<string, unknown>,
+  ): Promise<boolean> {
+    // PLACEHOLDER: Would check database for existing record
+    // For now, always return false to simulate inserts
+    return Promise.resolve(false);
+  }
+
+  private handleBatchError(
+    batch: Array<Record<string, unknown>>,
+    batchIndex: number,
+    error: unknown,
+  ): {
+    loadResults: LoadResult[];
+    transformations: Transformation[];
+    successCount: number;
+    failureCount: number;
+  } {
+    this.logger.error(`Batch ${batchIndex + 1} failed, rolling back`);
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const loadResults: LoadResult[] = batch.map((row) => ({
+      action: 'FAILED',
+      data: row,
+      success: false,
+      error: errorMessage,
+    }));
+
+    return {
+      loadResults,
+      transformations: [],
+      successCount: 0,
+      failureCount: batch.length,
+    };
+  }
+
+  private createSuccessResult(
+    startTime: Date,
+    originalData: Record<string, unknown>,
+    result: {
+      loadResults: LoadResult[];
+      transformations: Transformation[];
+      successCount: number;
+      failureCount: number;
+    },
+    totalRecords: number,
+  ): PhaseResult {
+    const endTime = new Date();
+    const durationMs = endTime.getTime() - startTime.getTime();
+
+    const loadedData: LoadData = {
+      ...originalData,
+      loadResults: result.loadResults,
+    };
+
+    this.logger.debug(
+      `[LOAD] phase completed: ${result.successCount} success, ${result.failureCount} failed in ${durationMs}ms`,
+    );
+
+    return {
+      success: result.failureCount === 0,
+      phase: this.phase,
+      data: loadedData,
+      errors:
+        result.failureCount > 0
+          ? [`${result.failureCount} records failed to load`]
+          : [],
+      warnings: [],
+      metrics: {
+        startTime,
+        endTime,
+        durationMs,
+        recordsProcessed: totalRecords,
+        recordsSuccess: result.successCount,
+        recordsFailed: result.failureCount,
+      },
+      debug: {
+        rulesApplied: Object.values(this.RULES),
+        transformations: result.transformations,
+      },
+    };
+  }
+
+  private createErrorResult(
+    startTime: Date,
+    data: Record<string, unknown>,
+    error: unknown,
+  ): PhaseResult {
+    const endTime = new Date();
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    this.logger.error(`[LOAD] phase failed: ${errorMessage}`);
+
+    return {
+      success: false,
+      phase: this.phase,
+      data,
+      errors: [`LOAD failed: ${errorMessage}`],
+      warnings: [],
+      metrics: {
+        startTime,
+        endTime,
+        durationMs: endTime.getTime() - startTime.getTime(),
+        recordsProcessed: 0,
+        recordsSuccess: 0,
+        recordsFailed: 1,
+      },
+    };
   }
 }

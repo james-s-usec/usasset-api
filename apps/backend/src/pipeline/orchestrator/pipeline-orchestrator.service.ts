@@ -34,6 +34,9 @@ export class PipelineOrchestrator {
     this.logger.debug(`Registered processor for phase: ${processor.phase}`);
   }
 
+  // CODE_SMELL: [Rule #4] COMPLEXITY - Method has 105 lines, violates 30-line limit
+  // TODO: Split into setupOrchestration, executePhases, buildResult
+  // CODE_SMELL: [Rule #5] TYPE-SAFETY - Using 'any' for currentData
   public async orchestrateFile(fileId: string): Promise<OrchestrationResult> {
     const correlationId = `orchestration-${Date.now()}`;
     const jobId = `job-${Date.now()}`;
