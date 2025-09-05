@@ -32,9 +32,9 @@ const FileNameChips: React.FC<{
   remainingCount: number;
 }> = ({ fileNames, remainingCount }) => (
   <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-    {fileNames.map((name) => (
+    {fileNames.map((name, index) => (
       <Chip
-        key={name}
+        key={`file-${index}`}
         label={name}
         size="small"
         sx={{ 

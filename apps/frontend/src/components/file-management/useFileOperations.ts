@@ -23,8 +23,8 @@ const fetchFiles = async (): Promise<FileData[]> => {
     console.warn('🔍 fetchFiles: Sync failed, continuing with fetch:', error);
   }
   
-  console.log('🔍 fetchFiles: Starting API call to:', `${API_BASE}/api/files`);
-  const response = await fetch(`${API_BASE}/api/files`);
+  console.log('🔍 fetchFiles: Starting API call to:', `${API_BASE}/api/files?limit=100`);
+  const response = await fetch(`${API_BASE}/api/files?limit=100`);
   console.log('🔍 fetchFiles: Response status:', response.status);
   const result = await response.json();
   console.log('🔍 fetchFiles: Response data:', result);

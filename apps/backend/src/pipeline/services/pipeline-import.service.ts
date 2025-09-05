@@ -293,8 +293,11 @@ export class PipelineImportService {
     assets: Array<Record<string, unknown>>,
   ): Promise<{ success: boolean; successCount: number; errors: string[] }> {
     try {
-      const typedAssets = assets as Prisma.AssetCreateManyInput[];
-      const result = await this.pipelineRepository.createAssets(typedAssets);
+      const transformedAssets = assets.map((asset) =>
+        this.transformAssetData(asset),
+      );
+      const result =
+        await this.pipelineRepository.createAssets(transformedAssets);
       this.logger.log(`Bulk insert successful: ${result.count} assets created`);
       return { success: true, successCount: result.count, errors: [] };
     } catch {
@@ -314,7 +317,7 @@ export class PipelineImportService {
 
     for (const asset of assets) {
       try {
-        const assetData = asset as Prisma.AssetCreateInput;
+        const assetData = this.transformAssetData(asset);
         await prisma.asset.create({ data: assetData });
         successCount++;
       } catch (error) {
@@ -325,6 +328,54 @@ export class PipelineImportService {
     }
 
     return { successCount, errors };
+  }
+
+  private transformAssetData(
+    asset: Record<string, unknown>,
+  ): Prisma.AssetCreateInput {
+    const transformed = { ...asset } as Record<string, unknown>;
+
+    // Map status values
+    if (transformed.status) {
+      transformed.status = this.mapStatusValue(transformed.status);
+    }
+
+    // Map condition values
+    if (transformed.condition) {
+      transformed.condition = this.mapConditionValue(transformed.condition);
+    }
+
+    return transformed as Prisma.AssetCreateInput;
+  }
+
+  private mapStatusValue(status: unknown): string {
+    const statusMap: Record<string, string> = {
+      available: 'ACTIVE',
+      in_use: 'ACTIVE',
+      active: 'ACTIVE',
+      maintenance: 'MAINTENANCE',
+      retired: 'RETIRED',
+      disposed: 'DISPOSED',
+      inactive: 'INACTIVE',
+      lost: 'LOST',
+      stolen: 'STOLEN',
+    };
+    const statusStr = String(status).toLowerCase();
+    return statusMap[statusStr] || 'ACTIVE';
+  }
+
+  private mapConditionValue(condition: unknown): string {
+    const conditionMap: Record<string, string> = {
+      excellent: 'EXCELLENT',
+      good: 'GOOD',
+      fair: 'FAIR',
+      poor: 'POOR',
+      critical: 'CRITICAL',
+      unknown: 'UNKNOWN',
+      new: 'NEW',
+    };
+    const conditionStr = String(condition).toLowerCase();
+    return conditionMap[conditionStr] || 'UNKNOWN';
   }
 
   private formatInsertError(

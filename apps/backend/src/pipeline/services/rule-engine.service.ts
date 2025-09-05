@@ -297,43 +297,97 @@ export class RuleEngineService {
     params: { config: unknown; context: ProcessingContext; ruleName: string },
   ): Promise<RuleResult> {
     try {
-      // Parse target fields (comma-separated)
-      const targetFields = rule.target.split(',').map((field) => field.trim());
+      const targetFields = this.parseTargetFields(rule.target);
       const processedData = { ...data };
       const allWarnings: string[] = [];
 
-      // Apply processor to each target field
       for (const fieldName of targetFields) {
-        if (processedData[fieldName] !== undefined) {
-          const fieldResult = await processor.process(
-            processedData[fieldName],
-            params.config,
-            params.context,
-          );
+        const fieldResult = await this.processField(
+          processor,
+          processedData,
+          fieldName,
+          params,
+        );
 
-          if (fieldResult.success) {
-            processedData[fieldName] = fieldResult.data;
-            if (fieldResult.warnings?.length) {
-              allWarnings.push(...fieldResult.warnings);
-            }
-          } else {
-            const error = `Rule ${params.ruleName} failed on field ${fieldName}: ${fieldResult.errors?.join(', ')}`;
-            this.logger.error(error);
-            return { success: false, error };
-          }
+        if (!fieldResult.success) {
+          return fieldResult;
         }
+
+        this.updateProcessedData(processedData, fieldName, fieldResult.data);
+        this.collectWarnings(allWarnings, fieldResult.warnings);
       }
 
-      return {
-        success: true,
-        data: processedData,
-        warnings: allWarnings,
-      };
+      return this.createFieldProcessResult(processedData, allWarnings);
     } catch (error) {
-      const errorMsg = `Rule ${params.ruleName} failed: ${error instanceof Error ? error.message : String(error)}`;
-      this.logger.error(errorMsg);
-      return { success: false, error: errorMsg };
+      return this.createFieldProcessError(params.ruleName, error);
     }
+  }
+
+  private parseTargetFields(target: string): string[] {
+    return target.split(',').map((field) => field.trim());
+  }
+
+  private async processField(
+    processor: RuleProcessor,
+    processedData: Record<string, unknown>,
+    fieldName: string,
+    params: { config: unknown; context: ProcessingContext; ruleName: string },
+  ): Promise<RuleResult> {
+    if (processedData[fieldName] === undefined) {
+      return { success: true };
+    }
+
+    const fieldResult = await processor.process(
+      processedData[fieldName],
+      params.config,
+      params.context,
+    );
+
+    if (!fieldResult.success) {
+      const error = `Rule ${params.ruleName} failed on field ${fieldName}: ${fieldResult.errors?.join(', ')}`;
+      this.logger.error(error);
+      return { success: false, error };
+    }
+
+    return {
+      success: true,
+      data: fieldResult.data as Record<string, unknown>,
+      warnings: fieldResult.warnings,
+    };
+  }
+
+  private updateProcessedData(
+    processedData: Record<string, unknown>,
+    fieldName: string,
+    data: unknown,
+  ): void {
+    processedData[fieldName] = data;
+  }
+
+  private collectWarnings(allWarnings: string[], warnings?: string[]): void {
+    if (warnings?.length) {
+      allWarnings.push(...warnings);
+    }
+  }
+
+  private createFieldProcessResult(
+    processedData: Record<string, unknown>,
+    allWarnings: string[],
+  ): RuleResult {
+    return {
+      success: true,
+      data: processedData,
+      warnings: allWarnings,
+    };
+  }
+
+  private createFieldProcessError(
+    ruleName: string,
+    error: unknown,
+  ): RuleResult {
+    const errorMsg = `Rule ${ruleName} failed: ${error instanceof Error ? error.message : String(error)}`;
+    this.logger.error(errorMsg);
+    return { success: false, error: errorMsg };
   }
 
   private async applyRule(

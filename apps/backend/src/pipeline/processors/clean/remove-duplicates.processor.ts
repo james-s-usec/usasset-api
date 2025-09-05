@@ -108,33 +108,53 @@ export class RemoveDuplicatesProcessor
     config: RemoveDuplicatesConfig,
   ): ProcessingResult {
     try {
-      const items = data.split(config.delimiter).map((item) => item.trim());
-      const originalCount = items.length;
+      const items = this.splitAndTrimItems(data, config.delimiter);
       const uniqueItems = this.getUniqueItems(items, config.caseSensitive);
       const result = uniqueItems.join(config.delimiter);
-      const duplicatesRemoved = originalCount - uniqueItems.length;
 
-      return {
-        success: true,
-        data: result,
-        metadata: {
-          originalValue: data,
-          processedValue: result,
-          duplicatesRemoved,
-          originalCount,
-          uniqueCount: uniqueItems.length,
-          operation: 'remove-duplicates',
-        },
-      };
+      return this.createSuccessResult(
+        data,
+        result,
+        items.length,
+        uniqueItems.length,
+      );
     } catch (error) {
-      return {
-        success: false,
-        data: data,
-        errors: [
-          `Remove duplicates processing failed: ${error instanceof Error ? error.message : String(error)}`,
-        ],
-      };
+      return this.createErrorResult(data, error);
     }
+  }
+
+  private splitAndTrimItems(data: string, delimiter: string): string[] {
+    return data.split(delimiter).map((item) => item.trim());
+  }
+
+  private createSuccessResult(
+    originalValue: string,
+    processedValue: string,
+    originalCount: number,
+    uniqueCount: number,
+  ): ProcessingResult {
+    return {
+      success: true,
+      data: processedValue,
+      metadata: {
+        originalValue,
+        processedValue,
+        duplicatesRemoved: originalCount - uniqueCount,
+        originalCount,
+        uniqueCount,
+        operation: 'remove-duplicates',
+      },
+    };
+  }
+
+  private createErrorResult(data: string, error: unknown): ProcessingResult {
+    return {
+      success: false,
+      data: data,
+      errors: [
+        `Remove duplicates processing failed: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    };
   }
 
   private getUniqueItems(items: string[], caseSensitive?: boolean): string[] {
