@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../usasset-api-service"
+		},
+		{
+			"path": "../../usasset-api-portal"
+		}
+	],
+	"settings": {}
+}

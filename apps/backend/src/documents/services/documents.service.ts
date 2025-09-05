@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AssetDocumentResponseDto } from '../dto/asset-document-response.dto';
-import { File } from '@prisma/client';
+import { File, FileType } from '@prisma/client';
+import { AzureBlobStorageService } from '../../files/services/azure-blob-storage.service';
+import { MulterFile } from '../../files/interfaces/file.interface';
 
 type FileWithAsset = File & {
   asset: { name: string; assetTag: string } | null;
@@ -9,7 +16,11 @@ type FileWithAsset = File & {
 
 @Injectable()
 export class DocumentsService {
-  public constructor(private readonly prisma: PrismaService) {}
+  public constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => AzureBlobStorageService))
+    private readonly storageService: AzureBlobStorageService,
+  ) {}
 
   public async findByAsset(
     assetId: string,
@@ -84,5 +95,73 @@ export class DocumentsService {
       documentCount: documents.length,
       documentsByType,
     };
+  }
+
+  public async uploadDocument(
+    assetId: string,
+    projectId: string,
+    file: MulterFile,
+    fileType?: FileType,
+  ): Promise<AssetDocumentResponseDto> {
+    // Verify asset exists and belongs to project
+    const asset = await this.prisma.asset.findFirst({
+      where: {
+        id: assetId,
+        projectId: projectId,
+        is_deleted: false,
+      },
+    });
+
+    if (!asset) {
+      throw new NotFoundException(
+        `Asset ${assetId} not found in project ${projectId}`,
+      );
+    }
+
+    // Upload file with asset context
+    const uploadedFile = await this.storageService.upload({
+      file,
+      projectId,
+      assetId,
+      fileType: fileType || FileType.DOCUMENT,
+    });
+
+    // Return with asset info
+    const fileWithAsset = await this.prisma.file.findUnique({
+      where: { id: uploadedFile.id },
+      include: {
+        asset: {
+          select: {
+            name: true,
+            assetTag: true,
+          },
+        },
+      },
+    });
+
+    return this.mapToDto(fileWithAsset as FileWithAsset);
+  }
+
+  public async deleteDocument(assetId: string, fileId: string): Promise<void> {
+    // Verify file belongs to asset
+    const file = await this.prisma.file.findFirst({
+      where: {
+        id: fileId,
+        asset_id: assetId,
+        is_deleted: false,
+      },
+    });
+
+    if (!file) {
+      throw new NotFoundException(
+        `Document ${fileId} not found for asset ${assetId}`,
+      );
+    }
+
+    // Soft delete
+    await this.prisma.file.update({
+      where: { id: fileId },
+      data: { is_deleted: true },
+    });
   }
 }

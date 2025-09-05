@@ -8,7 +8,7 @@ import {
   StorageSharedKeyCredential,
 } from '@azure/storage-blob';
 import { PrismaService } from '../../database/prisma.service';
-import { File } from '@prisma/client';
+import { File, FileType } from '@prisma/client';
 import { MulterFile } from '../interfaces/file.interface';
 import { FileNotFoundException } from '../exceptions/file.exceptions';
 
@@ -114,6 +114,8 @@ export class AzureBlobStorageService {
     blobUrl: string;
     projectId?: string;
     folderId?: string;
+    assetId?: string;
+    fileType?: string;
   }): Promise<File> {
     return this.prisma.file.create({
       data: {
@@ -126,6 +128,8 @@ export class AzureBlobStorageService {
         blob_name: data.blobName,
         project_id: data.projectId || null,
         folder_id: data.folderId || null,
+        asset_id: data.assetId || null,
+        file_type: (data.fileType as FileType) || FileType.DOCUMENT,
       },
     });
   }
@@ -155,20 +159,46 @@ export class AzureBlobStorageService {
     }
   }
 
-  public async upload(
-    file: MulterFile,
-    folderId?: string,
-    projectId?: string,
-  ): Promise<File> {
-    this.validateFileSize(file);
-
-    const isImage = file.mimetype.startsWith('image/');
-    if (isImage) {
-      this.validateImageType(file.mimetype);
-    }
+  public async upload(options: {
+    file: MulterFile;
+    folderId?: string;
+    projectId?: string;
+    assetId?: string;
+    fileType?: string;
+  }): Promise<File> {
+    const { file } = options;
+    this.validateFile(file);
 
     const blobName = `${Date.now()}-${file.originalname}`;
+    await this.uploadToBlob(file, blobName);
+
+    const fileEntity = await this.createFileRecord({
+      file,
+      blobName,
+      blobUrl: this.containerClient.getBlockBlobClient(blobName).url,
+      projectId: options.projectId,
+      folderId: options.folderId,
+      assetId: options.assetId,
+      fileType: options.fileType,
+    });
+
+    this.logger.log(`File uploaded: ${blobName} (${file.size} bytes)`);
+    return fileEntity;
+  }
+
+  private validateFile(file: MulterFile): void {
+    this.validateFileSize(file);
+    if (file.mimetype.startsWith('image/')) {
+      this.validateImageType(file.mimetype);
+    }
+  }
+
+  private async uploadToBlob(
+    file: MulterFile,
+    blobName: string,
+  ): Promise<void> {
     const blockBlobClient = this.containerClient.getBlockBlobClient(blobName);
+    const isImage = file.mimetype.startsWith('image/');
 
     await blockBlobClient.upload(file.buffer, file.size, {
       blobHTTPHeaders: {
@@ -176,17 +206,6 @@ export class AzureBlobStorageService {
         blobCacheControl: isImage ? 'public, max-age=31536000' : 'private',
       },
     });
-
-    const fileEntity = await this.createFileRecord({
-      file,
-      blobName,
-      blobUrl: blockBlobClient.url,
-      projectId,
-      folderId,
-    });
-
-    this.logger.log(`File uploaded: ${blobName} (${file.size} bytes)`);
-    return fileEntity;
   }
 
   public async getDownloadUrl(fileId: string): Promise<string> {

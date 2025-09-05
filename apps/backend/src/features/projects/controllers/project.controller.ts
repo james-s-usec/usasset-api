@@ -12,13 +12,19 @@ import {
   NotFoundException,
   ValidationPipe,
   Inject,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { FileType } from '@prisma/client';
+import { MulterFile } from '../../../files/interfaces/file.interface';
 import { ProjectQueryService } from '../services/project-query.service';
 import { ProjectCommandService } from '../services/project-command.service';
 import { ProjectMemberQueryService } from '../services/project-member-query.service';
@@ -37,6 +43,10 @@ import { CreateFolderDto } from '../../../folder/dto/create-folder.dto';
 import { UpdateFolderDto } from '../../../folder/dto/update-folder.dto';
 import { FolderResponseDto } from '../../../folder/dto/folder-response.dto';
 import { DocumentsService } from '../../../documents/services/documents.service';
+import {
+  AssetNotesService,
+  AssetNotesDto,
+} from '../../../documents/services/asset-notes.service';
 import { AssetDocumentResponseDto } from '../../../documents/dto/asset-document-response.dto';
 
 @ApiTags('projects')
@@ -56,6 +66,9 @@ export class ProjectController {
 
   @Inject(DocumentsService)
   private readonly documentsService!: DocumentsService;
+
+  @Inject(AssetNotesService)
+  private readonly assetNotesService!: AssetNotesService;
 
   @Post()
   @ApiOperation({ summary: 'Create a new project' })
@@ -325,5 +338,76 @@ export class ProjectController {
     documentsByType: Record<string, number>;
   }> {
     return this.documentsService.getCompleteDocumentation(assetId);
+  }
+
+  @Post(':projectId/assets/:assetId/documents')
+  @ApiOperation({ summary: 'Upload document to specific asset' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({
+    status: 201,
+    description: 'Document uploaded successfully',
+    type: AssetDocumentResponseDto,
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  public async uploadAssetDocument(
+    @Param('projectId') projectId: string,
+    @Param('assetId') assetId: string,
+    @UploadedFile() file: MulterFile,
+    @Query('file_type') fileType?: string,
+  ): Promise<AssetDocumentResponseDto> {
+    return this.documentsService.uploadDocument(
+      assetId,
+      projectId,
+      file,
+      fileType as FileType,
+    );
+  }
+
+  @Delete(':projectId/assets/:assetId/documents/:fileId')
+  @ApiOperation({ summary: 'Delete asset document' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document deleted successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  public async deleteAssetDocument(
+    @Param('projectId') projectId: string,
+    @Param('assetId') assetId: string,
+    @Param('fileId') fileId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.documentsService.deleteDocument(assetId, fileId);
+    return {
+      success: true,
+      message: 'Document deleted successfully',
+    };
+  }
+
+  @Get(':projectId/assets/:assetId/notes')
+  @ApiOperation({ summary: 'Get asset notes (structured 6-field notes)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset notes retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  public async getAssetNotes(
+    @Param('projectId') projectId: string,
+    @Param('assetId') assetId: string,
+  ): Promise<AssetNotesDto> {
+    return this.assetNotesService.getAssetNotes(assetId);
+  }
+
+  @Put(':projectId/assets/:assetId/notes')
+  @ApiOperation({ summary: 'Update asset notes' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset notes updated successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  public async updateAssetNotes(
+    @Param('projectId') projectId: string,
+    @Param('assetId') assetId: string,
+    @Body() notes: AssetNotesDto,
+  ): Promise<AssetNotesDto> {
+    return this.assetNotesService.updateAssetNotes(assetId, notes);
   }
 }

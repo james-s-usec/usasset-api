@@ -22,6 +22,7 @@ import { Response } from 'express';
 import { AzureBlobStorageService } from '../services/azure-blob-storage.service';
 import { PdfProcessingService } from '../services/pdf-processing.service';
 import { FileResponseDto } from '../dto/file-response.dto';
+import { UploadFileDto } from '../dto/upload-file.dto';
 import { MulterFile } from '../interfaces/file.interface';
 
 const DEFAULT_PDF_PREVIEW_WIDTH = 800;
@@ -71,14 +72,15 @@ export class FilesController {
   @UseInterceptors(FileInterceptor('file'))
   public async uploadFile(
     @UploadedFile() file: MulterFile,
-    @Query('folder_id') folderId?: string,
-    @Query('project_id') projectId?: string,
+    @Query() uploadDto: UploadFileDto,
   ): Promise<FileResponseDto> {
-    const uploadedFile = await this.storageService.upload(
+    const uploadedFile = await this.storageService.upload({
       file,
-      folderId,
-      projectId,
-    );
+      folderId: uploadDto.folder_id,
+      projectId: uploadDto.project_id,
+      assetId: uploadDto.asset_id,
+      fileType: uploadDto.file_type,
+    });
     return this.mapToResponseDto(uploadedFile);
   }
 
