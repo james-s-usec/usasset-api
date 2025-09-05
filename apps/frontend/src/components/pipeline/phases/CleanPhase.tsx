@@ -21,7 +21,7 @@ const CleanPhaseHeader: React.FC = () => (
 
 const CleanPhaseStatus: React.FC<{ jobStatus: JobStatus }> = ({ jobStatus }) => (
   <>
-    {jobStatus.phase === 'CLEAN' && (
+    {'phase' in jobStatus && jobStatus.phase === 'CLEAN' && (
       <Typography variant="body2" color="success.main" sx={{ mt: 2 }}>
         ✓ Cleaning phase in progress...
       </Typography>
@@ -29,7 +29,7 @@ const CleanPhaseStatus: React.FC<{ jobStatus: JobStatus }> = ({ jobStatus }) => 
     
     {jobStatus.progress && (
       <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-        Processed: {jobStatus.progress.processedRows} / {jobStatus.progress.totalRows} rows
+        Processed: {jobStatus.progress.processed} / {jobStatus.progress.total} rows
       </Typography>
     )}
   </>

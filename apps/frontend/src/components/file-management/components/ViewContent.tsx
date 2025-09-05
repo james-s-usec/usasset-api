@@ -19,7 +19,7 @@ interface Project {
   status: string;
 }
 
-type ViewMode = "table" | "tree" | "folders";
+type ViewMode = "table" | "tree" | "folders" | "assets";
 
 interface ViewContentProps {
   viewMode: ViewMode;

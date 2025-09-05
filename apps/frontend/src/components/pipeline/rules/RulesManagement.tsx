@@ -7,9 +7,8 @@ import {
   Tab
 } from '@mui/material';
 import { useRulesManagement } from './useRulesManagement';
-import { RuleFilters } from './RuleFilters';
 import { TestResults } from './TestResults';
-import { RulesList } from './RulesList';
+import { RulesTabWrapper } from './RulesTabWrapper';
 import { JobsList } from './JobsList';
 import { RuleEditor } from './RuleEditor';
 import { FieldMappingsTable } from '../components/FieldMappingsTable';
@@ -38,20 +37,7 @@ const TabHeader: React.FC<TabHeaderProps> = ({ currentTab, onTabChange }) => (
   </Box>
 );
 
-interface RulesTabProps {
-  selectedPhase: string;
-  onPhaseChange: (phase: string) => void;
-  filteredRules: PipelineRule[];
-  loading: boolean;
-  onRefresh: () => void;
-  onAddRule: () => void;
-  onTestRules: () => void;
-  onTestOrchestrator: () => void;
-  onEditRule: (rule: PipelineRule) => void;
-  onDeleteRule: (id: string) => Promise<boolean>;
-  onToggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
-}
-
+// RulesTabProps interface and RulesTab component have been moved to RulesTabWrapper
 
 const useRuleEditor = (): {
   showRuleEditor: boolean;
@@ -102,38 +88,40 @@ interface MainContentProps {
   selectedFile?: string | null;
 }
 
+const renderRulesTab = (props: MainContentProps): React.ReactElement => (
+  <RulesTabWrapper
+    selectedPhase={props.selectedPhase}
+    onPhaseChange={props.onPhaseChange}
+    filteredRules={props.filteredRules}
+    loading={props.loading}
+    onRefresh={async () => { await props.loadRules(); }}
+    onAddRule={(): void => props.setShowRuleEditor(true)}
+    onTestRules={async () => { await props.testRules(); }}
+    onTestOrchestrator={async () => { await props.testOrchestrator(); }}
+    onEditRule={props.handleEditRule}
+    onDeleteRule={props.deleteRule}
+    onToggleRule={props.toggleRule}
+  />
+);
+
+const renderJobsTab = (props: MainContentProps): React.ReactElement => (
+  <JobsList 
+    jobs={props.jobs} 
+    loading={props.loading} 
+    onRefresh={props.loadJobs} 
+  />
+);
+
+const renderMappingsTab = (): React.ReactElement => (
+  <Box sx={{ flex: 1, overflow: 'auto' }}>
+    <FieldMappingsTable selectedFile={null} />
+  </Box>
+);
+
 const TabContent: React.FC<{ currentTab: number; props: MainContentProps }> = ({ currentTab, props }) => {
-  if (currentTab === 0) {
-    return (
-      <RulesTab
-        selectedPhase={props.selectedPhase}
-        onPhaseChange={props.onPhaseChange}
-        filteredRules={props.filteredRules}
-        loading={props.loading}
-        onRefresh={props.loadRules}
-        onAddRule={(): void => props.setShowRuleEditor(true)}
-        onTestRules={props.testRules}
-        onTestOrchestrator={props.testOrchestrator}
-        onEditRule={props.handleEditRule}
-        onDeleteRule={props.deleteRule}
-        onToggleRule={props.toggleRule}
-      />
-    );
-  }
-  if (currentTab === 1) {
-    return (
-      <JobsList 
-        jobs={props.jobs} 
-        loading={props.loading} 
-        onRefresh={props.loadJobs} 
-      />
-    );
-  }
-  return (
-    <Box sx={{ flex: 1, overflow: 'auto' }}>
-      <FieldMappingsTable selectedFile={null} />
-    </Box>
-  );
+  if (currentTab === 0) return renderRulesTab(props);
+  if (currentTab === 1) return renderJobsTab(props);
+  return renderMappingsTab();
 };
 
 const MainContent: React.FC<MainContentProps> = (props) => (

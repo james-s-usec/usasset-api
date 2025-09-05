@@ -28,31 +28,38 @@ export class RemoveDuplicatesProcessor
   private performValidation(
     config: unknown,
   ): ValidationResult<RemoveDuplicatesConfig> {
+    if (!this.isValidConfig(config)) {
+      return { success: false, errors: ['Config must be an object'] };
+    }
+    const validation = this.validateDelimiter(config);
+    if (!validation.success) return validation;
+    return this.buildConfig(config);
+  }
+
+  private isValidConfig(config: unknown): config is Record<string, unknown> {
+    return typeof config === 'object' && config !== null;
+  }
+
+  private validateDelimiter(
+    config: Record<string, unknown>,
+  ): ValidationResult<never> {
+    if (typeof config.delimiter !== 'string') {
+      return { success: false, errors: ['delimiter must be a string'] };
+    }
+    return { success: true } as ValidationResult<never>;
+  }
+
+  private buildConfig(
+    configObj: Record<string, unknown>,
+  ): ValidationResult<RemoveDuplicatesConfig> {
     try {
-      if (typeof config !== 'object' || config === null) {
-        return {
-          success: false,
-          errors: ['Config must be an object'],
-        };
-      }
-
-      const configObj = config as Record<string, unknown>;
-
-      if (typeof configObj.delimiter !== 'string') {
-        return {
-          success: false,
-          errors: ['delimiter must be a string'],
-        };
-      }
-
       const duplicatesConfig: RemoveDuplicatesConfig = {
-        delimiter: configObj.delimiter,
+        delimiter: configObj.delimiter as string,
         caseSensitive:
           typeof configObj.caseSensitive === 'boolean'
             ? configObj.caseSensitive
             : false,
       };
-
       return { success: true, data: duplicatesConfig };
     } catch (error) {
       return {
@@ -77,34 +84,33 @@ export class RemoveDuplicatesProcessor
     config: RemoveDuplicatesConfig,
     context: ProcessingContext,
   ): ProcessingResult {
-    try {
-      if (typeof data !== 'string') {
-        return {
-          success: true,
-          data: data,
-          warnings: [
-            `Row ${context.rowNumber}: Remove duplicates processor received non-string data, skipping`,
-          ],
-        };
-      }
+    if (typeof data !== 'string') {
+      return this.handleNonString(data, context);
+    }
+    return this.processString(data, config);
+  }
 
+  private handleNonString(
+    data: unknown,
+    context: ProcessingContext,
+  ): ProcessingResult {
+    return {
+      success: true,
+      data: data,
+      warnings: [
+        `Row ${context.rowNumber}: Remove duplicates processor received non-string data, skipping`,
+      ],
+    };
+  }
+
+  private processString(
+    data: string,
+    config: RemoveDuplicatesConfig,
+  ): ProcessingResult {
+    try {
       const items = data.split(config.delimiter).map((item) => item.trim());
       const originalCount = items.length;
-
-      let uniqueItems: string[];
-      if (config.caseSensitive) {
-        uniqueItems = [...new Set(items)];
-      } else {
-        const seen = new Map<string, string>();
-        for (const item of items) {
-          const key = item.toLowerCase();
-          if (!seen.has(key)) {
-            seen.set(key, item);
-          }
-        }
-        uniqueItems = Array.from(seen.values());
-      }
-
+      const uniqueItems = this.getUniqueItems(items, config.caseSensitive);
       const result = uniqueItems.join(config.delimiter);
       const duplicatesRemoved = originalCount - uniqueItems.length;
 
@@ -114,9 +120,9 @@ export class RemoveDuplicatesProcessor
         metadata: {
           originalValue: data,
           processedValue: result,
+          duplicatesRemoved,
           originalCount,
           uniqueCount: uniqueItems.length,
-          duplicatesRemoved,
           operation: 'remove-duplicates',
         },
       };
@@ -129,5 +135,19 @@ export class RemoveDuplicatesProcessor
         ],
       };
     }
+  }
+
+  private getUniqueItems(items: string[], caseSensitive?: boolean): string[] {
+    if (caseSensitive) {
+      return [...new Set(items)];
+    }
+    const seen = new Map<string, string>();
+    for (const item of items) {
+      const key = item.toLowerCase();
+      if (!seen.has(key)) {
+        seen.set(key, item);
+      }
+    }
+    return Array.from(seen.values());
   }
 }

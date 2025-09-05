@@ -41,10 +41,10 @@ const createMapProps = (
 ): React.ComponentProps<typeof PDFMapContainer> => ({
   fileId,
   currentPage: controls.currentPage,
-  logicalWidth: dimensions.logicalWidth,
-  logicalHeight: dimensions.logicalHeight,
-  bounds: dimensions.bounds,
-  pdfInfo,
+  pdfInfo: {
+    ...pdfInfo,
+    dimensions: { width: dimensions.logicalWidth, height: dimensions.logicalHeight }
+  },
   zoom: controls.zoom,
   onZoomChange: controls.handleZoomChange
 });

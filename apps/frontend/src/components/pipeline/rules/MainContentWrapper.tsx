@@ -2,8 +2,8 @@ import React from 'react';
 import { Box } from '@mui/material';
 import { RulesTabWrapper } from './RulesTabWrapper';
 import { JobsList } from './JobsList';
-import { FieldMappingsTable } from './FieldMappingsTable';
-import type { PipelineRule, PipelineJob } from './types';
+import { FieldMappingsTable } from '../components/FieldMappingsTable';
+import type { PipelineRule, ImportJob as PipelineJob } from './types';
 
 interface MainContentWrapperProps {
   currentTab: number;
