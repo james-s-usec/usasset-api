@@ -22,6 +22,24 @@ const ErrorAlert: React.FC<{ error: string }> = ({ error }) => (
   </Alert>
 );
 
+// Grid configuration for AG-Grid
+const gridConfig = {
+  pagination: true,
+  paginationPageSize: 20,
+  animateRows: true,
+  suppressDragLeaveHidesColumns: true,
+  rowSelection: "multiple" as const,
+  suppressRowClickSelection: false,
+  theme: "legacy" as const,
+};
+
+// Container styles
+const containerStyles = {
+  height: 'calc(100vh - 200px)',
+  width: "100%",
+  minHeight: 500
+};
+
 const GridContainer: React.FC<{
   assets: Asset[];
   columnDefs: ColDef[];
@@ -36,30 +54,20 @@ const GridContainer: React.FC<{
   };
 
   return (
-    <Box sx={{ 
-      height: 'calc(100vh - 200px)', 
-      width: "100%",
-      minHeight: 500
-    }}>
-    <div className="ag-theme-alpine" style={{ height: "100%", width: "100%" }}>
-      <AgGridReact
-        rowData={assets}
-        columnDefs={columnDefs}
-        defaultColDef={defaultColDef}
-        columnTypes={columnTypes}
-        components={components}
-        onGridReady={onGridReady}
-        onSelectionChanged={handleSelectionChanged}
-        loading={loading}
-        pagination={true}
-        paginationPageSize={20}
-        animateRows={true}
-        suppressDragLeaveHidesColumns={true}
-        rowSelection="multiple"
-        suppressRowClickSelection={false}
-        theme="legacy"
-      />
-    </div>
+    <Box sx={containerStyles}>
+      <div className="ag-theme-alpine" style={{ height: "100%", width: "100%" }}>
+        <AgGridReact
+          rowData={assets}
+          columnDefs={columnDefs}
+          defaultColDef={defaultColDef}
+          columnTypes={columnTypes}
+          components={components}
+          onGridReady={onGridReady}
+          onSelectionChanged={handleSelectionChanged}
+          loading={loading}
+          {...gridConfig}
+        />
+      </div>
     </Box>
   );
 };

@@ -59,6 +59,47 @@ const MobileMenu = ({
   </Drawer>
 );
 
+const DesktopNavigation = (): React.ReactElement => (
+  <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, alignItems: 'center' }}>
+    {navItems.map(item => (
+      <Button 
+        key={item.path} 
+        color="inherit" 
+        component={RouterLink} 
+        to={item.path} 
+        size="small"
+      >
+        {item.label}
+      </Button>
+    ))}
+  </Box>
+);
+
+const MobileNavigationButton = ({ 
+  onToggle 
+}: { 
+  onToggle: () => void; 
+}): React.ReactElement => (
+  <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
+    <DbStatus />
+    <IconButton 
+      color="inherit" 
+      aria-label="open drawer" 
+      edge="end" 
+      onClick={onToggle} 
+      size="small"
+    >
+      <MenuIcon />
+    </IconButton>
+  </Box>
+);
+
+const DesktopDbStatus = (): React.ReactElement => (
+  <Box sx={{ display: { xs: 'none', md: 'flex' }, ml: 2, minWidth: 0, flexShrink: 0 }}>
+    <DbStatus />
+  </Box>
+);
+
 const NavigationBar = (): React.ReactElement => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const handleMobileMenuToggle = (): void => setMobileMenuOpen(!mobileMenuOpen);
@@ -70,34 +111,9 @@ const NavigationBar = (): React.ReactElement => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, minWidth: 0, fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
             USAsset
           </Typography>
-          <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, alignItems: 'center' }}>
-            {navItems.map(item => (
-              <Button 
-                key={item.path} 
-                color="inherit" 
-                component={RouterLink} 
-                to={item.path} 
-                size="small"
-              >
-                {item.label}
-              </Button>
-            ))}
-          </Box>
-          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
-            <DbStatus />
-            <IconButton 
-              color="inherit" 
-              aria-label="open drawer" 
-              edge="end" 
-              onClick={handleMobileMenuToggle} 
-              size="small"
-            >
-              <MenuIcon />
-            </IconButton>
-          </Box>
-          <Box sx={{ display: { xs: 'none', md: 'flex' }, ml: 2, minWidth: 0, flexShrink: 0 }}>
-            <DbStatus />
-          </Box>
+          <DesktopNavigation />
+          <MobileNavigationButton onToggle={handleMobileMenuToggle} />
+          <DesktopDbStatus />
         </Toolbar>
       </AppBar>
       <MobileMenu isOpen={mobileMenuOpen} onClose={handleMobileMenuToggle} />

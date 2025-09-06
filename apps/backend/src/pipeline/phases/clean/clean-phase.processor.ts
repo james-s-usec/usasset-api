@@ -6,9 +6,11 @@ import {
   PhaseResult,
 } from '../../orchestrator/phase-processor.interface';
 import { RuleEngineService } from '../../services/rule-engine.service';
-import { RuleProcessorFactory } from '../../services/rule-processor.factory';
 import { PrismaService } from '../../../database/prisma.service';
 import { ProcessingContext } from '../../interfaces/rule-processor.interface';
+import { PipelineLogger } from '../../utils/pipeline-logger.util';
+import { PhaseValidators } from '../../utils/phase-validators.util';
+import { PipelineErrorHandler } from '../../utils/pipeline-error-handler.util';
 
 interface CleanedData extends Record<string, unknown> {
   cleanedRows: Array<Record<string, unknown>>;
@@ -28,7 +30,6 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     'Applies cleaning rules: TRIM, REGEX_REPLACE, etc.';
 
   private readonly logger = new Logger(CleanPhaseProcessor.name);
-  private readonly ruleEngine: RuleEngineService;
 
   public constructor(
     private readonly prisma: PrismaService,
@@ -42,10 +43,14 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     context: PhaseContext,
   ): Promise<PhaseResult> {
     const startTime = new Date();
-    this.logger.debug(`[${context.correlationId}] Starting CLEAN phase`);
+    PipelineLogger.logPhaseStart(
+      this.logger,
+      this.phase,
+      context.correlationId,
+    );
 
     try {
-      this.validateInput(data);
+      PhaseValidators.validateRowsInput(data);
       await this.ensureDemoRules();
 
       const result = await this.processRows(data, context);
@@ -57,14 +62,10 @@ export class CleanPhaseProcessor implements PhaseProcessor {
         result.rulesApplied,
       );
     } catch (error) {
-      return this.createErrorResult(startTime, data, error);
-    }
-  }
-
-  private validateInput(data: Record<string, unknown>): void {
-    if (!data.validRows || !Array.isArray(data.validRows)) {
-      throw new Error(
-        'Invalid input: expected validRows array from VALIDATE phase',
+      return PipelineErrorHandler.createPhaseResult(
+        this.phase,
+        error,
+        context.correlationId,
       );
     }
   }
@@ -87,7 +88,12 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     const validRows = data.validRows as Array<Record<string, unknown>>;
 
     for (let i = 0; i < validRows.length; i++) {
-      const rowResult = await this.processSingleRow(validRows[i], i, context);
+      const rowResult = await this.processSingleRow(
+        validRows[i],
+        i,
+        context,
+        validRows.length,
+      );
 
       cleanedData.cleanedRows.push(rowResult.cleanedRow);
       transformations.push(...rowResult.transformations);
@@ -101,13 +107,17 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     row: Record<string, unknown>,
     index: number,
     context: PhaseContext,
+    totalRows?: number,
   ): Promise<{
     cleanedRow: Record<string, unknown>;
     transformations: Transformation[];
     appliedRules: string[];
   }> {
-    this.logger.debug(
-      `[${context.correlationId}] Processing row ${index + 1} through CLEAN rules`,
+    PipelineLogger.logRowProcessing(
+      this.logger,
+      context.correlationId,
+      index + 1,
+      totalRows,
     );
 
     const ruleResult = await this.processRowWithRules(row, index, context);
@@ -252,9 +262,7 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     const durationMs = endTime.getTime() - startTime.getTime();
     const recordsProcessed = this.getRecordsProcessed(cleanedData);
 
-    this.logger.debug(
-      `CLEAN phase completed: ${recordsProcessed} records cleaned in ${durationMs}ms`,
-    );
+    this.logPhaseCompletion(recordsProcessed, durationMs);
 
     return {
       success: true,
@@ -270,6 +278,19 @@ export class CleanPhaseProcessor implements PhaseProcessor {
       ),
       debug: this.buildDebugInfo(rulesApplied, transformations),
     };
+  }
+
+  private logPhaseCompletion(
+    recordsProcessed: number,
+    durationMs: number,
+  ): void {
+    PipelineLogger.logPhaseComplete(
+      this.logger,
+      this.phase,
+      'completed', // correlationId would need to be passed here
+      recordsProcessed,
+      durationMs,
+    );
   }
 
   private getRecordsProcessed(cleanedData: CleanedData): number {

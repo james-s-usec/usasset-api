@@ -1,3 +1,4 @@
+import { PROCESSING_CONSTANTS } from './constants/processing.constants';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AzureBlobStorageService } from '../files/services/azure-blob-storage.service';
@@ -81,7 +82,7 @@ export class PipelineService {
 
   public async listCsvFiles(): Promise<FileMetadata[]> {
     // Use the same approach as the files page - get all files and filter
-    const MAX_FILES = 100;
+    const MAX_FILES = PROCESSING_CONSTANTS.MAX_FILES_DISPLAY;
     const result = await this.blobStorageService.findMany(1, MAX_FILES);
 
     // Filter for CSV files - check file extension in original_name (most reliable)
@@ -105,43 +106,59 @@ export class PipelineService {
       false,
     );
 
-    this.logger.warn(`🚀 START_IMPORT: jobId=${jobId}, fileId=${fileId}, useOrchestrator=${useOrchestrator}`);
+    this.logger.warn(
+      `🚀 START_IMPORT: jobId=${jobId}, fileId=${fileId}, useOrchestrator=${useOrchestrator}`,
+    );
 
     if (useOrchestrator) {
-      this.logger.warn(`🚀 USING ORCHESTRATOR PATH`);
-      // Use orchestrator-driven execution
-      this.pipelineOrchestrator
-        .orchestrateFile(fileId, jobId)
-        .then(async (result) => {
-          this.logger.warn(`🚀 ORCHESTRATOR COMPLETED FOR JOB ${jobId}: success=${result.success}`);
-          
-          // Update job status based on orchestration result
-          if (result.success) {
-            await this.pipelineJobService.updateJobStatus(jobId, 'COMPLETED');
-            this.logger.warn(`🚀 JOB ${jobId} MARKED AS COMPLETED`);
-          } else {
-            await this.pipelineJobService.updateJobStatus(jobId, 'FAILED');
-            this.logger.warn(`🚀 JOB ${jobId} MARKED AS FAILED`);
-          }
-        })
-        .catch(async (error: Error) => {
-          this.logger.error(
-            `🚀 ORCHESTRATOR FAILED for job ${jobId}:`,
-            error,
-          );
-          await this.pipelineJobService.updateJobStatus(jobId, 'FAILED');
-        });
+      await this.executeWithOrchestrator(fileId, jobId);
     } else {
-      this.logger.warn(`🚀 USING LEGACY PATH`);
-      // Use legacy execution path
-      this.pipelineImportService
-        .processImport(jobId, fileId)
-        .catch((error: Error) => {
-          this.logger.error(`Failed to process import job ${jobId}:`, error);
-        });
+      await this.executeWithLegacyPath(jobId, fileId);
     }
 
     return jobId;
+  }
+
+  private async executeWithOrchestrator(
+    fileId: string,
+    jobId: string,
+  ): Promise<void> {
+    this.logger.warn(`🚀 USING ORCHESTRATOR PATH`);
+
+    this.pipelineOrchestrator
+      .orchestrateFile(fileId, jobId)
+      .then(async (result) => {
+        await this.handleOrchestrationResult(jobId, result);
+      })
+      .catch(async (error: Error) => {
+        this.logger.error(`🚀 ORCHESTRATOR FAILED for job ${jobId}:`, error);
+        await this.pipelineJobService.updateJobStatus(jobId, 'FAILED');
+      });
+  }
+
+  private async handleOrchestrationResult(
+    jobId: string,
+    result: any,
+  ): Promise<void> {
+    this.logger.warn(
+      `🚀 ORCHESTRATOR COMPLETED FOR JOB ${jobId}: success=${result.success}`,
+    );
+
+    const status = result.success ? 'COMPLETED' : 'FAILED';
+    await this.pipelineJobService.updateJobStatus(jobId, status);
+    this.logger.warn(`🚀 JOB ${jobId} MARKED AS ${status}`);
+  }
+
+  private async executeWithLegacyPath(
+    jobId: string,
+    fileId: string,
+  ): Promise<void> {
+    this.logger.warn(`🚀 USING LEGACY PATH`);
+    this.pipelineImportService
+      .processImport(jobId, fileId)
+      .catch((error: Error) => {
+        this.logger.error(`Failed to process import job ${jobId}:`, error);
+      });
   }
 
   public async getJobStatus(jobId: string): Promise<JobStatus> {

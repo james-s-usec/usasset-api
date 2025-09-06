@@ -1,3 +1,4 @@
+import { PROCESSING_CONSTANTS } from '../../constants/processing.constants';
 import { Injectable, Logger } from '@nestjs/common';
 import { PipelinePhase } from '@prisma/client';
 import {
@@ -9,8 +10,6 @@ import {
   PhaseMetrics,
   FIELD_NAMES,
 } from '../../orchestrator/phase-processor.interface';
-
-const MAX_DEBUG_TRANSFORMATIONS = 10;
 
 interface TransformationRecord {
   field: string;
@@ -335,7 +334,7 @@ export class TransformPhaseProcessor implements PhaseProcessor {
     return {
       transformations: transformResult.transformations.slice(
         0,
-        MAX_DEBUG_TRANSFORMATIONS,
+        PROCESSING_CONSTANTS.MAX_DEBUG_TRANSFORMATIONS,
       ),
     };
   }

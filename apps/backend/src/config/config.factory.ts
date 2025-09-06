@@ -17,17 +17,17 @@ const logConfiguration = (
   config: Record<string, unknown>,
 ): void => {
   logger.log('Configuration Loading');
-  logger.debug(`Environment: ${config.NODE_ENV}`);
-  logger.debug(`Port: ${config.PORT}`);
-  logger.debug(`CORS Origin: ${config.CORS_ORIGIN}`);
+  logger.debug(`Environment: ${String(config.NODE_ENV)}`);
+  logger.debug(`Port: ${String(config.PORT)}`);
+  logger.debug(`CORS Origin: ${String(config.CORS_ORIGIN)}`);
   logger.debug(`Database URL: ${config.DATABASE_URL ? '[SET]' : '[NOT SET]'}`);
   logger.debug(`JWT Secret: ${config.JWT_SECRET ? '[SET]' : '[NOT SET]'}`);
   logger.debug(`API Key: ${config.API_KEY ? '[SET]' : '[NOT SET]'}`);
-  logger.debug(`Log to file: ${config.LOG_TO_FILE}`);
+  logger.debug(`Log to file: ${String(config.LOG_TO_FILE)}`);
   logger.debug(
-    `Pipeline use orchestrator: ${config.PIPELINE_USE_ORCHESTRATOR}`,
+    `Pipeline use orchestrator: ${String(config.PIPELINE_USE_ORCHESTRATOR)}`,
   );
-  logger.debug(`Phase sample size: ${config.PHASE_SAMPLE_SIZE}`);
+  logger.debug(`Phase sample size: ${String(config.PHASE_SAMPLE_SIZE)}`);
 };
 
 export const configFactory = (): Record<string, unknown> => {

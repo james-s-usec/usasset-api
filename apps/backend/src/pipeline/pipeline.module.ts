@@ -3,6 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '../database/database.module';
 import { FilesModule } from '../files/files.module';
 import { PipelineController } from './pipeline.controller';
+import { PipelineJobController } from './controllers/pipeline-job.controller';
+import { PipelineRulesController } from './controllers/pipeline-rules.controller';
+import { PipelineImportController } from './controllers/pipeline-import.controller';
+import { PipelineTestController } from './controllers/pipeline-test.controller';
 import { PipelineService } from './pipeline.service';
 import { CsvParserService } from './services/csv-parser.service';
 import { PipelineJobService } from './services/pipeline-job.service';
@@ -12,7 +16,6 @@ import { PipelineRepository } from './repositories/pipeline.repository';
 import { RuleEngineService } from './services/rule-engine.service';
 import { RuleProcessorFactory } from './services/rule-processor.factory';
 import { PipelineOrchestrator } from './orchestrator/pipeline-orchestrator.service';
-import { PhaseProcessor } from './orchestrator/phase-processor.interface';
 
 // Phase processors
 import { ExtractPhaseProcessor } from './phases/extract/extract-phase.processor';
@@ -26,25 +29,29 @@ import { LoadPhaseProcessor } from './phases/load/load-phase.processor';
  * Initialize orchestrator with all phase processors
  * Factory function to register processors with orchestrator
  */
+interface ProcessorSet {
+  extractProcessor: ExtractPhaseProcessor;
+  validateProcessor: ValidatePhaseProcessor;
+  cleanProcessor: CleanPhaseProcessor;
+  transformProcessor: TransformPhaseProcessor;
+  mapProcessor: MapPhaseProcessor;
+  loadProcessor: LoadPhaseProcessor;
+}
+
 function initializeOrchestrator(
   orchestrator: PipelineOrchestrator,
-  extractProcessor: ExtractPhaseProcessor,
-  validateProcessor: ValidatePhaseProcessor,
-  cleanProcessor: CleanPhaseProcessor,
-  transformProcessor: TransformPhaseProcessor,
-  mapProcessor: MapPhaseProcessor,
-  loadProcessor: LoadPhaseProcessor,
+  processors: ProcessorSet,
 ): string {
   // Register all processors
-  const processors = [
-    extractProcessor,
-    validateProcessor,
-    cleanProcessor,
-    transformProcessor,
-    mapProcessor,
-    loadProcessor,
+  const processorArray = [
+    processors.extractProcessor,
+    processors.validateProcessor,
+    processors.cleanProcessor,
+    processors.transformProcessor,
+    processors.mapProcessor,
+    processors.loadProcessor,
   ];
-  processors.forEach((processor) => {
+  processorArray.forEach((processor) => {
     orchestrator.registerProcessor(processor);
   });
   return 'INITIALIZED';
@@ -52,7 +59,13 @@ function initializeOrchestrator(
 
 @Module({
   imports: [ConfigModule, DatabaseModule, FilesModule],
-  controllers: [PipelineController],
+  controllers: [
+    PipelineController,
+    PipelineJobController,
+    PipelineRulesController,
+    PipelineImportController,
+    PipelineTestController,
+  ],
   providers: [
     // Repository layer - handles all database access
     PipelineRepository,
@@ -77,7 +90,23 @@ function initializeOrchestrator(
     // Orchestrator initialization provider
     {
       provide: 'PIPELINE_ORCHESTRATOR_INIT',
-      useFactory: initializeOrchestrator,
+      useFactory: (
+        orchestrator: PipelineOrchestrator,
+        extractProcessor: ExtractPhaseProcessor,
+        validateProcessor: ValidatePhaseProcessor,
+        cleanProcessor: CleanPhaseProcessor,
+        transformProcessor: TransformPhaseProcessor,
+        mapProcessor: MapPhaseProcessor,
+        loadProcessor: LoadPhaseProcessor,
+      ) =>
+        initializeOrchestrator(orchestrator, {
+          extractProcessor,
+          validateProcessor,
+          cleanProcessor,
+          transformProcessor,
+          mapProcessor,
+          loadProcessor,
+        }),
       inject: [
         PipelineOrchestrator,
         ExtractPhaseProcessor,

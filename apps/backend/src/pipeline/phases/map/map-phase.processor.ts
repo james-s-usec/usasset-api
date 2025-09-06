@@ -1,3 +1,4 @@
+import { PROCESSING_CONSTANTS } from '../../constants/processing.constants';
 import { Injectable, Logger } from '@nestjs/common';
 import { PipelinePhase, AssetStatus, AssetCondition } from '@prisma/client';
 import {
@@ -292,7 +293,6 @@ export class MapPhaseProcessor implements PhaseProcessor {
   }
 
   private buildMappingDebugInfo(): PhaseDebugInfo {
-    const MAX_DEBUG_TRANSFORMATIONS = 5;
     return {
       transformations: Object.entries(CSV_TO_DB_MAPPING)
         .map(([csv, db]) => ({
@@ -300,7 +300,7 @@ export class MapPhaseProcessor implements PhaseProcessor {
           before: csv,
           after: db,
         }))
-        .slice(0, MAX_DEBUG_TRANSFORMATIONS),
+        .slice(0, PROCESSING_CONSTANTS.MAX_SAMPLE_SIZE),
     };
   }
 

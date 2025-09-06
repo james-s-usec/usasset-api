@@ -23,15 +23,42 @@ export interface OrchestrationResult {
   error?: string;
 }
 
+interface OrchestrationMetrics {
+  totalRecords: number;
+  successfulRecords: number;
+  failedRecords: number;
+  phasesCompleted: number;
+  phasesSkipped: number;
+}
+
+interface OrchestrationContext {
+  correlationId: string;
+  jobId: string;
+  fileId: string;
+}
+
 interface PhaseInputData {
   fileId: string;
   [key: string]: unknown;
 }
 
-interface OrchestrationMetrics {
-  totalRecords: number;
-  successfulRecords: number;
-  failedRecords: number;
+interface PhaseResultData {
+  import_job_id: string;
+  phase: PipelinePhase;
+  status: string;
+  transformations: unknown[];
+  applied_rules: string[];
+  input_sample?: unknown;
+  output_sample?: unknown;
+  rows_processed: number;
+  rows_modified: number;
+  rows_failed: number;
+  metadata?: unknown;
+  errors?: unknown;
+  warnings?: unknown;
+  started_at: Date;
+  completed_at?: Date;
+  duration_ms?: number;
 }
 
 @Injectable()
@@ -52,23 +79,43 @@ export class PipelineOrchestrator {
   ): Promise<OrchestrationResult> {
     const startTime = new Date();
     this.logger.warn(`🔥 ORCHESTRATOR START: fileId=${fileId}, jobId=${jobId}`);
-    
-    let orchestrationContext;
+
+    const orchestrationContext = this.initializeOrchestrationSafely(
+      fileId,
+      jobId,
+    );
+    return this.executeOrchestration(orchestrationContext, startTime);
+  }
+
+  private initializeOrchestrationSafely(
+    fileId: string,
+    jobId?: string,
+  ): OrchestrationContext {
     try {
-      orchestrationContext = this.initializeOrchestration(fileId, jobId);
-      this.logger.warn(`🔥 ORCHESTRATOR INITIALIZED: correlationId=${orchestrationContext.correlationId}`);
+      const context = this.initializeOrchestration(fileId, jobId);
+      this.logger.warn(
+        `🔥 ORCHESTRATOR INITIALIZED: correlationId=${context.correlationId}`,
+      );
+      return context;
     } catch (error) {
       this.logger.error(`🔥 ORCHESTRATOR INIT FAILED:`, error);
       throw error;
     }
+  }
 
+  private async executeOrchestration(
+    orchestrationContext: OrchestrationContext,
+    startTime: Date,
+  ): Promise<OrchestrationResult> {
     try {
       this.logger.warn(`🔥 ORCHESTRATOR EXECUTING PHASES...`);
       const { phases, metrics } = await this.executeAllPhases(
         orchestrationContext,
         startTime,
       );
-      this.logger.warn(`🔥 ORCHESTRATOR PHASES COMPLETE: ${phases.length} phases`);
+      this.logger.warn(
+        `🔥 ORCHESTRATOR PHASES COMPLETE: ${phases.length} phases`,
+      );
 
       const result = this.buildSuccessResult(
         orchestrationContext,
@@ -87,11 +134,7 @@ export class PipelineOrchestrator {
   private initializeOrchestration(
     fileId: string,
     providedJobId?: string,
-  ): {
-    correlationId: string;
-    jobId: string;
-    fileId: string;
-  } {
+  ): OrchestrationContext {
     const correlationId = `orchestration-${Date.now()}`;
     const jobId = providedJobId || `job-${Date.now()}`;
 
@@ -103,15 +146,11 @@ export class PipelineOrchestrator {
   }
 
   private async executeAllPhases(
-    orchestrationContext: {
-      correlationId: string;
-      jobId: string;
-      fileId: string;
-    },
+    orchestrationContext: OrchestrationContext,
     startTime: Date,
   ): Promise<{ phases: PhaseResult[]; metrics: OrchestrationMetrics }> {
     const phases: PhaseResult[] = [];
-    const metrics = { totalRecords: 0, successfulRecords: 0, failedRecords: 0 };
+    const metrics = this.initializeMetrics();
     let currentData: PhaseInputData = { fileId: orchestrationContext.fileId };
 
     const pipelinePhases = this.getPipelinePhases();
@@ -125,20 +164,44 @@ export class PipelineOrchestrator {
 
       if (!phaseResult) continue;
 
-      phases.push(phaseResult);
-      this.updateMetrics(metrics, phaseResult);
+      const shouldContinue = await this.processPhaseResult(
+        phaseResult,
+        phases,
+        metrics,
+        orchestrationContext.jobId,
+      );
 
-      // Save phase result to database for traceability
-      await this.savePhaseResult(orchestrationContext.jobId, phaseResult);
-
-      if (this.shouldStopOrchestration(phaseResult, phase)) {
-        break;
-      }
+      if (!shouldContinue) break;
 
       currentData = this.getNextPhaseData(phaseResult, currentData);
     }
 
     return { phases, metrics };
+  }
+
+  private initializeMetrics(): OrchestrationMetrics {
+    return {
+      totalRecords: 0,
+      successfulRecords: 0,
+      failedRecords: 0,
+      phasesCompleted: 0,
+      phasesSkipped: 0,
+    };
+  }
+
+  private async processPhaseResult(
+    phaseResult: PhaseResult,
+    phases: PhaseResult[],
+    metrics: OrchestrationMetrics,
+    jobId: string,
+  ): Promise<boolean> {
+    phases.push(phaseResult);
+    this.updateMetrics(metrics, phaseResult);
+
+    // Save phase result to database for traceability
+    await this.savePhaseResult(jobId, phaseResult);
+
+    return !this.shouldStopOrchestration(phaseResult);
   }
 
   private getPipelinePhases(): PipelinePhase[] {
@@ -213,6 +276,8 @@ export class PipelineOrchestrator {
     );
     metrics.successfulRecords += phaseResult.metrics.recordsSuccess;
     metrics.failedRecords += phaseResult.metrics.recordsFailed;
+    // Increment phases completed counter
+    metrics.phasesCompleted += 1;
   }
 
   private async savePhaseResult(
@@ -222,54 +287,222 @@ export class PipelineOrchestrator {
     try {
       const data = this.buildPhaseResultData(jobId, phaseResult);
       await this.pipelineRepository.savePhaseResult(data);
-      this.logPhaseResultSaved(phaseResult, data.transformations);
+      this.logPhaseResultSaved(jobId, phaseResult.phase);
     } catch (error) {
-      this.handlePhaseResultError(phaseResult, error);
+      this.handlePhaseResultError(error, jobId, phaseResult.phase);
     }
   }
 
   private buildPhaseResultData(
     jobId: string,
     phaseResult: PhaseResult,
-  ): {
-    import_job_id: string;
-    phase: PipelinePhase;
-    status: string;
-    transformations: unknown[];
-    applied_rules: string[];
-    input_sample?: unknown;
-    output_sample?: unknown;
-    rows_processed: number;
-    rows_modified: number;
-    rows_failed: number;
-    metadata?: unknown;
-    errors?: unknown;
-    warnings?: unknown;
-    started_at: Date;
-    completed_at?: Date;
-    duration_ms?: number;
-  } {
+  ): PhaseResultData {
     const transformations = this.extractTransformations(phaseResult);
     const appliedRules = this.extractAppliedRules(phaseResult);
 
     return {
       ...this.buildBasePhaseData(jobId, phaseResult),
-      ...this.buildTransformationData(
+      ...this.buildTransformationDataSection(
         transformations,
         appliedRules,
         phaseResult,
       ),
-      ...this.buildMetricsData(phaseResult, transformations.length),
-      ...this.buildTimingData(phaseResult),
+      ...this.buildMetricsDataSection(phaseResult, transformations.length),
+      ...this.buildTimingDataSection(phaseResult),
     };
   }
 
+  private buildTransformationDataSection(
+    transformations: unknown[],
+    appliedRules: string[],
+    phaseResult: PhaseResult,
+  ): {
+    transformations: unknown[];
+    applied_rules: string[];
+    input_sample?: unknown;
+    output_sample?: unknown;
+  } {
+    return this.getTransformationData(
+      transformations,
+      appliedRules,
+      phaseResult,
+    );
+  }
+
+  private buildMetricsDataSection(
+    phaseResult: PhaseResult,
+    transformationCount: number,
+  ): {
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    metadata?: unknown;
+    errors: unknown[];
+    warnings: unknown[];
+  } {
+    return this.getMetricsData(phaseResult, transformationCount);
+  }
+
+  private buildTimingDataSection(phaseResult: PhaseResult): {
+    started_at: Date;
+    completed_at?: Date;
+    duration_ms?: number;
+  } {
+    return this.getTimingData(phaseResult);
+  }
+
+  private getTransformationData(
+    transformations: unknown[],
+    appliedRules: string[],
+    phaseResult: PhaseResult,
+  ): {
+    transformations: unknown[];
+    applied_rules: string[];
+    input_sample?: unknown;
+    output_sample?: unknown;
+  } {
+    return this.buildTransformationDataHelper(
+      transformations,
+      appliedRules,
+      phaseResult,
+    );
+  }
+
+  private getMetricsData(
+    phaseResult: PhaseResult,
+    transformationCount: number,
+  ): {
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    metadata?: unknown;
+    errors: unknown[];
+    warnings: unknown[];
+  } {
+    return this.buildMetricsDataHelper(phaseResult, transformationCount);
+  }
+
+  private getTimingData(phaseResult: PhaseResult): {
+    started_at: Date;
+    completed_at?: Date;
+    duration_ms?: number;
+  } {
+    return this.buildTimingDataHelper(phaseResult);
+  }
+
+  private buildTransformationDataHelper(
+    transformations: unknown[],
+    appliedRules: string[],
+    phaseResult: PhaseResult,
+  ): {
+    transformations: unknown[];
+    applied_rules: string[];
+    input_sample?: unknown;
+    output_sample?: unknown;
+  } {
+    return this.buildTransformationData(
+      transformations,
+      appliedRules,
+      phaseResult,
+    );
+  }
+
+  private buildMetricsDataHelper(
+    phaseResult: PhaseResult,
+    transformationCount: number,
+  ): {
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    metadata?: unknown;
+    errors: unknown[];
+    warnings: unknown[];
+  } {
+    return this.buildMetricsData(phaseResult, transformationCount);
+  }
+
+  private buildTimingDataHelper(phaseResult: PhaseResult): {
+    started_at: Date;
+    completed_at?: Date;
+    duration_ms?: number;
+  } {
+    return this.buildTimingData(phaseResult);
+  }
   private extractTransformations(phaseResult: PhaseResult): unknown[] {
     return phaseResult.debug?.transformations || [];
   }
 
   private extractAppliedRules(phaseResult: PhaseResult): string[] {
     return phaseResult.debug?.rulesApplied || [];
+  }
+
+  private buildBasePhaseData(
+    jobId: string,
+    phaseResult: PhaseResult,
+  ): {
+    import_job_id: string;
+    phase: PipelinePhase;
+    status: string;
+  } {
+    return {
+      import_job_id: jobId,
+      phase: phaseResult.phase,
+      status: phaseResult.success ? 'SUCCESS' : 'FAILED',
+    };
+  }
+
+  private buildTransformationData(
+    transformations: unknown[],
+    appliedRules: string[],
+    phaseResult: PhaseResult,
+  ): {
+    transformations: unknown[];
+    applied_rules: string[];
+    input_sample?: unknown;
+    output_sample?: unknown;
+  } {
+    const samples = this.extractSamples(phaseResult);
+    return {
+      transformations,
+      applied_rules: appliedRules,
+      input_sample: samples.inputSample,
+      output_sample: samples.outputSample,
+    };
+  }
+
+  private buildMetricsData(
+    phaseResult: PhaseResult,
+    transformationCount: number,
+  ): {
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    metadata?: unknown;
+    errors: unknown[];
+    warnings: unknown[];
+  } {
+    return {
+      rows_processed: phaseResult.metrics?.recordsProcessed || 0,
+      rows_modified: transformationCount,
+      rows_failed: phaseResult.metrics?.recordsFailed || 0,
+      metadata: phaseResult.debug,
+      errors: phaseResult.errors || [],
+      warnings: phaseResult.warnings || [],
+    };
+  }
+
+  private buildTimingData(phaseResult: PhaseResult): {
+    started_at: Date;
+    completed_at?: Date;
+    duration_ms?: number;
+  } {
+    const startTime = phaseResult.metrics?.startTime || new Date();
+    const endTime = phaseResult.metrics?.endTime;
+    return {
+      started_at: startTime,
+      completed_at: endTime,
+      duration_ms: phaseResult.metrics?.durationMs || 0,
+    };
   }
 
   private extractSamples(phaseResult: PhaseResult): {
@@ -378,198 +611,69 @@ export class PipelineOrchestrator {
     return data.slice(0, sampleSize);
   }
 
-  private buildBasePhaseData(
-    jobId: string,
-    phaseResult: PhaseResult,
-  ): {
-    import_job_id: string;
-    phase: PipelinePhase;
-    status: string;
-    errors: string[];
-    warnings: string[];
-  } {
+  private buildSuccessResult(
+    context: OrchestrationContext,
+    phases: PhaseResult[],
+    metrics: OrchestrationMetrics,
+    startTime: Date,
+  ): OrchestrationResult {
     return {
-      import_job_id: jobId,
-      phase: phaseResult.phase,
-      status: phaseResult.success ? 'SUCCESS' : 'FAILED',
-      errors: phaseResult.errors,
-      warnings: phaseResult.warnings,
+      success: true,
+      jobId: context.jobId,
+      correlationId: context.correlationId,
+      phases,
+      totalDuration: new Date().getTime() - startTime.getTime(),
+      summary: metrics,
     };
   }
 
-  private buildTransformationData(
-    transformations: unknown[],
-    appliedRules: string[],
-    phaseResult: PhaseResult,
-  ): {
-    transformations: unknown[];
-    applied_rules: string[];
-    input_sample: unknown;
-    output_sample: unknown;
-  } {
-    const samples = this.extractSamples(phaseResult);
-
-    return {
-      transformations,
-      applied_rules: appliedRules,
-      input_sample: samples.inputSample,
-      output_sample: samples.outputSample,
-    };
-  }
-
-  private buildMetricsData(
-    phaseResult: PhaseResult,
-    transformationCount: number,
-  ): {
-    rows_processed: number;
-    rows_modified: number;
-    rows_failed: number;
-    metadata: unknown;
-  } {
-    return {
-      rows_processed: phaseResult.metrics?.recordsProcessed || 0,
-      rows_modified: transformationCount,
-      rows_failed: phaseResult.metrics?.recordsFailed || 0,
-      metadata: {
-        phase: phaseResult.phase,
-        warnings: phaseResult.warnings,
-      },
-    };
-  }
-
-  private buildTimingData(phaseResult: PhaseResult): {
-    started_at: Date;
-    completed_at: Date;
-    duration_ms: number;
-  } {
-    return {
-      started_at: phaseResult.metrics?.startTime || new Date(),
-      completed_at: phaseResult.metrics?.endTime || new Date(),
-      duration_ms: phaseResult.metrics?.durationMs || 0,
-    };
-  }
-
-  private logPhaseResultSaved(
-    phaseResult: PhaseResult,
-    transformations: unknown[],
-  ): void {
-    this.logger.debug(
-      `Saved phase result for ${phaseResult.phase} with ${transformations.length} transformations`,
-    );
-  }
-
-  private handlePhaseResultError(
-    phaseResult: PhaseResult,
+  private buildErrorResult(
+    context: OrchestrationContext,
     error: unknown,
-  ): void {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
-    this.logger.error(
-      `Failed to save phase result for ${phaseResult.phase}: ${errorMessage}`,
-    );
-    // Don't throw - we don't want to stop the pipeline for tracking failures
+    startTime: Date,
+  ): OrchestrationResult {
+    const baseMetrics = {
+      totalRecords: 0,
+      successfulRecords: 0,
+      failedRecords: 1,
+      phasesCompleted: 0,
+      phasesSkipped: 0,
+    };
+
+    return {
+      success: false,
+      jobId: context.jobId,
+      correlationId: context.correlationId,
+      phases: [],
+      totalDuration: new Date().getTime() - startTime.getTime(),
+      summary: baseMetrics,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 
-  private shouldStopOrchestration(
-    phaseResult: PhaseResult,
-    phase: PipelinePhase,
-  ): boolean {
-    if (!phaseResult.success && phaseResult.errors.length > 0) {
-      this.logger.error(
-        `Phase ${phase} failed critically, stopping orchestration`,
-      );
-      return true;
-    }
-    return false;
+  private shouldStopOrchestration(phaseResult: PhaseResult): boolean {
+    return !phaseResult.success;
   }
 
   private getNextPhaseData(
     phaseResult: PhaseResult,
     currentData: PhaseInputData,
   ): PhaseInputData {
-    return phaseResult.data !== undefined
-      ? (phaseResult.data as PhaseInputData)
-      : currentData;
+    return (phaseResult.data as PhaseInputData) || currentData;
   }
 
-  private buildSuccessResult(
-    orchestrationContext: { correlationId: string; jobId: string },
-    phases: PhaseResult[],
-    metrics: OrchestrationMetrics,
-    startTime: Date,
-  ): OrchestrationResult {
-    const endTime = new Date();
-    const totalDuration = endTime.getTime() - startTime.getTime();
-    const overallSuccess = phases.length > 0 && phases.every((p) => p.success);
-    const pipelinePhases = this.getPipelinePhases();
-
-    const result: OrchestrationResult = {
-      success: overallSuccess,
-      jobId: orchestrationContext.jobId,
-      correlationId: orchestrationContext.correlationId,
-      phases,
-      totalDuration,
-      summary: {
-        totalRecords: metrics.totalRecords,
-        successfulRecords: metrics.successfulRecords,
-        failedRecords: metrics.failedRecords,
-        phasesCompleted: phases.filter((p) => p.success).length,
-        phasesSkipped: pipelinePhases.length - phases.length,
-      },
-    };
-
-    this.logger.log(
-      `Orchestration completed in ${totalDuration}ms. Success: ${overallSuccess}`,
-    );
-
-    return result;
+  private logPhaseResultSaved(jobId: string, phase: string): void {
+    this.logger.debug(`Phase result saved: ${phase} for job ${jobId}`);
   }
 
-  private buildErrorResult(
-    orchestrationContext: { correlationId: string; jobId: string },
+  private handlePhaseResultError(
     error: unknown,
-    startTime: Date,
-  ): OrchestrationResult {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    this.logger.error(`Orchestration failed: ${errorMessage}`);
-
-    const endTime = new Date();
-    const pipelinePhases = this.getPipelinePhases();
-
-    return {
-      success: false,
-      jobId: orchestrationContext.jobId,
-      correlationId: orchestrationContext.correlationId,
-      phases: [],
-      totalDuration: endTime.getTime() - startTime.getTime(),
-      summary: {
-        totalRecords: 0,
-        successfulRecords: 0,
-        failedRecords: 0,
-        phasesCompleted: 0,
-        phasesSkipped: pipelinePhases.length,
-      },
-      error: errorMessage,
-    };
-  }
-
-  public async testAllPhases(): Promise<OrchestrationResult> {
-    this.logger.log('Running tracer bullet test for all phases');
-
-    // Use test data instead of real file
-    const testFileId = 'test-file-123';
-    return this.orchestrateFile(testFileId);
-  }
-
-  public getRegisteredProcessors(): Array<{
-    phase: PipelinePhase;
-    name: string;
-    description: string;
-  }> {
-    return Array.from(this.processors.values()).map((p) => ({
-      phase: p.phase,
-      name: p.name,
-      description: p.description,
-    }));
+    jobId: string,
+    phase: string,
+  ): void {
+    this.logger.error(
+      `Failed to save phase result ${phase} for job ${jobId}:`,
+      error,
+    );
   }
 }

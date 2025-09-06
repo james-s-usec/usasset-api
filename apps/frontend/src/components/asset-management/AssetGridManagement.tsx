@@ -12,7 +12,7 @@ import { BulkEditModal } from './components/BulkEditModal';
 import { useAssetGridLogic } from './hooks/useAssetGridLogic';
 import './styles/column-categories.css';
 
-const AssetManagementContent: React.FC<{
+interface AssetManagementContentProps {
   assets: Asset[];
   loading: boolean;
   error: string | null;
@@ -32,49 +32,106 @@ const AssetManagementContent: React.FC<{
   onClearSelection: () => void;
   onBulkEdit: (assets: Asset[]) => void;
   onBulkDelete: (assets: Asset[]) => void;
-}> = ({ 
-  assets, loading, error, columnDefs, components, onGridReady, onSelectionChanged,
-  onAdd, onRefresh, categories, onUpdateCategories, selectedAssets, 
-  onSelectAll, onClearSelection, onBulkEdit, onBulkDelete 
-}) => (
-  <Box sx={{ 
-    height: '100%', 
-    display: 'flex', 
-    flexDirection: 'column' 
-  }}>
-    <AssetTableHeader 
-      onAdd={onAdd}
-      onRefresh={onRefresh} 
-      loading={loading}
-      categories={categories}
-      onUpdateCategories={onUpdateCategories}
-    />
-    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-    <SelectionToolbar
-      selectedAssets={selectedAssets}
-      onSelectAll={onSelectAll}
-      onClearSelection={onClearSelection}
-      onBulkEdit={onBulkEdit}
-      onBulkDelete={onBulkDelete}
-    />
-    <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-      <AssetGrid
-        assets={assets}
-        columnDefs={columnDefs}
-        components={components}
+}
+
+const AssetManagementContent: React.FC<AssetManagementContentProps> = (props) => {
+  const {
+    assets, loading, error, columnDefs, components, onGridReady, onSelectionChanged,
+    onAdd, onRefresh, categories, onUpdateCategories, selectedAssets,
+    onSelectAll, onClearSelection, onBulkEdit, onBulkDelete
+  } = props;
+
+  return (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <AssetTableHeader 
+        onAdd={onAdd}
+        onRefresh={onRefresh} 
         loading={loading}
-        error={error}
-        onGridReady={onGridReady}
-        onSelectionChanged={onSelectionChanged}
+        categories={categories}
+        onUpdateCategories={onUpdateCategories}
       />
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <SelectionToolbar
+        selectedAssets={selectedAssets}
+        onSelectAll={onSelectAll}
+        onClearSelection={onClearSelection}
+        onBulkEdit={onBulkEdit}
+        onBulkDelete={onBulkDelete}
+      />
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <AssetGrid
+          assets={assets}
+          columnDefs={columnDefs}
+          components={components}
+          loading={loading}
+          error={error}
+          onGridReady={onGridReady}
+          onSelectionChanged={onSelectionChanged}
+        />
+      </Box>
     </Box>
-  </Box>
-);
+  );
+};
+
+// Custom hook for bulk operations logic
+const useBulkOperations = (
+  selectedAssets: Asset[],
+  bulkUpdateAssets: (updates: Partial<Asset>, ids: string[]) => Promise<{ successful: number; failed: number }>,
+  bulkDeleteAssets: (ids: string[]) => Promise<{ successful: number; failed: number }>,
+  clearSelection: () => void
+) => {
+  const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
+
+  const handleBulkEdit = (): void => {
+    setBulkEditModalOpen(true);
+  };
+
+  const handleBulkDelete = async (assets: Asset[]): Promise<void> => {
+    const confirmMessage = `Are you sure you want to delete ${assets.length} asset${assets.length > 1 ? 's' : ''}?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const result = await bulkDeleteAssets(assets.map(asset => asset.id));
+      clearSelection();
+      
+      const message = result.failed > 0
+        ? `Partially completed: ${result.successful} deleted successfully, ${result.failed} failed.`
+        : `Successfully deleted ${result.successful} asset${result.successful > 1 ? 's' : ''}`;
+      alert(message);
+    } catch (err) {
+      alert('Error deleting assets: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  const handleBulkEditSave = async (updates: Partial<Asset>): Promise<void> => {
+    try {
+      const assetIds = selectedAssets.map(asset => asset.id);
+      const result = await bulkUpdateAssets(updates, assetIds);
+      
+      setBulkEditModalOpen(false);
+      clearSelection();
+      
+      const message = result.failed > 0
+        ? `Partially completed: ${result.successful} updated successfully, ${result.failed} failed.`
+        : `Successfully updated ${result.successful} asset${result.successful > 1 ? 's' : ''}`;
+      alert(message);
+    } catch (err) {
+      alert('Error updating assets: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  return {
+    bulkEditModalOpen,
+    setBulkEditModalOpen,
+    handleBulkEdit,
+    handleBulkDelete,
+    handleBulkEditSave
+  };
+};
 
 export const AssetGridManagement: React.FC = () => {
   const { assets, loading, error, fetchAssets, deleteAsset, bulkUpdateAssets, bulkDeleteAssets } = useAssets();
   const navigate = useNavigate();
-  const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   
   const handleViewDocuments = (asset: Asset): void => {
     navigate(`/assets/${asset.id}`);
@@ -89,47 +146,15 @@ export const AssetGridManagement: React.FC = () => {
     onViewDocuments: handleViewDocuments,
   });
 
+  const {
+    bulkEditModalOpen,
+    setBulkEditModalOpen,
+    handleBulkEdit,
+    handleBulkDelete,
+    handleBulkEditSave
+  } = useBulkOperations(selectedAssets, bulkUpdateAssets, bulkDeleteAssets, clearSelection);
+
   const handleAdd = (): void => alert('Add asset functionality coming soon!');
-  
-  const handleBulkEdit = (): void => {
-    setBulkEditModalOpen(true);
-  };
-
-  const handleBulkDelete = async (assets: Asset[]): Promise<void> => {
-    const confirmMessage = `Are you sure you want to delete ${assets.length} asset${assets.length > 1 ? 's' : ''}?`;
-    if (window.confirm(confirmMessage)) {
-      try {
-        const result = await bulkDeleteAssets(assets.map(asset => asset.id));
-        clearSelection();
-        
-        if (result.failed > 0) {
-          alert(`Partially completed: ${result.successful} deleted successfully, ${result.failed} failed.`);
-        } else {
-          alert(`Successfully deleted ${result.successful} asset${result.successful > 1 ? 's' : ''}`);
-        }
-      } catch (err) {
-        alert('Error deleting assets: ' + (err instanceof Error ? err.message : 'Unknown error'));
-      }
-    }
-  };
-
-  const handleBulkEditSave = async (updates: Partial<Asset>): Promise<void> => {
-    try {
-      const assetIds = selectedAssets.map(asset => asset.id);
-      const result = await bulkUpdateAssets(updates, assetIds);
-      
-      setBulkEditModalOpen(false);
-      clearSelection();
-      
-      if (result.failed > 0) {
-        alert(`Partially completed: ${result.successful} updated successfully, ${result.failed} failed.`);
-      } else {
-        alert(`Successfully updated ${result.successful} asset${result.successful > 1 ? 's' : ''}`);
-      }
-    } catch (err) {
-      alert('Error updating assets: ' + (err instanceof Error ? err.message : 'Unknown error'));
-    }
-  };
 
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
 

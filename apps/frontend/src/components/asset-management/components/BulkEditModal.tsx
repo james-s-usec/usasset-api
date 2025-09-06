@@ -158,6 +158,151 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { key: 'verified', label: 'Verified', type: 'boolean', category: 'Verification' },
 ];
 
+// Helper function to render clear button
+const renderClearButton = (value: any, onClear: () => void): React.ReactNode => {
+  if (value === '' || value === undefined || value === null) return undefined;
+  
+  return (
+    <InputAdornment position="end">
+      <Button size="small" onClick={onClear}>
+        <Clear fontSize="small" />
+      </Button>
+    </InputAdornment>
+  );
+};
+
+// Helper function to render select field
+const renderSelectField = (
+  field: FieldDefinition,
+  value: any,
+  onChange: (value: any) => void
+): React.ReactNode => {
+  return (
+    <FormControl fullWidth size="small" key={field.key}>
+      <InputLabel>{field.label}</InputLabel>
+      <Select
+        value={value}
+        label={field.label}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <MenuItem value="">
+          <em>No change</em>
+        </MenuItem>
+        {field.options?.map(option => (
+          <MenuItem key={option} value={option}>
+            {option}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  );
+};
+
+// Helper function to render number field
+const renderNumberField = (
+  field: FieldDefinition,
+  value: any,
+  onChange: (value: any) => void,
+  onClear: () => void
+): React.ReactNode => {
+  return (
+    <TextField
+      key={field.key}
+      fullWidth
+      size="small"
+      type="number"
+      label={field.label}
+      value={value}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      placeholder="Leave empty for no change"
+      InputProps={{
+        endAdornment: renderClearButton(value, onClear)
+      }}
+    />
+  );
+};
+
+// Helper function to render text field
+const renderTextField = (
+  field: FieldDefinition,
+  value: any,
+  onChange: (value: any) => void,
+  onClear: () => void,
+  multiline: boolean = false
+): React.ReactNode => {
+  return (
+    <TextField
+      key={field.key}
+      fullWidth
+      size="small"
+      label={field.label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Leave empty for no change"
+      multiline={multiline}
+      rows={multiline ? 2 : undefined}
+      InputProps={{
+        endAdornment: renderClearButton(value, onClear)
+      }}
+    />
+  );
+};
+
+// Helper function to render date field
+const renderDateField = (
+  field: FieldDefinition,
+  value: any,
+  onChange: (value: any) => void,
+  onClear: () => void
+): React.ReactNode => {
+  return (
+    <TextField
+      key={field.key}
+      fullWidth
+      size="small"
+      type="date"
+      label={field.label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Leave empty for no change"
+      InputLabelProps={{ shrink: true }}
+      InputProps={{
+        endAdornment: renderClearButton(value, onClear)
+      }}
+    />
+  );
+};
+
+// Helper function to render boolean field
+const renderBooleanField = (
+  field: FieldDefinition,
+  value: any,
+  onChange: (value: any) => void
+): React.ReactNode => {
+  const displayValue = value === true ? 'true' : value === false ? 'false' : '';
+  
+  return (
+    <FormControl fullWidth size="small" key={field.key}>
+      <InputLabel>{field.label}</InputLabel>
+      <Select
+        value={displayValue}
+        label={field.label}
+        onChange={(e) => {
+          const newValue = e.target.value === 'true' ? true : 
+                          e.target.value === 'false' ? false : null;
+          onChange(newValue);
+        }}
+      >
+        <MenuItem value="">
+          <em>No change</em>
+        </MenuItem>
+        <MenuItem value="true">Yes</MenuItem>
+        <MenuItem value="false">No</MenuItem>
+      </Select>
+    </FormControl>
+  );
+};
+
 export const BulkEditModal: React.FC<BulkEditModalProps> = ({
   open,
   selectedAssets,
@@ -169,7 +314,7 @@ export const BulkEditModal: React.FC<BulkEditModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(['Core Information']) // Start with Core Information expanded
+    new Set(['Core Information'])
   );
 
   // Group fields by category and filter by search
@@ -190,7 +335,7 @@ export const BulkEditModal: React.FC<BulkEditModalProps> = ({
     return grouped;
   }, [searchTerm]);
 
-  const handleFieldChange = (field: keyof Asset, value: string | number | boolean | null): void => {
+  const handleFieldChange = (field: keyof Asset, value: any): void => {
     setFormData(prev => ({
       ...prev,
       [field]: value === '' || value === null ? undefined : value,
@@ -210,7 +355,9 @@ export const BulkEditModal: React.FC<BulkEditModalProps> = ({
   };
 
   const handleSave = async (): Promise<void> => {
-    const changedFields = Object.keys(formData).filter(key => formData[key as keyof Asset] !== undefined);
+    const changedFields = Object.keys(formData).filter(
+      key => formData[key as keyof Asset] !== undefined
+    );
     
     if (changedFields.length === 0) {
       setError('Please modify at least one field to update');
@@ -249,146 +396,36 @@ export const BulkEditModal: React.FC<BulkEditModalProps> = ({
 
   const renderField = (field: FieldDefinition): React.ReactNode => {
     const value = formData[field.key] ?? '';
+    const onChange = (val: any) => handleFieldChange(field.key, val);
+    const onClear = () => clearField(field.key);
     
     switch (field.type) {
       case 'select':
-        return (
-          <FormControl fullWidth size="small" key={field.key}>
-            <InputLabel>{field.label}</InputLabel>
-            <Select
-              value={value}
-              label={field.label}
-              onChange={(e) => handleFieldChange(field.key, e.target.value)}
-            >
-              <MenuItem value="">
-                <em>No change</em>
-              </MenuItem>
-              {field.options?.map(option => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        );
-      
+        return renderSelectField(field, value, onChange);
       case 'number':
-        return (
-          <TextField
-            key={field.key}
-            fullWidth
-            size="small"
-            type="number"
-            label={field.label}
-            value={value}
-            onChange={(e) => handleFieldChange(field.key, e.target.value ? Number(e.target.value) : null)}
-            placeholder="Leave empty for no change"
-            InputProps={{
-              endAdornment: value !== '' ? (
-                <InputAdornment position="end">
-                  <Button size="small" onClick={() => clearField(field.key)}>
-                    <Clear fontSize="small" />
-                  </Button>
-                </InputAdornment>
-              ) : undefined
-            }}
-          />
-        );
-      
+        return renderNumberField(field, value, onChange, onClear);
       case 'multiline':
-        return (
-          <TextField
-            key={field.key}
-            fullWidth
-            size="small"
-            label={field.label}
-            value={value}
-            onChange={(e) => handleFieldChange(field.key, e.target.value)}
-            placeholder="Leave empty for no change"
-            multiline
-            rows={2}
-            InputProps={{
-              endAdornment: value !== '' ? (
-                <InputAdornment position="end">
-                  <Button size="small" onClick={() => clearField(field.key)}>
-                    <Clear fontSize="small" />
-                  </Button>
-                </InputAdornment>
-              ) : undefined
-            }}
-          />
-        );
-      
+        return renderTextField(field, value, onChange, onClear, true);
       case 'date':
-        return (
-          <TextField
-            key={field.key}
-            fullWidth
-            size="small"
-            type="date"
-            label={field.label}
-            value={value}
-            onChange={(e) => handleFieldChange(field.key, e.target.value)}
-            placeholder="Leave empty for no change"
-            InputLabelProps={{ shrink: true }}
-            InputProps={{
-              endAdornment: value !== '' ? (
-                <InputAdornment position="end">
-                  <Button size="small" onClick={() => clearField(field.key)}>
-                    <Clear fontSize="small" />
-                  </Button>
-                </InputAdornment>
-              ) : undefined
-            }}
-          />
-        );
-      
+        return renderDateField(field, value, onChange, onClear);
       case 'boolean':
-        return (
-          <FormControl fullWidth size="small" key={field.key}>
-            <InputLabel>{field.label}</InputLabel>
-            <Select
-              value={value === true ? 'true' : value === false ? 'false' : ''}
-              label={field.label}
-              onChange={(e) => handleFieldChange(field.key, e.target.value === 'true' ? true : e.target.value === 'false' ? false : null)}
-            >
-              <MenuItem value="">
-                <em>No change</em>
-              </MenuItem>
-              <MenuItem value="true">Yes</MenuItem>
-              <MenuItem value="false">No</MenuItem>
-            </Select>
-          </FormControl>
-        );
-      
-      default: // text
-        return (
-          <TextField
-            key={field.key}
-            fullWidth
-            size="small"
-            label={field.label}
-            value={value}
-            onChange={(e) => handleFieldChange(field.key, e.target.value)}
-            placeholder="Leave empty for no change"
-            InputProps={{
-              endAdornment: value !== '' ? (
-                <InputAdornment position="end">
-                  <Button size="small" onClick={() => clearField(field.key)}>
-                    <Clear fontSize="small" />
-                  </Button>
-                </InputAdornment>
-              ) : undefined
-            }}
-          />
-        );
+        return renderBooleanField(field, value, onChange);
+      default:
+        return renderTextField(field, value, onChange, onClear, false);
     }
   };
 
-  const changedFieldsCount = Object.keys(formData).filter(key => formData[key as keyof Asset] !== undefined).length;
+  const changedFieldsCount = Object.keys(formData).filter(
+    key => formData[key as keyof Asset] !== undefined
+  ).length;
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="lg" 
+      fullWidth
+    >
       <DialogTitle>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box>

@@ -26,32 +26,32 @@ export interface UseAssetGridLogicResult {
   clearSelection: () => void;
 }
 
-export const useAssetGridLogic = ({ onEdit, onDelete, onViewDocuments }: UseAssetGridLogicProps): UseAssetGridLogicResult => {
-  const actionsCellRenderer = useActionsCellRenderer({ onEdit, onDelete, onViewDocuments });
-  const statusCellRenderer = useStatusCellRenderer();
-  const components = useGridComponents(actionsCellRenderer, statusCellRenderer);
-
-  // State for managing column categories and selection
+// Custom hook for managing grid state and categories
+const useGridState = () => {
   const [categories, setCategories] = useState<ColumnCategory[]>(() => columnCategories);
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
   const [gridApi, setGridApi] = useState<GridApi<Asset> | null>(null);
 
-  // Generate column definitions from enabled categories
-  const columnDefs = useMemo((): ColDef[] => {
-    return getEnabledColumns(categories);
-  }, [categories]);
-
-  // Update categories function
-  const updateCategories = (newCategories: ColumnCategory[]): void => {
+  const updateCategories = useCallback((newCategories: ColumnCategory[]): void => {
     setCategories(newCategories);
-  };
+  }, []);
 
-  // Selection handling
   const onSelectionChanged = useCallback((selectedRows: Asset[]): void => {
     setSelectedAssets(selectedRows);
   }, []);
 
-  // Bulk selection functions
+  return {
+    categories,
+    selectedAssets,
+    gridApi,
+    updateCategories,
+    onSelectionChanged,
+    setGridApi
+  };
+};
+
+// Custom hook for grid operations
+const useGridOperations = (gridApi: GridApi<Asset> | null) => {
   const selectAll = useCallback((): void => {
     gridApi?.selectAll();
   }, [gridApi]);
@@ -60,10 +60,37 @@ export const useAssetGridLogic = ({ onEdit, onDelete, onViewDocuments }: UseAsse
     gridApi?.deselectAll();
   }, [gridApi]);
 
-  const onGridReady = (params: GridReadyEvent): void => {
-    setGridApi(params.api);
+  const onGridReady = useCallback((params: GridReadyEvent): void => {
     params.api.sizeColumnsToFit();
-  };
+  }, []);
+
+  return { selectAll, clearSelection, onGridReady };
+};
+
+export const useAssetGridLogic = ({ onEdit, onDelete, onViewDocuments }: UseAssetGridLogicProps): UseAssetGridLogicResult => {
+  const actionsCellRenderer = useActionsCellRenderer({ onEdit, onDelete, onViewDocuments });
+  const statusCellRenderer = useStatusCellRenderer();
+  const components = useGridComponents(actionsCellRenderer, statusCellRenderer);
+
+  const {
+    categories,
+    selectedAssets,
+    gridApi,
+    updateCategories,
+    onSelectionChanged,
+    setGridApi
+  } = useGridState();
+
+  const { selectAll, clearSelection, onGridReady: handleGridReady } = useGridOperations(gridApi);
+
+  const columnDefs = useMemo((): ColDef[] => {
+    return getEnabledColumns(categories);
+  }, [categories]);
+
+  const onGridReady = useCallback((params: GridReadyEvent): void => {
+    setGridApi(params.api);
+    handleGridReady(params);
+  }, [handleGridReady, setGridApi]);
 
   return { 
     columnDefs, 

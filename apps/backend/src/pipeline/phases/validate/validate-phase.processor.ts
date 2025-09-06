@@ -9,10 +9,7 @@ import {
   PhaseMetrics,
   FIELD_NAMES,
 } from '../../orchestrator/phase-processor.interface';
-
-const MAX_ERROR_DISPLAY_LIMIT = 20;
-const MAX_WARNING_DISPLAY_LIMIT = 10;
-const MAX_SAMPLE_SIZE = 5;
+import { PROCESSING_CONSTANTS } from '../../constants/processing.constants';
 
 // Options interface to reduce parameters
 interface SuccessResultOptions {
@@ -135,7 +132,7 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
     const warnings: string[] = [];
 
     // Required field validation
-    this.validateRequiredFields(row, errors);
+    this.validateRequiredFields();
 
     // Data type validation
     this.validateDataTypes(row, errors, warnings);
@@ -149,11 +146,11 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
   /**
    * Validate required fields
    */
-  private validateRequiredFields(row: AssetRowData, errors: string[]): void {
+  private validateRequiredFields(): void {
     // TEMPORARILY DISABLE STRICT VALIDATION TO TEST RULES ENGINE
     // The data will flow through to CLEAN phase regardless of field names
     // This allows us to test if rules are being applied properly
-    
+
     // TODO: Fix field mapping order (MAP should run before VALIDATE)
     // For now, let everything pass validation
     return;
@@ -338,11 +335,11 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
     const debug = this.buildDebugInfo(options.validationResults);
     const limitedErrors = this.limitArray(
       options.allErrors,
-      MAX_ERROR_DISPLAY_LIMIT,
+      PROCESSING_CONSTANTS.MAX_ERROR_DISPLAY_LIMIT,
     );
     const limitedWarnings = this.limitArray(
       options.allWarnings,
-      MAX_WARNING_DISPLAY_LIMIT,
+      PROCESSING_CONSTANTS.MAX_WARNING_DISPLAY_LIMIT,
     );
 
     return {
@@ -389,7 +386,7 @@ export class ValidatePhaseProcessor implements PhaseProcessor {
     return {
       validationResults: validationResults.validationResults.slice(
         0,
-        MAX_SAMPLE_SIZE,
+        PROCESSING_CONSTANTS.MAX_SAMPLE_SIZE,
       ),
     };
   }

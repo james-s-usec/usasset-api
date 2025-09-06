@@ -27,39 +27,62 @@ interface UseUsersApiReturn {
   deleteUser: (user: UserData) => Promise<void>;
 }
 
-const useFetchUsers = (props: UseUsersApiProps, fetchLogger: ReturnType<typeof createFetchLogger>): (() => Promise<void>) => {
-  const { setUsers, setLoading, setError } = props;
+// Custom hook for managing abort controller
+const useAbortController = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const cancelPreviousRequest = (): void => {
+  const cancelPreviousRequest = useCallback((): void => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-  };
+  }, []);
 
-  const createNewController = (): AbortController => {
+  const createNewController = useCallback((): AbortController => {
     abortControllerRef.current = new AbortController();
     return abortControllerRef.current;
-  };
+  }, []);
 
-  const handleSuccess = (response: { data: { users: UserData[]; }; correlationId: string; }, controller: AbortController): void => {
+  return { cancelPreviousRequest, createNewController };
+};
+
+// Custom hook for handling fetch response states
+const useFetchResponseHandlers = (
+  setUsers: (users: UserData[]) => void,
+  setLoading: (loading: boolean) => void,
+  setError: (error: string | null) => void,
+  fetchLogger: ReturnType<typeof createFetchLogger>
+) => {
+  const handleSuccess = useCallback((response: { data: { users: UserData[]; }; correlationId: string; }, controller: AbortController): void => {
     if (!controller.signal.aborted) {
       setUsers(response.data.users);
       fetchLogger.logFetchSuccess(response.data.users.length, response.correlationId);
     }
-  };
+  }, [setUsers, fetchLogger]);
 
-  const handleError = (err: unknown, controller: AbortController): void => {
+  const handleError = useCallback((err: unknown, controller: AbortController): void => {
     if (!controller.signal.aborted) {
       setError(fetchLogger.logFetchError(err));
     }
-  };
+  }, [setError, fetchLogger]);
 
-  const handleFinally = (controller: AbortController): void => {
+  const handleFinally = useCallback((controller: AbortController): void => {
     if (!controller.signal.aborted) {
       setLoading(false);
     }
-  };
+  }, [setLoading]);
+
+  return { handleSuccess, handleError, handleFinally };
+};
+
+const useFetchUsers = (props: UseUsersApiProps, fetchLogger: ReturnType<typeof createFetchLogger>): (() => Promise<void>) => {
+  const { setUsers, setLoading, setError } = props;
+  const { cancelPreviousRequest, createNewController } = useAbortController();
+  const { handleSuccess, handleError, handleFinally } = useFetchResponseHandlers(
+    setUsers,
+    setLoading, 
+    setError,
+    fetchLogger
+  );
   
   return useCallback(async (): Promise<void> => {
     cancelPreviousRequest();
@@ -77,7 +100,7 @@ const useFetchUsers = (props: UseUsersApiProps, fetchLogger: ReturnType<typeof c
     } finally {
       handleFinally(controller);
     }
-  }, [setUsers, setLoading, setError, fetchLogger, handleSuccess, handleError, handleFinally]);
+  }, [cancelPreviousRequest, createNewController, fetchLogger, setLoading, setError, handleSuccess, handleError, handleFinally]);
 };
 
 const useCreateUser = (fetchUsers: () => Promise<void>, setError: (error: string | null) => void): ((data: CreateUserRequest) => Promise<void>) => {

@@ -8,9 +8,7 @@ import {
   PhaseDebugInfo,
 } from '../../orchestrator/phase-processor.interface';
 
-const CONSTANTS = {
-  DEFAULT_BATCH_SIZE: 10,
-};
+import { PROCESSING_CONSTANTS } from '../../constants/processing.constants';
 
 interface LoadResult {
   action: string;
@@ -19,12 +17,10 @@ interface LoadResult {
   error?: string;
 }
 
-// Interface removed - not used in current implementation
-
 interface Transformation {
   field: string;
-  before: string;
-  after: string;
+  before: unknown;
+  after: unknown;
 }
 
 @Injectable()
@@ -37,9 +33,9 @@ export class LoadPhaseProcessor implements PhaseProcessor {
   private readonly logger = new Logger(LoadPhaseProcessor.name);
 
   // Configuration constants
-  private readonly BATCH_SIZE = CONSTANTS.DEFAULT_BATCH_SIZE;
+  private readonly BATCH_SIZE = PROCESSING_CONSTANTS.DEFAULT_BATCH_SIZE;
   private readonly RULES = {
-    BATCH_SIZE: `BATCH_SIZE (${CONSTANTS.DEFAULT_BATCH_SIZE})`,
+    BATCH_SIZE: `BATCH_SIZE (${PROCESSING_CONSTANTS.DEFAULT_BATCH_SIZE})`,
     CONFLICT_RESOLUTION: 'CONFLICT_RESOLUTION (upsert)',
     TRANSACTION_BOUNDARY: 'TRANSACTION_BOUNDARY (per batch)',
   };
