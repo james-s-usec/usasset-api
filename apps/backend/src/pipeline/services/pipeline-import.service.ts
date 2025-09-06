@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PipelineRepository } from '../repositories/pipeline.repository';
-import { AssetStatus, AssetCondition, Prisma } from '@prisma/client';
+import {
+  AssetStatus,
+  AssetCondition,
+  Prisma,
+  PipelinePhase,
+} from '@prisma/client';
 import { ImportJobResult } from '../interfaces/pipeline-types';
 import { CsvParserService } from './csv-parser.service';
 
@@ -31,6 +36,16 @@ interface MappedField {
   confidence: number;
 }
 
+interface LogPhaseOptions {
+  jobId: string;
+  phase: PipelinePhase;
+  status: 'SUCCESS' | 'FAILED';
+  rowsProcessed: number;
+  inputData?: unknown[];
+  outputData?: unknown[];
+  transformations?: string[];
+}
+
 interface FieldMappingResult {
   mappedFields: MappedField[];
   unmappedFields: string[];
@@ -58,57 +73,79 @@ export class PipelineImportService {
   public async processImport(jobId: string, fileId: string): Promise<void> {
     try {
       await this.startImportJob(jobId);
-
-      // EXTRACT phase
-      const parseResult = await this.csvParser.parseFileFromBlob(fileId);
-      await this.logPhaseResult(
-        jobId,
-        'EXTRACT',
-        'SUCCESS',
-        parseResult.rows.length,
-        [],
-        parseResult.rows,
-        [
-          'CSV parsed successfully',
-          `Extracted ${parseResult.rows.length} rows`,
-        ],
-      );
+      const parseResult = await this.executeExtractPhase(jobId, fileId);
 
       if (this.shouldFailImport(parseResult)) {
-        await this.logPhaseResult(
-          jobId,
-          'VALIDATE',
-          'FAILED',
-          0,
-          parseResult.rows,
-          [],
-          ['Validation failed: no valid rows found', ...parseResult.errors],
-        );
-        await this.failImportJob(jobId, parseResult.errors);
+        await this.handleFailedValidation(jobId, parseResult);
         return;
       }
 
-      // VALIDATE phase
-      const validatedRows = parseResult.rows.filter(
-        (row) => Object.keys(row).length > 0,
-      );
-      await this.logPhaseResult(
-        jobId,
-        'VALIDATE',
-        'SUCCESS',
-        validatedRows.length,
-        parseResult.rows,
-        validatedRows,
-        [
-          'Data validation completed',
-          `${validatedRows.length} valid rows out of ${parseResult.rows.length}`,
-        ],
-      );
-
+      const validatedRows = await this.executeValidatePhase(jobId, parseResult);
       await this.processAndStageData(jobId, parseResult, validatedRows);
     } catch (error) {
       await this.handleImportError(jobId, error);
     }
+  }
+
+  private async executeExtractPhase(
+    jobId: string,
+    fileId: string,
+  ): Promise<{ errors: string[]; rows: Record<string, string>[] }> {
+    const parseResult = await this.csvParser.parseFileFromBlob(fileId);
+    await this.logPhaseResult({
+      jobId,
+      phase: 'EXTRACT',
+      status: 'SUCCESS',
+      rowsProcessed: parseResult.rows.length,
+      inputData: [],
+      outputData: parseResult.rows,
+      transformations: [
+        'CSV parsed successfully',
+        `Extracted ${parseResult.rows.length} rows`,
+      ],
+    });
+    return parseResult;
+  }
+
+  private async handleFailedValidation(
+    jobId: string,
+    parseResult: { rows: Record<string, string>[]; errors: string[] },
+  ): Promise<void> {
+    await this.logPhaseResult({
+      jobId,
+      phase: 'VALIDATE',
+      status: 'FAILED',
+      rowsProcessed: 0,
+      inputData: parseResult.rows,
+      outputData: [],
+      transformations: [
+        'Validation failed: no valid rows found',
+        ...parseResult.errors,
+      ],
+    });
+    await this.failImportJob(jobId, parseResult.errors);
+  }
+
+  private async executeValidatePhase(
+    jobId: string,
+    parseResult: { rows: Record<string, string>[] },
+  ): Promise<Record<string, string>[]> {
+    const validatedRows = parseResult.rows.filter(
+      (row) => Object.keys(row).length > 0,
+    );
+    await this.logPhaseResult({
+      jobId,
+      phase: 'VALIDATE',
+      status: 'SUCCESS',
+      rowsProcessed: validatedRows.length,
+      inputData: parseResult.rows,
+      outputData: validatedRows,
+      transformations: [
+        'Data validation completed',
+        `${validatedRows.length} valid rows out of ${parseResult.rows.length}`,
+      ],
+    });
+    return validatedRows;
   }
 
   private async startImportJob(jobId: string): Promise<void> {
@@ -117,40 +154,77 @@ export class PipelineImportService {
     });
   }
 
-  private async logPhaseResult(
+  private async logPhaseResult(options: LogPhaseOptions): Promise<void> {
+    const { jobId, phase, inputData, outputData } = options;
+
+    try {
+      const phaseData = this.buildPhaseResultData(options);
+      await this.pipelineRepository.savePhaseResult(phaseData);
+      this.logPhaseResultDebug(jobId, phase, inputData, outputData);
+    } catch (error) {
+      this.handlePhaseResultError(error);
+    }
+  }
+
+  // eslint-disable-next-line max-lines-per-function
+  private buildPhaseResultData(options: LogPhaseOptions): {
+    import_job_id: string;
+    phase: PipelinePhase;
+    status: string;
+    transformations: unknown[];
+    applied_rules: string[];
+    input_sample?: unknown;
+    output_sample?: unknown;
+    rows_processed: number;
+    rows_modified: number;
+    rows_failed: number;
+    started_at: Date;
+    completed_at?: Date;
+    duration_ms?: number;
+  } {
+    const {
+      jobId,
+      phase,
+      status,
+      transformations,
+      rowsProcessed,
+      inputData,
+      outputData,
+    } = options;
+    const sampleSize = 3;
+    const now = new Date();
+
+    return {
+      import_job_id: jobId,
+      phase: phase,
+      status,
+      transformations: transformations || [`${phase} completed`],
+      applied_rules: [],
+      input_sample: inputData?.slice(0, sampleSize),
+      output_sample: outputData?.slice(0, sampleSize),
+      rows_processed: rowsProcessed,
+      rows_modified: outputData ? outputData.length : 0,
+      rows_failed: 0,
+      started_at: now,
+      completed_at: now,
+      duration_ms: 0,
+    };
+  }
+
+  private logPhaseResultDebug(
     jobId: string,
-    phase: 'EXTRACT' | 'VALIDATE' | 'CLEAN' | 'TRANSFORM' | 'MAP' | 'LOAD',
-    status: 'SUCCESS' | 'FAILED',
-    rowsProcessed: number,
+    phase: string,
     inputData?: unknown[],
     outputData?: unknown[],
-    transformations?: string[],
-  ): Promise<void> {
-    try {
-      const sampleSize = 3;
-      await this.pipelineRepository.savePhaseResult({
-        import_job_id: jobId,
-        phase,
-        status,
-        transformations: transformations || [`${phase} completed`],
-        applied_rules: [],
-        rows_processed: rowsProcessed,
-        rows_modified: outputData ? outputData.length : 0,
-        rows_failed: 0,
-        input_sample: inputData?.slice(0, sampleSize) || null,
-        output_sample: outputData?.slice(0, sampleSize) || null,
-        started_at: new Date(),
-        completed_at: new Date(),
-        duration_ms: 0,
-      });
-      this.logger.debug(
-        `Logged ${phase} phase result for job ${jobId} with ${inputData?.length || 0} input rows and ${outputData?.length || 0} output rows`,
-      );
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Failed to log phase result: ${errorMessage}`);
-    }
+  ): void {
+    this.logger.debug(
+      `Logged ${phase} phase result for job ${jobId} with ${inputData?.length || 0} input rows and ${outputData?.length || 0} output rows`,
+    );
+  }
+
+  private handlePhaseResultError(error: unknown): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logger.warn(`Failed to log phase result: ${errorMessage}`);
   }
 
   private cleanData(rows: Record<string, string>[]): Record<string, string>[] {
@@ -184,70 +258,98 @@ export class PipelineImportService {
     parseResult: { errors: string[]; rows: Record<string, string>[] },
     validatedRows: Record<string, string>[],
   ): Promise<void> {
-    // CLEAN phase - simulate data cleaning
-    const cleanedRows = this.cleanData(validatedRows);
-    await this.logPhaseResult(
-      jobId,
-      'CLEAN',
-      'SUCCESS',
-      cleanedRows.length,
-      validatedRows,
-      cleanedRows,
-      ['Data cleaning completed', 'Trimmed whitespace and normalized values'],
-    );
-
-    // TRANSFORM phase - process CSV rows
-    const { stagingAssets, errors, processedCount } = await this.processCsvRows(
-      jobId,
-      cleanedRows,
-    );
-
-    await this.logPhaseResult(
-      jobId,
-      'TRANSFORM',
-      'SUCCESS',
-      processedCount,
-      cleanedRows,
-      stagingAssets.map((asset) => asset.mapped_data),
-      ['Data transformation completed', `Processed ${processedCount} rows`],
-    );
-
-    // MAP phase - field mapping is done during processCsvRows
-    await this.logPhaseResult(
-      jobId,
-      'MAP',
-      'SUCCESS',
-      stagingAssets.length,
-      stagingAssets.map((asset) => asset.raw_data),
-      stagingAssets.map((asset) => asset.mapped_data),
-      [
-        'Field mapping completed',
-        `Mapped ${stagingAssets.length} records to asset schema`,
-      ],
-    );
-
-    // LOAD phase - save to staging
-    if (stagingAssets.length > 0) {
-      await this.pipelineRepository.createStagingAssets(stagingAssets);
-
-      await this.logPhaseResult(
-        jobId,
-        'LOAD',
-        'SUCCESS',
-        stagingAssets.length,
-        stagingAssets.map((asset) => asset.mapped_data),
-        stagingAssets,
-        [
-          'Data loading completed',
-          `Loaded ${stagingAssets.length} assets to staging`,
-        ],
-      );
-    }
-
+    const cleanedRows = await this.executeCleanPhase(jobId, validatedRows);
+    const { stagingAssets, errors, processedCount } =
+      await this.executeTransformPhase(jobId, cleanedRows);
+    await this.executeMapPhase(jobId, stagingAssets);
+    await this.executeLoadPhase(jobId, stagingAssets);
     await this.completeImportJob(jobId, parseResult, processedCount, [
       ...parseResult.errors,
       ...errors,
     ]);
+  }
+
+  private async executeCleanPhase(
+    jobId: string,
+    validatedRows: Record<string, string>[],
+  ): Promise<Record<string, string>[]> {
+    const cleanedRows = this.cleanData(validatedRows);
+    await this.logPhaseResult({
+      jobId,
+      phase: 'CLEAN',
+      status: 'SUCCESS',
+      rowsProcessed: cleanedRows.length,
+      inputData: validatedRows,
+      outputData: cleanedRows,
+      transformations: [
+        'Data cleaning completed',
+        'Trimmed whitespace and normalized values',
+      ],
+    });
+    return cleanedRows;
+  }
+
+  private async executeTransformPhase(
+    jobId: string,
+    cleanedRows: Record<string, string>[],
+  ): Promise<{
+    stagingAssets: Prisma.StagingAssetCreateManyInput[];
+    errors: string[];
+    processedCount: number;
+  }> {
+    const result = await this.processCsvRows(jobId, cleanedRows);
+    await this.logPhaseResult({
+      jobId,
+      phase: 'TRANSFORM',
+      status: 'SUCCESS',
+      rowsProcessed: result.processedCount,
+      inputData: cleanedRows,
+      outputData: result.stagingAssets.map((asset) => asset.mapped_data),
+      transformations: [
+        'Data transformation completed',
+        `Processed ${result.processedCount} rows`,
+      ],
+    });
+    return result;
+  }
+
+  private async executeMapPhase(
+    jobId: string,
+    stagingAssets: Prisma.StagingAssetCreateManyInput[],
+  ): Promise<void> {
+    await this.logPhaseResult({
+      jobId,
+      phase: 'MAP',
+      status: 'SUCCESS',
+      rowsProcessed: stagingAssets.length,
+      inputData: stagingAssets.map((asset) => asset.raw_data),
+      outputData: stagingAssets.map((asset) => asset.mapped_data),
+      transformations: [
+        'Field mapping completed',
+        `Mapped ${stagingAssets.length} records to asset schema`,
+      ],
+    });
+  }
+
+  private async executeLoadPhase(
+    jobId: string,
+    stagingAssets: Prisma.StagingAssetCreateManyInput[],
+  ): Promise<void> {
+    if (stagingAssets.length > 0) {
+      await this.pipelineRepository.createStagingAssets(stagingAssets);
+      await this.logPhaseResult({
+        jobId,
+        phase: 'LOAD',
+        status: 'SUCCESS',
+        rowsProcessed: stagingAssets.length,
+        inputData: stagingAssets.map((asset) => asset.mapped_data),
+        outputData: stagingAssets,
+        transformations: [
+          'Data loading completed',
+          `Loaded ${stagingAssets.length} assets to staging`,
+        ],
+      });
+    }
   }
 
   private async completeImportJob(

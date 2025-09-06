@@ -237,6 +237,7 @@ DELETE /logs                        # Delete all log entries
 
 ### **What Gets Logged Automatically**
 - ✅ **All HTTP requests** with response times
+- ✅ **All controller operations** via BusinessLogicInterceptor (START/COMPLETE/FAILED)
 - ✅ **All errors** with full stack traces  
 - ✅ **Validation errors** with field details
 - ✅ **Database operations** (via Prisma query logging)
@@ -244,6 +245,35 @@ DELETE /logs                        # Delete all log entries
 - ✅ **Performance metrics** (response times, slow queries)
 - ✅ **User agents and IP addresses**
 - ✅ **Correlation IDs** for request tracing
+- ✅ **Frontend operations** sent via DebugLogger service
+
+### **BusinessLogicInterceptor - Comprehensive Operation Logging**
+**Status**: ✅ **FULLY OPERATIONAL** - Captures ALL controller operations automatically
+
+The BusinessLogicInterceptor provides complete visibility into backend operations:
+
+```typescript
+// Automatic logging for EVERY controller method:
+🎯 STARTING ControllerName.methodName    // Operation start
+✅ COMPLETED ControllerName.methodName in 45ms  // Success with timing  
+❌ FAILED ControllerName.methodName after 123ms // Error with timing
+```
+
+**Captures**:
+- Operation start/complete/failure with precise timing
+- Full request inputs (body, params, query)  
+- Complete response data
+- Error details with stack traces
+- Correlation IDs for request tracing
+
+**Example Log Entries**:
+```bash
+# View recent controller operations
+curl "http://localhost:3000/logs?limit=10" | jq '.data.logs[] | select(.message | contains("STARTING\\|COMPLETED\\|FAILED"))'
+
+# Trace specific operation by correlation ID  
+curl "http://localhost:3000/logs?correlationId=abc123"
+```
 
 ### **Correlation ID Tracing**
 Every request gets a unique correlation ID that appears in:

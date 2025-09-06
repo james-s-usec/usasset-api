@@ -54,11 +54,26 @@ const handleSaveRule = async (
     }
   } catch (err) {
     state.setError('Failed to save rule');
-    console.error('Error saving rule:', err);
+    const { DebugLogger } = await import('../../../../services/debug-logger');
+    DebugLogger.logError('Rules Editor: Save rule failed', err, { ruleData, editingRule });
     return false;
   } finally {
     state.setLoading(false);
   }
+};
+
+// Helper to process delete response
+const processDeleteResponse = async (
+  data: { success: boolean; error?: { message?: string } },
+  state: RulesState,
+  loadRules: () => Promise<void>
+): Promise<boolean> => {
+  if (data.success) {
+    await loadRules();
+    return true;
+  }
+  state.setError(data.error?.message || 'Failed to delete rule');
+  return false;
 };
 
 const handleDeleteRule = async (
@@ -74,19 +89,11 @@ const handleDeleteRule = async (
     const response = await fetch(`${API_BASE_URL}/api/pipeline/rules/${ruleId}`, {
       method: 'DELETE'
     });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      await loadRules();
-      return true;
-    } else {
-      state.setError(data.error?.message || 'Failed to delete rule');
-      return false;
-    }
+    return await processDeleteResponse(await response.json(), state, loadRules);
   } catch (err) {
     state.setError('Failed to delete rule');
-    console.error('Error deleting rule:', err);
+    const { DebugLogger } = await import('../../../../services/debug-logger');
+    DebugLogger.logError('Rules Editor: Delete rule failed', err, { ruleId });
     return false;
   } finally {
     state.setLoading(false);
@@ -126,7 +133,8 @@ const handleToggleRuleActive = async (
     }
   } catch (err) {
     state.setError('Failed to toggle rule');
-    console.error('Error toggling rule:', err);
+    const { DebugLogger } = await import('../../../../services/debug-logger');
+    DebugLogger.logError('Rules Editor: Toggle rule failed', err, { ruleId, isActive });
     return false;
   } finally {
     state.setLoading(false);

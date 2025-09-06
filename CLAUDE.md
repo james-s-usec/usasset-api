@@ -61,7 +61,8 @@ USAsset3/
 - 🏗️ **[Infrastructure Documentation](./infra/CLAUDE.md)** - Azure Bicep templates, deployment guide
 - 🚀 **[Deployment SOP](./docs/DEPLOYMENT_SOP.md)** - THE ONLY deployment guide (step-by-step, troubleshooting)
 - 📋 **[CLI Usage Guide](./docs/CLI_USAGE_GUIDE.md)** - Complete CLI commands and workflow reference
-- 🦆 **[Debugging Guide](./docs/DEBUGGING_GUIDE.md)** - Rubber duck debugging, troubleshooting commands
+- 🦆 **[Debugging Guide](./docs/troubleshooing/DEBUGGING_GUIDE.md)** - Rubber duck debugging, troubleshooting commands
+- 🚫 **[Console.log Elimination SOP](./docs/CONSOLE_LOG_ELIMINATION_SOP.md)** - Systematic replacement of console.log with structured logging
 - 📚 **[Pragmatic Principles](./docs/PRAGMATIC_PRINCIPLES.md)** - Pragmatic Programmer principles applied
 
 ### 🔧 Feature-Specific Documentation
@@ -303,6 +304,54 @@ Common mistakes to avoid:
 | CORS errors | Backend auto-configured, if persists check CORS_ORIGIN env var |
 | Database connection failed | Check Key Vault: `az keyvault secret show --vault-name usasset-kv-yf2eqktewmxp2 --name database-connection-string` |
 | Frontend not updating | Follow DEPLOYMENT_SOP.md - rebuild and deploy frontend |
+
+## 🚫 CONSOLE.LOG ELIMINATION - COMPLETED
+**Status**: ✅ **ZERO console.log statements** remaining in production code (as of 2025-09-06)
+
+### What We Achieved
+- ✅ **Complete frontend operation visibility** in backend logs via BusinessLogicInterceptor
+- ✅ **Automatic error capture** with full context, stack traces, and correlation IDs
+- ✅ **Structured logging** replaces all console.log debugging
+- ✅ **Searchable operation history** via `/logs` API endpoint
+- ✅ **Request tracing** with correlation IDs across frontend/backend
+
+### Implementation Details
+- **Frontend**: All console.error statements replaced with `DebugLogger.logError()` calls
+- **Backend**: BusinessLogicInterceptor captures ALL controller operations automatically
+- **Files Updated**: useRulesEditor.ts (3 statements), useRulesLoader.ts (2 statements)
+- **Pattern**: Dynamic imports with contextual metadata: `const { DebugLogger } = await import('../../../../services/debug-logger');`
+
+### Usage for New Code
+```typescript
+// NEVER use console.log - use DebugLogger instead
+try {
+  // API operation
+} catch (err) {
+  const { DebugLogger } = await import('../../../services/debug-logger');
+  DebugLogger.logError('Component: Operation failed', err, {
+    endpoint: '/api/endpoint',
+    method: 'GET',
+    context: 'componentName.functionName'
+  });
+}
+```
+
+### Debugging Commands
+```bash
+# Find recent errors
+curl "http://localhost:3000/logs?level=ERROR&limit=10"
+
+# Trace a request by correlation ID
+curl "http://localhost:3000/logs?correlationId=abc123"
+
+# Monitor API performance
+curl "http://localhost:3000/logs" | jq '.data.logs[] | select(.metadata.duration > 100)'
+```
+
+### Maintenance Rule
+- **Code Review Checklist**: No console.log statements in new code
+- **Error Handling**: All try/catch blocks must use DebugLogger.logError
+- **Testing**: Verify logging works before committing code
 
 ## Miscellaneous Notes
 multiple MCP servers configured. - review the files here: "\\wsl.localhost\Ubuntu\home\swansonj\.config\claude\mcp" if having issues. 

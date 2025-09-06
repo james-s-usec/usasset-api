@@ -28,7 +28,10 @@ interface UseUsersApiReturn {
 }
 
 // Custom hook for managing abort controller
-const useAbortController = () => {
+const useAbortController = (): {
+  cancelPreviousRequest: () => void;
+  createNewController: () => AbortController;
+} => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const cancelPreviousRequest = useCallback((): void => {
@@ -51,7 +54,11 @@ const useFetchResponseHandlers = (
   setLoading: (loading: boolean) => void,
   setError: (error: string | null) => void,
   fetchLogger: ReturnType<typeof createFetchLogger>
-) => {
+): {
+  handleSuccess: (response: { data: { users: UserData[]; }; correlationId: string; }, controller: AbortController) => void;
+  handleError: (err: unknown, controller: AbortController) => void;
+  handleFinally: (controller: AbortController) => void;
+} => {
   const handleSuccess = useCallback((response: { data: { users: UserData[]; }; correlationId: string; }, controller: AbortController): void => {
     if (!controller.signal.aborted) {
       setUsers(response.data.users);

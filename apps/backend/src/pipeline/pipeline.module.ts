@@ -16,6 +16,7 @@ import { PipelineRepository } from './repositories/pipeline.repository';
 import { RuleEngineService } from './services/rule-engine.service';
 import { RuleProcessorFactory } from './services/rule-processor.factory';
 import { PipelineOrchestrator } from './orchestrator/pipeline-orchestrator.service';
+import { PhaseProcessorFactory } from './factories/phase-processor.factory';
 
 // Phase processors
 import { ExtractPhaseProcessor } from './phases/extract/extract-phase.processor';
@@ -29,33 +30,6 @@ import { LoadPhaseProcessor } from './phases/load/load-phase.processor';
  * Initialize orchestrator with all phase processors
  * Factory function to register processors with orchestrator
  */
-interface ProcessorSet {
-  extractProcessor: ExtractPhaseProcessor;
-  validateProcessor: ValidatePhaseProcessor;
-  cleanProcessor: CleanPhaseProcessor;
-  transformProcessor: TransformPhaseProcessor;
-  mapProcessor: MapPhaseProcessor;
-  loadProcessor: LoadPhaseProcessor;
-}
-
-function initializeOrchestrator(
-  orchestrator: PipelineOrchestrator,
-  processors: ProcessorSet,
-): string {
-  // Register all processors
-  const processorArray = [
-    processors.extractProcessor,
-    processors.validateProcessor,
-    processors.cleanProcessor,
-    processors.transformProcessor,
-    processors.mapProcessor,
-    processors.loadProcessor,
-  ];
-  processorArray.forEach((processor) => {
-    orchestrator.registerProcessor(processor);
-  });
-  return 'INITIALIZED';
-}
 
 @Module({
   imports: [ConfigModule, DatabaseModule, FilesModule],
@@ -87,36 +61,8 @@ function initializeOrchestrator(
     MapPhaseProcessor,
     LoadPhaseProcessor,
 
-    // Orchestrator initialization provider
-    {
-      provide: 'PIPELINE_ORCHESTRATOR_INIT',
-      useFactory: (
-        orchestrator: PipelineOrchestrator,
-        extractProcessor: ExtractPhaseProcessor,
-        validateProcessor: ValidatePhaseProcessor,
-        cleanProcessor: CleanPhaseProcessor,
-        transformProcessor: TransformPhaseProcessor,
-        mapProcessor: MapPhaseProcessor,
-        loadProcessor: LoadPhaseProcessor,
-      ) =>
-        initializeOrchestrator(orchestrator, {
-          extractProcessor,
-          validateProcessor,
-          cleanProcessor,
-          transformProcessor,
-          mapProcessor,
-          loadProcessor,
-        }),
-      inject: [
-        PipelineOrchestrator,
-        ExtractPhaseProcessor,
-        ValidatePhaseProcessor,
-        CleanPhaseProcessor,
-        TransformPhaseProcessor,
-        MapPhaseProcessor,
-        LoadPhaseProcessor,
-      ],
-    },
+    // Phase processor factory for orchestrator initialization
+    PhaseProcessorFactory,
 
     // Rule engine services
     RuleEngineService,

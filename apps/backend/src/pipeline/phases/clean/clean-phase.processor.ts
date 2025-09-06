@@ -55,12 +55,13 @@ export class CleanPhaseProcessor implements PhaseProcessor {
 
       const result = await this.processRows(data, context);
 
-      return this.createSuccessResult(
+      return this.createSuccessResult({
         startTime,
-        result.cleanedData,
-        result.transformations,
-        result.rulesApplied,
-      );
+        context,
+        cleanedData: result.cleanedData,
+        transformations: result.transformations,
+        rulesApplied: result.rulesApplied,
+      });
     } catch (error) {
       return PipelineErrorHandler.createPhaseResult(
         this.phase,
@@ -252,45 +253,50 @@ export class CleanPhaseProcessor implements PhaseProcessor {
     });
   }
 
-  private createSuccessResult(
-    startTime: Date,
-    cleanedData: CleanedData,
-    transformations: Transformation[],
-    rulesApplied: string[],
-  ): PhaseResult {
+  private createSuccessResult(options: {
+    startTime: Date;
+    context: PhaseContext;
+    cleanedData: CleanedData;
+    transformations: Transformation[];
+    rulesApplied: string[];
+  }): PhaseResult {
     const endTime = new Date();
-    const durationMs = endTime.getTime() - startTime.getTime();
-    const recordsProcessed = this.getRecordsProcessed(cleanedData);
+    const durationMs = endTime.getTime() - options.startTime.getTime();
+    const recordsProcessed = this.getRecordsProcessed(options.cleanedData);
 
-    this.logPhaseCompletion(recordsProcessed, durationMs);
+    this.logPhaseCompletion(
+      options.context.correlationId,
+      recordsProcessed,
+      durationMs,
+    );
 
     return {
       success: true,
       phase: this.phase,
-      data: cleanedData,
+      data: options.cleanedData,
       errors: [],
       warnings: [],
       metrics: this.buildMetrics(
-        startTime,
+        options.startTime,
         endTime,
         durationMs,
         recordsProcessed,
       ),
-      debug: this.buildDebugInfo(rulesApplied, transformations),
+      debug: this.buildDebugInfo(options.rulesApplied, options.transformations),
     };
   }
 
   private logPhaseCompletion(
+    correlationId: string,
     recordsProcessed: number,
     durationMs: number,
   ): void {
-    PipelineLogger.logPhaseComplete(
-      this.logger,
-      this.phase,
-      'completed', // correlationId would need to be passed here
-      recordsProcessed,
+    PipelineLogger.logPhaseComplete(this.logger, {
+      phase: this.phase,
+      correlationId,
+      recordCount: recordsProcessed,
       durationMs,
-    );
+    });
   }
 
   private getRecordsProcessed(cleanedData: CleanedData): number {

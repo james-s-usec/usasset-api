@@ -92,7 +92,54 @@ const BulkActions: React.FC<{
 const getToolbarBackgroundColor = (hasSelection: boolean): string => 
   hasSelection ? '#e3f2fd' : '#f5f5f5';
 
-// Main component - now much simpler with reduced complexity
+// Component for conditional bulk actions section
+const ConditionalBulkSection: React.FC<{
+  hasSelection: boolean;
+  selectedAssets: Asset[];
+  selectedCount: number;
+  onBulkEdit?: (assets: Asset[]) => void;
+  onBulkDelete?: (assets: Asset[]) => void;
+}> = ({ hasSelection, selectedAssets, selectedCount, onBulkEdit, onBulkDelete }) => {
+  if (!hasSelection) return null;
+  
+  return (
+    <>
+      <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+      <BulkActions
+        selectedAssets={selectedAssets}
+        selectedCount={selectedCount}
+        onBulkEdit={onBulkEdit}
+        onBulkDelete={onBulkDelete}
+      />
+      <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary' }}>
+        {selectedCount} of {selectedCount} asset{selectedCount !== 1 ? 's' : ''} selected
+      </Typography>
+    </>
+  );
+};
+
+// Component for the main toolbar container
+const ToolbarContainer: React.FC<{
+  hasSelection: boolean;
+  children: React.ReactNode;
+}> = ({ hasSelection, children }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 2,
+      p: 1,
+      backgroundColor: getToolbarBackgroundColor(hasSelection),
+      borderRadius: 1,
+      transition: 'background-color 0.2s ease',
+      mb: 1,
+    }}
+  >
+    {children}
+  </Box>
+);
+
+// Main component - simplified with extracted conditional section
 export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
   selectedAssets,
   onSelectAll,
@@ -104,38 +151,20 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
   const hasSelection = selectedCount > 0;
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 2,
-        p: 1,
-        backgroundColor: getToolbarBackgroundColor(hasSelection),
-        borderRadius: 1,
-        transition: 'background-color 0.2s ease',
-        mb: 1,
-      }}
-    >
+    <ToolbarContainer hasSelection={hasSelection}>
       <SelectionCountChip count={selectedCount} hasSelection={hasSelection} />
       <SelectionControls 
         onSelectAll={onSelectAll}
         onClearSelection={onClearSelection}
         hasSelection={hasSelection}
       />
-      {hasSelection && (
-        <>
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-          <BulkActions
-            selectedAssets={selectedAssets}
-            selectedCount={selectedCount}
-            onBulkEdit={onBulkEdit}
-            onBulkDelete={onBulkDelete}
-          />
-          <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary' }}>
-            {selectedCount} of {selectedCount} asset{selectedCount !== 1 ? 's' : ''} selected
-          </Typography>
-        </>
-      )}
-    </Box>
+      <ConditionalBulkSection
+        hasSelection={hasSelection}
+        selectedAssets={selectedAssets}
+        selectedCount={selectedCount}
+        onBulkEdit={onBulkEdit}
+        onBulkDelete={onBulkDelete}
+      />
+    </ToolbarContainer>
   );
 };

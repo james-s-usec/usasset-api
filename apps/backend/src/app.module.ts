@@ -11,6 +11,8 @@ import { DatabaseLoggerModule } from './common/database-logger.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
+import { BusinessLogicInterceptor } from './common/interceptors/business-logic.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LogsModule } from './logs/logs.module';
 import { ProjectModule } from './features/projects/project.module';
 import { FilesModule } from './files/files.module';
@@ -44,7 +46,15 @@ import { PipelineModule } from './pipeline/pipeline.module';
     PipelineModule,
   ],
   controllers: [AppController],
-  providers: [AppService, GlobalExceptionFilter, ResponseTransformInterceptor],
+  providers: [
+    AppService,
+    GlobalExceptionFilter,
+    ResponseTransformInterceptor,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: BusinessLogicInterceptor,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   public configure(consumer: MiddlewareConsumer): void {

@@ -3,10 +3,46 @@
 ## Overview
 This guide provides debugging techniques and custom commands for effective problem-solving in the USAsset project using Claude Code.
 
+## 🎯 **AUTOMATIC BUSINESS LOGIC LOGGING** 
+
+### ✅ **NO MORE CONSOLE.LOG DEBUGGING!**
+The system now automatically captures ALL business operations in the database logs. Every controller method is logged with:
+
+- **🎯 STARTING** - Operation begins with input parameters
+- **✅ COMPLETED** - Successful completion with output data and timing  
+- **❌ FAILED** - Errors with full context, stack traces, and input data
+
+### How to Use the Complete Logging System
+
+#### Get Full Operation Story
+```bash
+# Any failed request gives you a correlation ID
+curl http://localhost:3000/api/assets/invalid-id
+# Returns: {"correlationId": "abc-123"}
+
+# Get complete story for that request
+curl "http://localhost:3000/logs?correlationId=abc-123"
+# Shows: STARTING → HTTP details → FAILED → Full stack trace
+```
+
+#### Debug Any Operation
+```bash
+# List recent errors across all operations
+curl "http://localhost:3000/logs?level=ERROR&limit=20"
+
+# See business logic for specific operations  
+curl "http://localhost:3000/logs" | grep "STARTING\|COMPLETED\|FAILED"
+
+# Trace performance issues
+curl "http://localhost:3000/logs" | grep "ms" | sort
+```
+
 ## 🦆 Rubber Duck Debugging Protocol
 
 ### What is Rubber Duck Debugging?
 A debugging technique from "The Pragmatic Programmer" where you explain your problem step-by-step to an inanimate object (traditionally a rubber duck). The act of verbalizing forces you to think through the problem systematically.
+
+**NOTE**: With the new automatic logging, you may not need rubber duck debugging as much since the logs now tell you the complete story!
 
 ### How to Use with Claude Code
 

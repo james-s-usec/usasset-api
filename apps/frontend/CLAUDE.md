@@ -173,10 +173,66 @@ VITE_API_URL=https://new-backend-url.com
 
 ### Debug API calls
 ```bash
-# Open browser DevTools
-# Network tab shows all API requests
-# Console shows any errors
+# NEVER use console.log - use structured logging instead
+# Check backend logs: curl "http://localhost:3000/logs?level=ERROR&limit=10"
+# Trace requests: curl "http://localhost:3000/logs?correlationId=abc123"
+# All frontend errors automatically sent to backend logs
 ```
+
+## 🚫 LOGGING AND DEBUGGING - CONSOLE.LOG ELIMINATED
+
+### Status: ✅ ZERO console.log statements (as of 2025-09-06)
+All console.log debugging has been **completely eliminated** and replaced with structured logging that automatically appears in backend logs.
+
+### Logging Pattern for New Code
+```typescript
+// ❌ NEVER DO THIS
+console.error('Error occurred:', error);
+
+// ✅ ALWAYS DO THIS
+try {
+  // API operation
+} catch (err) {
+  const { DebugLogger } = await import('../../../services/debug-logger');
+  DebugLogger.logError('Component: Operation failed', err, {
+    endpoint: '/api/endpoint',
+    method: 'GET',
+    context: 'componentName.functionName'
+  });
+  // User-facing error handling...
+}
+```
+
+### Available DebugLogger Methods
+```typescript
+// Error logging (most common)
+DebugLogger.logError(message, error, context);
+
+// Info logging for successful operations
+DebugLogger.logInfo(message, context);
+
+// UI event tracking
+DebugLogger.logUIEvent(event, details);
+```
+
+### Why This System is Better
+- ✅ **All logs searchable** via `/logs` API endpoint
+- ✅ **Correlation ID tracking** connects frontend actions to backend operations
+- ✅ **Structured metadata** with full context
+- ✅ **No more console.log spam** in browser DevTools
+- ✅ **Automatic error capture** with stack traces
+- ✅ **Performance timing** included automatically
+
+### Implementation Examples
+Files already updated following this pattern:
+- `useRulesEditor.ts`: 3 console.error → DebugLogger.logError
+- `useRulesLoader.ts`: 2 console.error → DebugLogger.logError
+
+### Code Review Checklist
+- [ ] No console.log statements in new code
+- [ ] All try/catch blocks use DebugLogger.logError
+- [ ] Error context includes relevant metadata
+- [ ] Test logging works before committing
 
 ## TypeScript Configuration
 - Strict mode enabled

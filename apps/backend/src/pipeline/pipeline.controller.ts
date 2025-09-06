@@ -40,9 +40,7 @@ export class PipelineController {
   public async startImport(
     @Param('fileId') fileId: string,
   ): Promise<{ jobId: string; message: string }> {
-    console.log(`🎯 CONTROLLER startImport called with fileId: ${fileId}`);
     const jobId = await this.pipelineService.startImport(fileId);
-    console.log(`🎯 CONTROLLER startImport completed with jobId: ${jobId}`);
     return { jobId, message: 'Import started successfully' };
   }
 

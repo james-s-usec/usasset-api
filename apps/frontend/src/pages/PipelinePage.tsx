@@ -89,10 +89,14 @@ const useImportState = (): {
 
 // API call logic - extracted to reduce complexity
 const performImport = async (selectedFile: string): Promise<string> => {
-  console.log('[PipelinePage] Starting import for file:', selectedFile);
+  const { DebugLogger } = await import('../services/debug-logger');
+  DebugLogger.logInfo('PipelinePage: Starting import', { selectedFile });
+  
   const result = await pipelineApi.startImport(selectedFile);
-  console.log('[PipelinePage] API returned result:', result);
-  console.log('[PipelinePage] JobId from result:', result?.jobId);
+  DebugLogger.logInfo('PipelinePage: Import started', { 
+    result,
+    jobId: result?.jobId 
+  });
   
   if (!result?.jobId) {
     throw new Error('No jobId returned from API');
@@ -108,7 +112,10 @@ const createImportHandler = (
   setCurrentJobId: (id: string | null) => void
 ) => async (): Promise<void> => {
   if (!selectedFile) {
-    console.error('No file selected');
+    const { DebugLogger } = await import('../services/debug-logger');
+    DebugLogger.logError('PipelinePage: No file selected', new Error('No file selected'), {
+      context: 'startImport'
+    });
     setImportError('No file selected');
     return;
   }
@@ -117,9 +124,13 @@ const createImportHandler = (
   try {
     const jobId = await performImport(selectedFile);
     setCurrentJobId(jobId);
-    console.log('[PipelinePage] JobId set to state:', jobId);
+    const { DebugLogger } = await import('../services/debug-logger');
+    DebugLogger.logInfo('PipelinePage: Job ID set to state', { jobId });
   } catch (error) {
-    console.error('Failed to start import:', error);
+    const { DebugLogger } = await import('../services/debug-logger');
+    DebugLogger.logError('PipelinePage: Failed to start import', error, {
+      selectedFile
+    });
     setImportError(error instanceof Error ? error.message : 'Failed to start import');
   }
 };

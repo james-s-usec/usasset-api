@@ -7,7 +7,10 @@ import { PipelineJobService } from './services/pipeline-job.service';
 import { PipelineValidationService } from './services/pipeline-validation.service';
 import { PipelineImportService } from './services/pipeline-import.service';
 import { RuleEngineService } from './services/rule-engine.service';
-import { PipelineOrchestrator } from './orchestrator/pipeline-orchestrator.service';
+import {
+  PipelineOrchestrator,
+  OrchestrationResult,
+} from './orchestrator/pipeline-orchestrator.service';
 import { PipelineRule, PipelinePhase, RuleType } from '@prisma/client';
 import {
   FileMetadata,
@@ -111,18 +114,15 @@ export class PipelineService {
     );
 
     if (useOrchestrator) {
-      await this.executeWithOrchestrator(fileId, jobId);
+      this.executeWithOrchestrator(fileId, jobId);
     } else {
-      await this.executeWithLegacyPath(jobId, fileId);
+      this.executeWithLegacyPath(jobId, fileId);
     }
 
     return jobId;
   }
 
-  private async executeWithOrchestrator(
-    fileId: string,
-    jobId: string,
-  ): Promise<void> {
+  private executeWithOrchestrator(fileId: string, jobId: string): void {
     this.logger.warn(`🚀 USING ORCHESTRATOR PATH`);
 
     this.pipelineOrchestrator
@@ -138,7 +138,7 @@ export class PipelineService {
 
   private async handleOrchestrationResult(
     jobId: string,
-    result: any,
+    result: OrchestrationResult,
   ): Promise<void> {
     this.logger.warn(
       `🚀 ORCHESTRATOR COMPLETED FOR JOB ${jobId}: success=${result.success}`,
@@ -149,10 +149,7 @@ export class PipelineService {
     this.logger.warn(`🚀 JOB ${jobId} MARKED AS ${status}`);
   }
 
-  private async executeWithLegacyPath(
-    jobId: string,
-    fileId: string,
-  ): Promise<void> {
+  private executeWithLegacyPath(jobId: string, fileId: string): void {
     this.logger.warn(`🚀 USING LEGACY PATH`);
     this.pipelineImportService
       .processImport(jobId, fileId)

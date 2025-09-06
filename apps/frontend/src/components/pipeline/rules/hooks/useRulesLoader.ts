@@ -31,7 +31,12 @@ const createRulesLoader = (state: RulesState) => async (): Promise<void> => {
       state.setRules(response.data?.rules || []);
     } catch (err) {
       state.setError('Failed to load rules');
-      console.error('Error loading rules:', err);
+      const { DebugLogger } = await import('../../../../services/debug-logger');
+      DebugLogger.logError('Pipeline API: Load rules failed', err, {
+        endpoint: '/api/pipeline/rules',
+        method: 'GET',
+        context: 'useRulesLoader.createRulesLoader'
+      });
     }
   });
 };
@@ -44,7 +49,12 @@ const createJobsLoader = (state: RulesState) => async (): Promise<void> => {
       state.setJobs(response.data?.jobs || []);
     } catch (err) {
       state.setError('Failed to load jobs');
-      console.error('Error loading jobs:', err);
+      const { DebugLogger } = await import('../../../../services/debug-logger');
+      DebugLogger.logError('Pipeline API: Load jobs failed', err, {
+        endpoint: '/api/pipeline/jobs',
+        method: 'GET',
+        context: 'useRulesLoader.createJobsLoader'
+      });
     }
   });
 };

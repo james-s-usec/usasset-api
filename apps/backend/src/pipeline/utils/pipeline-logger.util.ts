@@ -4,7 +4,7 @@ import { PipelinePhase } from '@prisma/client';
 export class PipelineLogger {
   public static logPhaseStart(
     logger: Logger,
-    phase: string | PipelinePhase,
+    phase: PipelinePhase,
     correlationId: string,
   ): void {
     logger.debug(`[${correlationId}] Starting ${phase} phase`);
@@ -12,26 +12,30 @@ export class PipelineLogger {
 
   public static logPhaseComplete(
     logger: Logger,
-    phase: string | PipelinePhase,
-    correlationId: string,
-    recordCount?: number,
-    durationMs?: number,
+    options: {
+      phase: PipelinePhase;
+      correlationId: string;
+      recordCount?: number;
+      durationMs?: number;
+    },
   ): void {
     const metrics = [];
-    if (recordCount !== undefined) {
-      metrics.push(`${recordCount} records`);
+    if (options.recordCount !== undefined) {
+      metrics.push(`${options.recordCount} records`);
     }
-    if (durationMs !== undefined) {
-      metrics.push(`${durationMs}ms`);
+    if (options.durationMs !== undefined) {
+      metrics.push(`${options.durationMs}ms`);
     }
 
     const metricsStr = metrics.length > 0 ? `: ${metrics.join(', ')}` : '';
-    logger.debug(`[${correlationId}] ${phase} completed${metricsStr}`);
+    logger.debug(
+      `[${options.correlationId}] ${options.phase} completed${metricsStr}`,
+    );
   }
 
   public static logPhaseError(
     logger: Logger,
-    phase: string | PipelinePhase,
+    phase: PipelinePhase,
     correlationId: string,
     error: unknown,
   ): void {
@@ -51,27 +55,33 @@ export class PipelineLogger {
 
   public static logRuleApplication(
     logger: Logger,
-    correlationId: string,
-    ruleName: string,
-    targetField: string,
-    success: boolean,
+    options: {
+      correlationId: string;
+      ruleName: string;
+      targetField: string;
+      success: boolean;
+    },
   ): void {
-    const status = success ? 'Applied' : 'Failed to apply';
+    const status = options.success ? 'Applied' : 'Failed to apply';
     logger.debug(
-      `[${correlationId}] ${status} rule: ${ruleName} to ${targetField}`,
+      `[${options.correlationId}] ${status} rule: ${options.ruleName} to ${options.targetField}`,
     );
   }
 
   public static logBatchProcessing(
     logger: Logger,
-    correlationId: string,
-    batchNumber: number,
-    batchSize: number,
-    totalBatches?: number,
+    options: {
+      correlationId: string;
+      batchNumber: number;
+      batchSize: number;
+      totalBatches?: number;
+    },
   ): void {
-    const progress = totalBatches ? ` (${batchNumber}/${totalBatches})` : '';
+    const progress = options.totalBatches
+      ? ` (${options.batchNumber}/${options.totalBatches})`
+      : '';
     logger.debug(
-      `[${correlationId}] Processing batch ${batchNumber}${progress}: ${batchSize} items`,
+      `[${options.correlationId}] Processing batch ${options.batchNumber}${progress}: ${options.batchSize} items`,
     );
   }
 }

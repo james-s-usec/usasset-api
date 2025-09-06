@@ -1,10 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { PipelinePhase } from '@prisma/client';
+import { PhaseResult } from '../orchestrator/phase-processor.interface';
 
 export class PipelineErrorHandler {
   public static handlePhaseError(
     error: unknown,
-    phase: string | PipelinePhase,
+    phase: PipelinePhase,
     correlationId: string,
     logger?: Logger,
   ): never {
@@ -24,19 +25,21 @@ export class PipelineErrorHandler {
 
   public static handleRuleError(
     error: unknown,
-    ruleName: string,
-    fieldName: string,
-    correlationId: string,
-    logger?: Logger,
+    options: {
+      ruleName: string;
+      fieldName: string;
+      correlationId: string;
+      logger?: Logger;
+    },
   ): string {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const contextualMessage = `Rule '${ruleName}' failed on field '${fieldName}': ${errorMessage}`;
+    const contextualMessage = `Rule '${options.ruleName}' failed on field '${options.fieldName}': ${errorMessage}`;
 
-    if (logger) {
-      logger.warn(`[${correlationId}] ${contextualMessage}`, {
-        ruleName,
-        fieldName,
-        correlationId,
+    if (options.logger) {
+      options.logger.warn(`[${options.correlationId}] ${contextualMessage}`, {
+        ruleName: options.ruleName,
+        fieldName: options.fieldName,
+        correlationId: options.correlationId,
         error: error instanceof Error ? error.stack : error,
       });
     }
@@ -66,19 +69,21 @@ export class PipelineErrorHandler {
 
   public static handleBatchError(
     error: unknown,
-    batchNumber: number,
-    batchSize: number,
-    correlationId: string,
-    logger?: Logger,
+    options: {
+      batchNumber: number;
+      batchSize: number;
+      correlationId: string;
+      logger?: Logger;
+    },
   ): string {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const contextualMessage = `Batch ${batchNumber} (${batchSize} items) failed: ${errorMessage}`;
+    const contextualMessage = `Batch ${options.batchNumber} (${options.batchSize} items) failed: ${errorMessage}`;
 
-    if (logger) {
-      logger.error(`[${correlationId}] ${contextualMessage}`, {
-        batchNumber,
-        batchSize,
-        correlationId,
+    if (options.logger) {
+      options.logger.error(`[${options.correlationId}] ${contextualMessage}`, {
+        batchNumber: options.batchNumber,
+        batchSize: options.batchSize,
+        correlationId: options.correlationId,
         error: error instanceof Error ? error.stack : error,
       });
     }
@@ -90,38 +95,49 @@ export class PipelineErrorHandler {
     phase: PipelinePhase,
     error: unknown,
     correlationId: string,
-  ): {
-    success: false;
-    phase: PipelinePhase;
-    data: Record<string, unknown>;
-    errors: string[];
-    warnings: string[];
-    metrics: {
-      startTime: Date;
-      endTime: Date;
-      durationMs: number;
-      recordsProcessed: 0;
-      recordsSuccess: 0;
-      recordsFailed: 1;
-    };
-  } {
-    const now = new Date();
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
+  ): PhaseResult {
     return {
-      success: false,
+      success: false as const,
       phase,
       data: {},
-      errors: [`[${correlationId}] ${phase} failed: ${errorMessage}`],
+      errors: this.buildErrorArray(
+        phase,
+        correlationId,
+        this.extractErrorMessage(error),
+      ),
       warnings: [],
-      metrics: {
-        startTime: now,
-        endTime: now,
-        durationMs: 0,
-        recordsProcessed: 0,
-        recordsSuccess: 0,
-        recordsFailed: 1,
-      },
+      metrics: this.buildFailedMetrics(),
+    };
+  }
+
+  private static extractErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  private static buildErrorArray(
+    phase: PipelinePhase,
+    correlationId: string,
+    errorMessage: string,
+  ): string[] {
+    return [`[${correlationId}] ${phase} failed: ${errorMessage}`];
+  }
+
+  private static buildFailedMetrics(): {
+    startTime: Date;
+    endTime: Date;
+    durationMs: number;
+    recordsProcessed: 0;
+    recordsSuccess: 0;
+    recordsFailed: 1;
+  } {
+    const now = new Date();
+    return {
+      startTime: now,
+      endTime: now,
+      durationMs: 0,
+      recordsProcessed: 0,
+      recordsSuccess: 0,
+      recordsFailed: 1,
     };
   }
 }
